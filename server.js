@@ -14,7 +14,7 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-mongoose.connect("mongodb://127.0.0.1:27017/promotores");
+mongoose.connect("mongodb+srv://admin:Promotores123@cluster0.xxxxx.mongodb.net/promotores");
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {

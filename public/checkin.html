@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Check In Promotor</title>
+</head>
+
+<body>
+
+<h2>Check In de Promotor</h2>
+
+<button onclick="checkin()">Hacer Check In</button>
+
+<p id="resultado"></p>
+
+<script>
+
+function checkin(){
+
+navigator.geolocation.getCurrentPosition(async function(pos){
+
+const data = {
+
+lat: pos.coords.latitude,
+lng: pos.coords.longitude
+
+}
+
+const res = await fetch("http://localhost:3000/checkin",{
+
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+
+body: JSON.stringify(data)
+
+})
+
+const result = await res.json()
+
+document.getElementById("resultado").innerText = result.message
+
+})
+
+}
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Subir Foto</title>
+</head>
+
+<body>
+
+<h2>Subir Foto de Exhibición</h2>
+
+<input type="file" id="photo">
+
+<br><br>
+
+<button onclick="subir()">Subir Foto</button>
+
+<p id="resultado"></p>
+
+<script>
+
+async function subir(){
+
+const fileInput = document.getElementById("photo")
+
+const formData = new FormData()
+
+formData.append("photo", fileInput.files[0])
+
+const res = await fetch("http://localhost:3000/upload-photo",{
+
+method:"POST",
+body:formData
+
+})
+
+const data = await res.json()
+
+document.getElementById("resultado").innerText = data.message
+
+}
+
+</script>
+
+</body>
+
+</html>

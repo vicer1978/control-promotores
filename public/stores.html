@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Mapa de Tiendas</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+<style>
+#map{
+height:500px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h2>Registrar Tienda en el Mapa</h2>
+
+<div id="map"></div>
+
+<br>
+
+<input type="text" id="name" placeholder="Nombre de la tienda">
+<input type="text" id="address" placeholder="Dirección">
+
+<button onclick="guardar()">Guardar tienda</button>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+var latSeleccionada
+var lngSeleccionada
+
+var map = L.map('map').setView([20.67,-103.35],13)
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
+}).addTo(map)
+
+var marker
+
+map.on("click", function(e){
+
+latSeleccionada = e.latlng.lat
+lngSeleccionada = e.latlng.lng
+
+if(marker){
+map.removeLayer(marker)
+}
+
+marker = L.marker([latSeleccionada,lngSeleccionada]).addTo(map)
+
+})
+
+async function guardar(){
+
+const data = {
+
+name: document.getElementById("name").value,
+address: document.getElementById("address").value,
+lat: latSeleccionada,
+lng: lngSeleccionada
+
+}
+
+await fetch("http://localhost:3000/stores",{
+
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+
+body: JSON.stringify(data)
+
+})
+
+alert("Tienda guardada")
+
+}
+
+</script>
+
+</body>
+
+</html>

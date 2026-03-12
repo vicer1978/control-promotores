@@ -2,10 +2,76 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Control Promotores</title>
+  <title>Login y Registro - StorePulse</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    input { display: block; margin: 10px 0; padding: 8px; width: 300px; }
+    button { padding: 10px 20px; cursor: pointer; }
+    h1 { margin-top: 40px; }
+  </style>
 </head>
 <body>
-  <h1>¡API funcionando!</h1>
-  <p>Prueba tus endpoints desde Postman o tu frontend.</p>
+
+  <h1>Registro</h1>
+  <form id="registerForm">
+    <input type="text" name="name" placeholder="Nombre" required />
+    <input type="email" name="email" placeholder="Correo" required />
+    <input type="password" name="password" placeholder="Contraseña" required />
+    <button type="submit">Registrar</button>
+  </form>
+
+  <h1>Login</h1>
+  <form id="loginForm">
+    <input type="email" name="email" placeholder="Correo" required />
+    <input type="password" name="password" placeholder="Contraseña" required />
+    <button type="submit">Ingresar</button>
+  </form>
+
+  <script>
+    const API = ""; // Rutas relativas, ya que frontend y backend están en el mismo dominio
+
+    // Registro
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      try {
+        const res = await fetch(`${API}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: form.name.value,
+            email: form.email.value,
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        alert(JSON.stringify(data));
+        form.reset();
+      } catch (err) {
+        alert("Error al registrar: " + err);
+      }
+    });
+
+    // Login
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      try {
+        const res = await fetch(`${API}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: form.email.value,
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        alert(JSON.stringify(data));
+        form.reset();
+      } catch (err) {
+        alert("Error al hacer login: " + err);
+      }
+    });
+  </script>
 </body>
 </html>

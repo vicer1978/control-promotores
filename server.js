@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-require("dotenv").config();
+require("dotenv").config(); // Cargar variables de entorno
 
 const User = require("./models/User");
 const Store = require("./models/Store");
@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 3000;
 
 // Conexión a MongoDB Atlas
 const mongoUri = process.env.MONGO_URI;
+
 if (!mongoUri) {
   console.error("❌ ERROR: No se encontró la variable de entorno MONGO_URI");
   process.exit(1);
@@ -42,7 +43,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// -------------------- RUTAS DE API --------------------
+// --- RUTAS API ---
 
 // Registro de usuarios
 app.post("/register", async (req, res) => {
@@ -153,12 +154,28 @@ app.get("/user-stores/:id", async (req, res) => {
   }
 });
 
-// -------------------- SERVIR FRONTEND --------------------
+// --- SERVIR FRONTEND SPA ---
+// Middleware compatible con Express 5
+app.use((req, res, next) => {
+  const apiRoutes = [
+    "/register",
+    "/login",
+    "/users",
+    "/stores",
+    "/checkin",
+    "/upload-photo",
+    "/assign-store",
+    "/user-stores",
+  ];
 
-// Cualquier ruta que **no sea API** devuelve index.html
-app.get("*", (req, res) => {
+  // Si la ruta comienza con alguna de las rutas de API, pasar al siguiente middleware
+  if (apiRoutes.some((r) => req.path.startsWith(r))) {
+    return next();
+  }
+
+  // Para cualquier otra ruta, servir index.html
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// -------------------- INICIAR SERVIDOR --------------------
+// --- INICIAR SERVIDOR ---
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

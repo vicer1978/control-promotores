@@ -14,7 +14,10 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-mongoose.connect("mongodb+srv://admin:Promotores123@cluster0.ayvbpnb.mongodb.net/promotores");
+mongoose
+  .connect("mongodb+srv://admin:Promotores123@cluster0.ayvbpnb.mongodb.net/promotores")
+  .then(() => console.log("MongoDB conectado"))
+  .catch((err) => console.log("Error al conectar MongoDB:", err));
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {

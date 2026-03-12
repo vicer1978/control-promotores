@@ -1,55 +1,52 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-<title>Registro Promotores</title>
+  <title>Registro Promotores</title>
 </head>
-
 <body>
 
 <h2>Registrar Promotor</h2>
 
 <form id="form">
-
-<input type="text" id="name" placeholder="Nombre" required>
-<br><br>
-
-<input type="email" id="email" placeholder="Email" required>
-<br><br>
-
-<input type="password" id="password" placeholder="Password" required>
-<br><br>
-
-<button type="submit">Registrar</button>
-
+  <input type="text" id="name" placeholder="Nombre" required>
+  <br><br>
+  <input type="email" id="email" placeholder="Email" required>
+  <br><br>
+  <input type="password" id="password" placeholder="Password" required>
+  <br><br>
+  <button type="submit">Registrar</button>
 </form>
 
+<p><a href="login.html">Ya tengo cuenta</a></p>
+
 <script>
+const API_URL = "https://storepulse.onrender.com";
 
 document.getElementById("form").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const data = {
+    name: document.getElementById("name").value,
+    email: document.getElementById("email").value,
+    password: document.getElementById("password").value
+  };
 
-e.preventDefault()
+  try {
+    const res = await fetch(`${API_URL}/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
 
-const data = {
-name: document.getElementById("name").value,
-email: document.getElementById("email").value,
-password: document.getElementById("password").value
-}
+    const result = await res.json();
+    alert(result.message || result.error);
+    if(result.message) window.location = "login.html";
 
-await fetch("http://localhost:3000/register",{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body: JSON.stringify(data)
-})
-
-alert("Usuario registrado")
-
-})
-
+  } catch (err) {
+    alert("Error conectando con la API");
+    console.error(err);
+  }
+});
 </script>
 
 </body>
-
 </html>

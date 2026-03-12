@@ -1,68 +1,32 @@
 <!DOCTYPE html>
 <html>
-
-<head>
-<title>Panel Administrador</title>
-<link rel="manifest" href="manifest.json">
-</head>
-
 <body>
 
-<h1>PANEL ADMIN</h1>
+<h2>Panel Admin</h2>
 
-<h2>Promotores</h2>
+<button onclick="loadUsers()">Ver Usuarios</button>
 <ul id="users"></ul>
 
-<h2>Tiendas</h2>
-<ul id="stores"></ul>
-
 <script>
+const API_URL = "https://storepulse.onrender.com";
 
-async function cargarUsuarios(){
-
-const res = await fetch("http://localhost:3000/users")
-
-const users = await res.json()
-
-const lista = document.getElementById("users")
-
-users.forEach(user => {
-
-const li = document.createElement("li")
-
-li.innerText = user.name + " - " + user.email
-
-lista.appendChild(li)
-
-})
-
+async function loadUsers(){
+  try {
+    const res = await fetch(`${API_URL}/users`);
+    const users = await res.json();
+    const ul = document.getElementById("users");
+    ul.innerHTML = "";
+    users.forEach(u => {
+      const li = document.createElement("li");
+      li.textContent = `${u.name} (${u.email}) - ${u.role || "promotor"}`;
+      ul.appendChild(li);
+    });
+  } catch(err) {
+    alert("Error cargando usuarios");
+    console.error(err);
+  }
 }
-
-async function cargarTiendas(){
-
-const res = await fetch("http://localhost:3000/stores")
-
-const stores = await res.json()
-
-const lista = document.getElementById("stores")
-
-stores.forEach(store => {
-
-const li = document.createElement("li")
-
-li.innerText = store.name + " - " + store.address
-
-lista.appendChild(li)
-
-})
-
-}
-
-cargarUsuarios()
-cargarTiendas()
-
 </script>
 
 </body>
-
 </html>

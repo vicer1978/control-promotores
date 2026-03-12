@@ -1,52 +1,40 @@
 <!DOCTYPE html>
 <html>
-
-<head>
-<title>Check In Promotor</title>
-</head>
-
 <body>
 
-<h2>Check In de Promotor</h2>
+<h2>Check-in Promotor</h2>
 
-<button onclick="checkin()">Hacer Check In</button>
-
-<p id="resultado"></p>
+Lat: <input id="lat" type="number" step="any" placeholder="Latitud">
+<br><br>
+Lng: <input id="lng" type="number" step="any" placeholder="Longitud">
+<br><br>
+<button onclick="checkin()">Hacer Check-in</button>
+<br><br>
+<a href="upload.html">Subir foto</a>
 
 <script>
+const API_URL = "https://storepulse.onrender.com";
 
-function checkin(){
+async function checkin(){
+  const lat = parseFloat(document.getElementById("lat").value);
+  const lng = parseFloat(document.getElementById("lng").value);
 
-navigator.geolocation.getCurrentPosition(async function(pos){
+  try {
+    const res = await fetch(`${API_URL}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng })
+    });
 
-const data = {
+    const data = await res.json();
+    alert(data.message);
 
-lat: pos.coords.latitude,
-lng: pos.coords.longitude
-
+  } catch (err) {
+    alert("Error conectando con la API");
+    console.error(err);
+  }
 }
-
-const res = await fetch("http://localhost:3000/checkin",{
-
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-
-body: JSON.stringify(data)
-
-})
-
-const result = await res.json()
-
-document.getElementById("resultado").innerText = result.message
-
-})
-
-}
-
 </script>
 
 </body>
-
 </html>

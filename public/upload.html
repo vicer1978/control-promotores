@@ -1,47 +1,38 @@
 <!DOCTYPE html>
 <html>
-
-<head>
-<title>Subir Foto</title>
-</head>
-
 <body>
 
-<h2>Subir Foto de Exhibición</h2>
+<h2>Subir Foto</h2>
 
-<input type="file" id="photo">
-
-<br><br>
-
-<button onclick="subir()">Subir Foto</button>
-
-<p id="resultado"></p>
+<form id="form" enctype="multipart/form-data">
+  <input type="file" id="photo" name="photo" required>
+  <br><br>
+  <button type="submit">Subir</button>
+</form>
 
 <script>
+const API_URL = "https://storepulse.onrender.com";
 
-async function subir(){
+document.getElementById("form").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const formData = new FormData();
+  formData.append("photo", document.getElementById("photo").files[0]);
 
-const fileInput = document.getElementById("photo")
+  try {
+    const res = await fetch(`${API_URL}/upload-photo`, {
+      method: "POST",
+      body: formData
+    });
 
-const formData = new FormData()
+    const data = await res.json();
+    alert(data.message || data.error);
 
-formData.append("photo", fileInput.files[0])
-
-const res = await fetch("http://localhost:3000/upload-photo",{
-
-method:"POST",
-body:formData
-
-})
-
-const data = await res.json()
-
-document.getElementById("resultado").innerText = data.message
-
-}
-
+  } catch(err) {
+    alert("Error conectando con la API");
+    console.error(err);
+  }
+});
 </script>
 
 </body>
-
 </html>

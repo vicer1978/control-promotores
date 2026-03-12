@@ -1,24 +1,12 @@
-const mongoose = require("mongoose")
+// models/Store.js
+const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 
-const StoreSchema = new mongoose.Schema({
+const storeSchema = new Schema({
+  name: { type: String, required: true },
+  address: { type: String, required: true },
+  lat: { type: Number, required: true }, // Latitud
+  lng: { type: Number, required: true }, // Longitud
+});
 
-name:{
-type:String,
-required:true
-},
-
-address:{
-type:String
-},
-
-lat:{
-type:Number
-},
-
-lng:{
-type:Number
-}
-
-})
-
-module.exports = mongoose.model("Store", StoreSchema)
+module.exports = mongoose.model("Store", storeSchema);

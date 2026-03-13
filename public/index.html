@@ -7,51 +7,41 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(to bottom, #003366, #0055a5);
-      color: #fff;
+      background: linear-gradient(135deg, #003366, #FFD700);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       margin: 0;
+      color: #fff;
+      text-align: center;
     }
 
-    h1 {
-      color: #ffd700;
-      font-size: 2.5em;
-      margin-bottom: 10px;
-    }
-
-    p {
-      font-size: 1.2em;
-      margin-bottom: 30px;
-    }
+    h1 { margin-bottom: 10px; font-size: 2.2em; }
+    p { margin-bottom: 30px; font-size: 1.1em; }
 
     .buttons {
       display: flex;
       flex-direction: column;
       gap: 15px;
-      width: 220px;
+      width: 200px;
     }
 
-    .buttons a, .buttons button {
+    .buttons a {
       text-decoration: none;
-      background-color: #ffd700;
-      color: #003366;
-      padding: 12px 25px;
+      background-color: #003366;
+      color: #FFD700;
+      padding: 12px 0;
       border-radius: 8px;
-      text-align: center;
       font-weight: bold;
-      border: none;
-      cursor: pointer;
       transition: 0.3s;
     }
 
-    .buttons a:hover, .buttons button:hover {
-      background-color: #ffc300;
+    .buttons a:hover {
+      background-color: #001f4d;
+      color: #fff;
     }
-
   </style>
 </head>
 <body>
@@ -59,56 +49,41 @@
   <h1>Bienvenido a StorePulse</h1>
   <p>Selecciona una opción para continuar:</p>
 
-  <div class="buttons" id="btnContainer">
-    <!-- Los botones se agregarán según rol -->
-  </div>
+  <div class="buttons" id="buttons-container"></div>
 
   <script>
-    // Obtener rol y userId desde localStorage
-    const role = localStorage.getItem("role") || "user";
-    const userId = localStorage.getItem("userId");
+    // Obtener rol del usuario desde localStorage
+    const role = localStorage.getItem("role");
 
-    const container = document.getElementById("btnContainer");
+    const container = document.getElementById("buttons-container");
 
-    // Botones comunes para todos los usuarios
-    const userButtons = [
-      { text: "Registro Usuario", href: "register.html" },
-      { text: "Login", href: "login.html" },
-      { text: "Check-in", href: "checkin.html" },
-      { text: "Subir Foto", href: "upload.html" },
-    ];
+    const buttons = [];
 
-    // Botones adicionales para admin
-    const adminButtons = [
-      { text: "Panel Admin", href: "admin.html" },
-      { text: "Tiendas", href: "stores.html" }
-    ];
-
-    // Función para crear botones
-    function crearBoton({text, href}){
-      const btn = document.createElement(href ? "a" : "button");
-      btn.textContent = text;
-      if(href) btn.href = href;
-      return btn;
-    }
-
-    // Agregar botones según rol
-    if(role === "admin"){
-      [...userButtons, ...adminButtons].forEach(b => container.appendChild(crearBoton(b)));
+    if (!role) {
+      // Si no hay rol, mostrar solo registro y login
+      buttons.push({ text: "Registro Usuario", href: "register.html" });
+      buttons.push({ text: "Login", href: "login.html" });
+    } else if (role === "admin") {
+      // Botones para admin
+      buttons.push({ text: "Panel Admin", href: "admin.html" });
+      buttons.push({ text: "Usuarios", href: "users.html" });
+      buttons.push({ text: "Tiendas", href: "stores.html" });
+      buttons.push({ text: "Subir Foto", href: "upload.html" });
     } else {
-      userButtons.forEach(b => container.appendChild(crearBoton(b)));
+      // Botones para usuario normal
+      buttons.push({ text: "Check-in", href: "checkin.html" });
+      buttons.push({ text: "Mis Tiendas", href: "user-stores.html" });
+      buttons.push({ text: "Subir Foto", href: "upload.html" });
     }
 
-    // Botón cerrar sesión
-    const logoutBtn = document.createElement("button");
-    logoutBtn.textContent = "Cerrar sesión";
-    logoutBtn.onclick = () => {
-      localStorage.removeItem("role");
-      localStorage.removeItem("userId");
-      window.location = "login.html";
-    }
-    container.appendChild(logoutBtn);
-
+    // Generar los botones dinámicamente
+    buttons.forEach(b => {
+      const a = document.createElement("a");
+      a.href = b.href;
+      a.textContent = b.text;
+      container.appendChild(a);
+    });
   </script>
+
 </body>
 </html>

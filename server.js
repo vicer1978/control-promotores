@@ -5,24 +5,23 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-require("dotenv").config();
+require("dotenv").config(); // Cargar variables de entorno
 
 const User = require("./models/User");
 const Store = require("./models/Store");
 
 const app = express();
 
-// Middleware
+// --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // archivos estáticos
+app.use(express.static(path.join(__dirname, "public"))); // Servir archivos estáticos
 
-// Puerto
+// --- PUERTO ---
 const PORT = process.env.PORT || 3000;
 
-// Conexión a MongoDB Atlas
+// --- CONEXIÓN A MONGODB ATLAS ---
 const mongoUri = process.env.MONGO_URI;
-
 if (!mongoUri) {
   console.error("❌ ERROR: No se encontró la variable de entorno MONGO_URI");
   process.exit(1);
@@ -36,7 +35,7 @@ mongoose
     process.exit(1);
   });
 
-// Configuración de multer
+// --- MULTER PARA SUBIDA DE FOTOS ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
@@ -106,7 +105,7 @@ app.get("/stores", async (req, res) => {
   }
 });
 
-// Check-in de promotores
+// Check-in
 app.post("/checkin", async (req, res) => {
   try {
     const { lat, lng } = req.body;
@@ -155,14 +154,25 @@ app.get("/user-stores/:id", async (req, res) => {
 });
 
 // --- SERVIR FRONTEND SPA ---
+// Middleware catch-all compatible con Express 5
+app.use((req, res, next) => {
+  const apiRoutes = [
+    "/register",
+    "/login",
+    "/users",
+    "/stores",
+    "/checkin",
+    "/upload-photo",
+    "/assign-store",
+    "/user-stores",
+  ];
 
-// Para cualquier ruta que NO sea de API, servir index.html
-app.get(
-  /^\/(?!register$|login$|users$|stores$|checkin$|upload-photo$|assign-store$|user-stores).*/,
-  (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
-  }
-);
+  // Si la ruta es de API, pasar al siguiente middleware
+  if (apiRoutes.some((r) => req.path.startsWith(r))) return next();
+
+  // Para cualquier otra ruta, servir index.html
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 // --- INICIAR SERVIDOR ---
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));

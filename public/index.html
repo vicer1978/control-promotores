@@ -4,75 +4,76 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bienvenido a StorePulse</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
   <style>
-    /* Reset básico */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
     body {
       font-family: 'Arial', sans-serif;
-      background: linear-gradient(135deg, #003366, #0066cc);
-      color: #fff;
+      background: linear-gradient(135deg, #e6f0ff, #fff8e6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      color: #003366;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+      margin-bottom: 10px;
+    }
+
+    p {
+      color: #333;
+      font-size: 1.1rem;
+      margin-bottom: 30px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .card {
+      background: #003366;
+      color: #ffd700;
+      padding: 20px;
+      border-radius: 15px;
+      text-align: center;
+      font-weight: bold;
+      text-decoration: none;
+      box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+      transition: all 0.3s ease;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
-      text-align: center;
-      padding: 20px;
     }
 
-    h1 {
-      font-size: 3rem;
+    .card i {
+      font-size: 2rem;
       margin-bottom: 10px;
-      color: #ffd700; /* Dorado */
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
 
-    p {
-      font-size: 1.2rem;
-      margin-bottom: 40px;
+    .card:hover {
+      background: #0055a5;
+      transform: translateY(-5px);
+      box-shadow: 0 12px 16px rgba(0,0,0,0.3);
     }
 
-    .buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      width: 100%;
-      max-width: 300px;
-    }
-
-    .buttons a {
-      display: block;
-      text-decoration: none;
-      background-color: #003366;
-      color: #ffd700; /* Dorado */
-      padding: 15px 25px;
-      border-radius: 10px;
-      font-weight: bold;
-      font-size: 1.1rem;
-      transition: 0.3s;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }
-
-    .buttons a:hover {
-      background-color: #0055a5;
-      color: #fff;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 8px rgba(0,0,0,0.3);
-    }
-
-    @media (min-width: 768px) {
-      .buttons {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
+    @media (max-width: 480px) {
+      .grid {
+        gap: 15px;
       }
-      .buttons a {
-        flex: 1 1 150px;
+      .card {
+        padding: 15px;
+      }
+      .card i {
+        font-size: 1.8rem;
       }
     }
   </style>
@@ -81,13 +82,13 @@
   <h1>Bienvenido a StorePulse</h1>
   <p>Selecciona una opción para continuar:</p>
 
-  <div class="buttons">
-    <a href="register.html">Registro de Promotor</a>
-    <a href="login.html">Login</a>
-    <a href="checkin.html">Check-in</a>
-    <a href="admin.html">Panel Admin</a>
-    <a href="stores.html">Tiendas</a>
-    <a href="upload.html">Subir Foto</a>
+  <div class="grid">
+    <a href="register.html" class="card"><i class="fas fa-user-plus"></i>Registro Promotor</a>
+    <a href="login.html" class="card"><i class="fas fa-sign-in-alt"></i>Login</a>
+    <a href="checkin.html" class="card"><i class="fas fa-map-marker-alt"></i>Check-in</a>
+    <a href="admin.html" class="card"><i class="fas fa-cogs"></i>Panel Admin</a>
+    <a href="stores.html" class="card"><i class="fas fa-store"></i>Tiendas</a>
+    <a href="upload.html" class="card"><i class="fas fa-upload"></i>Subir Foto</a>
   </div>
 </body>
 </html>

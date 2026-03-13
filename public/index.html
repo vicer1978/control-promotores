@@ -4,91 +4,111 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bienvenido a StorePulse</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
   <style>
     body {
-      font-family: 'Arial', sans-serif;
-      background: linear-gradient(135deg, #e6f0ff, #fff8e6);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      min-height: 100vh;
-      margin: 0;
-      padding: 40px 20px;
-    }
-
-    h1 {
-      color: #003366;
-      text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-      margin-bottom: 10px;
-    }
-
-    p {
-      color: #333;
-      font-size: 1.1rem;
-      margin-bottom: 30px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 20px;
-      width: 100%;
-      max-width: 700px;
-    }
-
-    .card {
-      background: #003366;
-      color: #ffd700;
-      padding: 20px;
-      border-radius: 15px;
-      text-align: center;
-      font-weight: bold;
-      text-decoration: none;
-      box-shadow: 0 6px 10px rgba(0,0,0,0.15);
-      transition: all 0.3s ease;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #003366, #0055a5);
+      color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      min-height: 100vh;
+      margin: 0;
     }
 
-    .card i {
-      font-size: 2rem;
+    h1 {
+      color: #ffd700;
+      font-size: 2.5em;
       margin-bottom: 10px;
     }
 
-    .card:hover {
-      background: #0055a5;
-      transform: translateY(-5px);
-      box-shadow: 0 12px 16px rgba(0,0,0,0.3);
+    p {
+      font-size: 1.2em;
+      margin-bottom: 30px;
     }
 
-    @media (max-width: 480px) {
-      .grid {
-        gap: 15px;
-      }
-      .card {
-        padding: 15px;
-      }
-      .card i {
-        font-size: 1.8rem;
-      }
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      width: 220px;
     }
+
+    .buttons a, .buttons button {
+      text-decoration: none;
+      background-color: #ffd700;
+      color: #003366;
+      padding: 12px 25px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .buttons a:hover, .buttons button:hover {
+      background-color: #ffc300;
+    }
+
   </style>
 </head>
 <body>
+
   <h1>Bienvenido a StorePulse</h1>
   <p>Selecciona una opción para continuar:</p>
 
-  <div class="grid">
-    <a href="register.html" class="card"><i class="fas fa-user-plus"></i>Registro Usuario</a>
-    <a href="login.html" class="card"><i class="fas fa-sign-in-alt"></i>Login</a>
-    <a href="checkin.html" class="card"><i class="fas fa-map-marker-alt"></i>Check-in</a>
-    <a href="admin.html" class="card"><i class="fas fa-cogs"></i>Panel Admin</a>
-    <a href="stores.html" class="card"><i class="fas fa-store"></i>Tiendas</a>
-    <a href="upload.html" class="card"><i class="fas fa-upload"></i>Subir Foto</a>
+  <div class="buttons" id="btnContainer">
+    <!-- Los botones se agregarán según rol -->
   </div>
+
+  <script>
+    // Obtener rol y userId desde localStorage
+    const role = localStorage.getItem("role") || "user";
+    const userId = localStorage.getItem("userId");
+
+    const container = document.getElementById("btnContainer");
+
+    // Botones comunes para todos los usuarios
+    const userButtons = [
+      { text: "Registro Usuario", href: "register.html" },
+      { text: "Login", href: "login.html" },
+      { text: "Check-in", href: "checkin.html" },
+      { text: "Subir Foto", href: "upload.html" },
+    ];
+
+    // Botones adicionales para admin
+    const adminButtons = [
+      { text: "Panel Admin", href: "admin.html" },
+      { text: "Tiendas", href: "stores.html" }
+    ];
+
+    // Función para crear botones
+    function crearBoton({text, href}){
+      const btn = document.createElement(href ? "a" : "button");
+      btn.textContent = text;
+      if(href) btn.href = href;
+      return btn;
+    }
+
+    // Agregar botones según rol
+    if(role === "admin"){
+      [...userButtons, ...adminButtons].forEach(b => container.appendChild(crearBoton(b)));
+    } else {
+      userButtons.forEach(b => container.appendChild(crearBoton(b)));
+    }
+
+    // Botón cerrar sesión
+    const logoutBtn = document.createElement("button");
+    logoutBtn.textContent = "Cerrar sesión";
+    logoutBtn.onclick = () => {
+      localStorage.removeItem("role");
+      localStorage.removeItem("userId");
+      window.location = "login.html";
+    }
+    container.appendChild(logoutBtn);
+
+  </script>
 </body>
 </html>

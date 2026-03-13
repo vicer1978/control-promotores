@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+
 require("dotenv").config(); // Cargar variables de entorno
 
 const User = require("./models/User");
@@ -12,15 +13,17 @@ const Store = require("./models/Store");
 
 const app = express();
 
-// Middleware
+// --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // Servir archivos estáticos
 
-// Puerto
+// Servir archivos estáticos desde /public
+app.use(express.static(path.join(__dirname, "public")));
+
+// --- PUERTO ---
 const PORT = process.env.PORT || 3000;
 
-// Conexión a MongoDB Atlas
+// --- CONEXIÓN A MONGODB ---
 const mongoUri = process.env.MONGO_URI;
 
 if (!mongoUri) {
@@ -36,16 +39,15 @@ mongoose
     process.exit(1);
   });
 
-// Configuración de multer para subir fotos
+// --- CONFIGURACIÓN MULTER ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
 });
 const upload = multer({ storage });
 
-// --- RUTAS API ---
-
-// Registro de usuarios
+// --- RUTAS DE API ---
+// Registro
 app.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -71,7 +73,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// Obtener todos los usuarios
+// Obtener usuarios
 app.get("/users", async (req, res) => {
   try {
     const users = await User.find();
@@ -106,7 +108,7 @@ app.get("/stores", async (req, res) => {
   }
 });
 
-// Check-in de promotores
+// Check-in
 app.post("/checkin", async (req, res) => {
   try {
     const { lat, lng } = req.body;
@@ -154,27 +156,25 @@ app.get("/user-stores/:id", async (req, res) => {
   }
 });
 
-// --- SERVIR FRONTEND SPA ---
-// Middleware compatible con Express 5
-app.use((req, res, next) => {
-  const apiRoutes = [
-    "/register",
-    "/login",
-    "/users",
-    "/stores",
-    "/checkin",
-    "/upload-photo",
-    "/assign-store",
-    "/user-stores",
-  ];
+// --- SERVIR SPA Y FRONTEND ---
+// Primero sirve archivos estáticos desde /public
+// Luego cualquier ruta que no sea API devuelve index.html
+const apiRoutes = [
+  "/register",
+  "/login",
+  "/users",
+  "/stores",
+  "/checkin",
+  "/upload-photo",
+  "/assign-store",
+  "/user-stores",
+];
 
-  // Si la ruta comienza con alguna de las rutas de API, pasar al siguiente middleware
-  if (apiRoutes.some((r) => req.path.startsWith(r))) {
-    return next();
+app.get("*", (req, res) => {
+  if (!apiRoutes.some((r) => req.path.startsWith(r))) {
+    return res.sendFile(path.join(__dirname, "public", "index.html"));
   }
-
-  // Para cualquier otra ruta, servir index.html
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.status(404).send({ error: "Ruta API no encontrada" });
 });
 
 // --- INICIAR SERVIDOR ---

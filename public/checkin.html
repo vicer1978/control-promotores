@@ -1,40 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check-in - StorePulse</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #003366;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #ffd700;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 15px 25px;
+      border-radius: 8px;
+      border: none;
+      background-color: #ffd700;
+      color: #003366;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+      font-size: 1.1em;
+      margin-top: 15px;
+    }
+
+    button:hover {
+      background-color: #ffc300;
+    }
+
+    #message {
+      margin-top: 20px;
+      font-size: 1.1em;
+    }
+  </style>
+</head>
 <body>
 
-<h2>Check-in Promotor</h2>
+  <h1>Check-in</h1>
+  <button onclick="hacerCheckin()">Hacer Check-in</button>
+  <div id="message"></div>
 
-Lat: <input id="lat" type="number" step="any" placeholder="Latitud">
-<br><br>
-Lng: <input id="lng" type="number" step="any" placeholder="Longitud">
-<br><br>
-<button onclick="checkin()">Hacer Check-in</button>
-<br><br>
-<a href="upload.html">Subir foto</a>
+  <script>
+    const apiUrl = "https://storepulse.onrender.com"; // Cambiar si es otro host
 
-<script>
-const API_URL = "https://storepulse.onrender.com";
+    async function hacerCheckin() {
+      if(!navigator.geolocation){
+        alert("Tu navegador no soporta geolocalización");
+        return;
+      }
 
-async function checkin(){
-  const lat = parseFloat(document.getElementById("lat").value);
-  const lng = parseFloat(document.getElementById("lng").value);
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
 
-  try {
-    const res = await fetch(`${API_URL}/checkin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lng })
-    });
+        const res = await fetch(`${apiUrl}/checkin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat, lng })
+        });
 
-    const data = await res.json();
-    alert(data.message);
+        const data = await res.json();
+        document.getElementById("message").textContent = data.message;
 
-  } catch (err) {
-    alert("Error conectando con la API");
-    console.error(err);
-  }
-}
-</script>
+      }, (err) => {
+        alert("Error al obtener ubicación: " + err.message);
+      });
+    }
+  </script>
 
 </body>
 </html>

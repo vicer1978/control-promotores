@@ -1,32 +1,171 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin - StorePulse</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #003366;
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #ffd700;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ffd700;
+    }
+
+    th {
+      background-color: #0055a5;
+    }
+
+    tr:hover {
+      background-color: #004080;
+    }
+
+    select, button {
+      padding: 8px;
+      margin-right: 5px;
+      border-radius: 5px;
+      border: none;
+      font-weight: bold;
+    }
+
+    select {
+      min-width: 150px;
+    }
+
+    button {
+      background-color: #ffd700;
+      color: #003366;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #ffc300;
+    }
+
+    #logoutBtn {
+      display: block;
+      margin: 20px auto;
+      padding: 12px 25px;
+      border-radius: 8px;
+      font-size: 1em;
+    }
+
+  </style>
+</head>
 <body>
 
-<h2>Panel Admin</h2>
+  <h1>Panel Admin - StorePulse</h1>
 
-<button onclick="loadUsers()">Ver Usuarios</button>
-<ul id="users"></ul>
+  <table id="usersTable">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Email</th>
+        <th>Rol</th>
+        <th>Tiendas asignadas</th>
+        <th>Asignar tienda</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Filas generadas con JS -->
+    </tbody>
+  </table>
 
-<script>
-const API_URL = "https://storepulse.onrender.com";
+  <button id="logoutBtn">Cerrar sesión</button>
 
-async function loadUsers(){
-  try {
-    const res = await fetch(`${API_URL}/users`);
-    const users = await res.json();
-    const ul = document.getElementById("users");
-    ul.innerHTML = "";
-    users.forEach(u => {
-      const li = document.createElement("li");
-      li.textContent = `${u.name} (${u.email}) - ${u.role || "promotor"}`;
-      ul.appendChild(li);
-    });
-  } catch(err) {
-    alert("Error cargando usuarios");
-    console.error(err);
-  }
-}
-</script>
+  <script>
+    const apiUrl = "https://storepulse.onrender.com"; // Cambiar si es otro host
+    const tableBody = document.querySelector("#usersTable tbody");
+
+    // Función para obtener todos los usuarios
+    async function getUsers() {
+      const res = await fetch(`${apiUrl}/users`);
+      const users = await res.json();
+
+      tableBody.innerHTML = "";
+
+      for(const user of users){
+        const tr = document.createElement("tr");
+
+        const stores = await getUserStores(user._id);
+
+        tr.innerHTML = `
+          <td>${user.name}</td>
+          <td>${user.email}</td>
+          <td>${user.role}</td>
+          <td>${stores.map(s => s.name).join(", ") || "Ninguna"}</td>
+          <td></td>
+        `;
+
+        // Select para asignar tiendas
+        const tdAssign = tr.querySelector("td:last-child");
+        const select = document.createElement("select");
+        select.innerHTML = `<option value="">Seleccionar tienda</option>`;
+        const storesList = await fetch(`${apiUrl}/stores`).then(r => r.json());
+        storesList.forEach(store => {
+          const option = document.createElement("option");
+          option.value = store._id;
+          option.textContent = store.name;
+          select.appendChild(option);
+        });
+        tdAssign.appendChild(select);
+
+        // Botón asignar
+        const assignBtn = document.createElement("button");
+        assignBtn.textContent = "Asignar";
+        assignBtn.onclick = async () => {
+          if(!select.value) return alert("Selecciona una tienda");
+          await fetch(`${apiUrl}/assign-store`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ userId: user._id, storeId: select.value })
+          });
+          alert("Tienda asignada");
+          getUsers(); // refrescar tabla
+        }
+        tdAssign.appendChild(assignBtn);
+
+        tableBody.appendChild(tr);
+      }
+    }
+
+    // Función para obtener tiendas de un usuario
+    async function getUserStores(userId){
+      const res = await fetch(`${apiUrl}/user-stores/${userId}`);
+      return await res.json();
+    }
+
+    // Cerrar sesión
+    document.getElementById("logoutBtn").onclick = () => {
+      localStorage.removeItem("role");
+      localStorage.removeItem("userId");
+      window.location = "login.html";
+    }
+
+    // Cargar usuarios al iniciar
+    getUsers();
+
+  </script>
 
 </body>
 </html>

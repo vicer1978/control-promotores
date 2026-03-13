@@ -2,76 +2,92 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Login y Registro - StorePulse</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bienvenido a StorePulse</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    input { display: block; margin: 10px 0; padding: 8px; width: 300px; }
-    button { padding: 10px 20px; cursor: pointer; }
-    h1 { margin-top: 40px; }
+    /* Reset básico */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #003366, #0066cc);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 10px;
+      color: #ffd700; /* Dorado */
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    p {
+      font-size: 1.2rem;
+      margin-bottom: 40px;
+    }
+
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .buttons a {
+      display: block;
+      text-decoration: none;
+      background-color: #003366;
+      color: #ffd700; /* Dorado */
+      padding: 15px 25px;
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 1.1rem;
+      transition: 0.3s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    .buttons a:hover {
+      background-color: #0055a5;
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(0,0,0,0.3);
+    }
+
+    @media (min-width: 768px) {
+      .buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .buttons a {
+        flex: 1 1 150px;
+      }
+    }
   </style>
 </head>
 <body>
+  <h1>Bienvenido a StorePulse</h1>
+  <p>Selecciona una opción para continuar:</p>
 
-  <h1>Registro</h1>
-  <form id="registerForm">
-    <input type="text" name="name" placeholder="Nombre" required />
-    <input type="email" name="email" placeholder="Correo" required />
-    <input type="password" name="password" placeholder="Contraseña" required />
-    <button type="submit">Registrar</button>
-  </form>
-
-  <h1>Login</h1>
-  <form id="loginForm">
-    <input type="email" name="email" placeholder="Correo" required />
-    <input type="password" name="password" placeholder="Contraseña" required />
-    <button type="submit">Ingresar</button>
-  </form>
-
-  <script>
-    const API = ""; // Rutas relativas, ya que frontend y backend están en el mismo dominio
-
-    // Registro
-    document.getElementById("registerForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      try {
-        const res = await fetch(`${API}/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: form.name.value,
-            email: form.email.value,
-            password: form.password.value
-          })
-        });
-        const data = await res.json();
-        alert(JSON.stringify(data));
-        form.reset();
-      } catch (err) {
-        alert("Error al registrar: " + err);
-      }
-    });
-
-    // Login
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      try {
-        const res = await fetch(`${API}/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: form.email.value,
-            password: form.password.value
-          })
-        });
-        const data = await res.json();
-        alert(JSON.stringify(data));
-        form.reset();
-      } catch (err) {
-        alert("Error al hacer login: " + err);
-      }
-    });
-  </script>
+  <div class="buttons">
+    <a href="register.html">Registro de Promotor</a>
+    <a href="login.html">Login</a>
+    <a href="checkin.html">Check-in</a>
+    <a href="admin.html">Panel Admin</a>
+    <a href="stores.html">Tiendas</a>
+    <a href="upload.html">Subir Foto</a>
+  </div>
 </body>
 </html>

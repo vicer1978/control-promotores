@@ -12,15 +12,15 @@ const Store = require("./models/Store");
 
 const app = express();
 
-// --- MIDDLEWARE ---
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public"))); // Servir archivos estáticos
 
-// --- PUERTO ---
+// Puerto
 const PORT = process.env.PORT || 3000;
 
-// --- CONEXIÓN A MONGODB ATLAS ---
+// Conexión a MongoDB Atlas
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) {
   console.error("❌ ERROR: No se encontró la variable de entorno MONGO_URI");
@@ -35,7 +35,7 @@ mongoose
     process.exit(1);
   });
 
-// --- MULTER PARA SUBIDA DE FOTOS ---
+// Configuración de multer para subir fotos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
@@ -105,7 +105,7 @@ app.get("/stores", async (req, res) => {
   }
 });
 
-// Check-in
+// Check-in de promotores
 app.post("/checkin", async (req, res) => {
   try {
     const { lat, lng } = req.body;
@@ -153,9 +153,8 @@ app.get("/user-stores/:id", async (req, res) => {
   }
 });
 
-// --- SERVIR FRONTEND SPA ---
-// Middleware catch-all compatible con Express 5
-app.use((req, res, next) => {
+// --- SERVIR FRONTEND SPA CORRECTO ---
+app.get("*", (req, res) => {
   const apiRoutes = [
     "/register",
     "/login",
@@ -167,8 +166,10 @@ app.use((req, res, next) => {
     "/user-stores",
   ];
 
-  // Si la ruta es de API, pasar al siguiente middleware
-  if (apiRoutes.some((r) => req.path.startsWith(r))) return next();
+  // Si la ruta es API, no devolver index.html
+  if (apiRoutes.some((r) => req.path.startsWith(r))) {
+    return res.status(404).send({ error: "Ruta API no encontrada" });
+  }
 
   // Para cualquier otra ruta, servir index.html
   res.sendFile(path.join(__dirname, "public", "index.html"));

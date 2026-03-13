@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-require("dotenv").config(); // Cargar variables de entorno
+require("dotenv").config();
 
 const User = require("./models/User");
 const Store = require("./models/Store");
@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 3000;
 
 // Conexión a MongoDB Atlas
 const mongoUri = process.env.MONGO_URI;
+
 if (!mongoUri) {
   console.error("❌ ERROR: No se encontró la variable de entorno MONGO_URI");
   process.exit(1);
@@ -153,8 +154,8 @@ app.get("/user-stores/:id", async (req, res) => {
   }
 });
 
-// --- SERVIR FRONTEND SPA CORRECTO ---
-app.get("*", (req, res) => {
+// --- SERVIR FRONTEND SPA (Express 5 compatible) ---
+app.use((req, res, next) => {
   const apiRoutes = [
     "/register",
     "/login",
@@ -166,9 +167,8 @@ app.get("*", (req, res) => {
     "/user-stores",
   ];
 
-  // Si la ruta es API, no devolver index.html
-  if (apiRoutes.some((r) => req.path.startsWith(r))) {
-    return res.status(404).send({ error: "Ruta API no encontrada" });
+  if (apiRoutes.some(r => req.path.startsWith(r))) {
+    return next(); // Dejar pasar las rutas API
   }
 
   // Para cualquier otra ruta, servir index.html

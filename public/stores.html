@@ -1,88 +1,136 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="es">
 <head>
-<title>Mapa de Tiendas</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
+<meta charset="UTF-8">
+<title>Tiendas - StorePulse</title>
+<meta name="theme-color" content="#0B1F3A">
 <style>
-#map{
-height:500px;
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+  --text: #1A1A1A;
 }
+body {
+  margin:0;
+  font-family: Arial;
+  background: var(--bg);
+  padding: 20px;
+}
+.header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  text-align: center;
+  position: relative;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.header h1 { margin:0; font-size: 20px; }
+.back {
+  position: absolute;
+  left: 10px;
+  top: 15px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+.card {
+  background: white;
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+input { width:100%; padding:10px; margin:5px 0; border-radius:6px; border:1px solid #ccc; }
+button { padding:10px 15px; border:none; border-radius:8px; background:var(--secondary); color:white; cursor:pointer; margin-top:10px; width:100%; font-weight:bold; }
+button#backBtn { background:#003366; margin-top:15px; }
 </style>
-
 </head>
-
 <body>
 
-<h2>Registrar Tienda en el Mapa</h2>
+<div class="header">
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Tiendas de tu Agencia</h1>
+</div>
 
-<div id="map"></div>
+<div class="card">
+  <h3>Agregar Nueva Tienda</h3>
+  <input id="storeName" placeholder="Nombre de tienda">
+  <input id="storeAddress" placeholder="Dirección">
+  <input id="storeLat" placeholder="Latitud" type="number" step="any">
+  <input id="storeLng" placeholder="Longitud" type="number" step="any">
+  <button onclick="addStore()">Agregar Tienda</button>
+</div>
 
-<br>
+<div class="card">
+  <h3>Listado de Tiendas</h3>
+  <div id="storeList"></div>
+</div>
 
-<input type="text" id="name" placeholder="Nombre de la tienda">
-<input type="text" id="address" placeholder="Dirección">
-
-<button onclick="guardar()">Guardar tienda</button>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<button id="backBtn" onclick="goBack()">Regresar</button>
 
 <script>
-
-var latSeleccionada
-var lngSeleccionada
-
-var map = L.map('map').setView([20.67,-103.35],13)
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-maxZoom:19
-}).addTo(map)
-
-var marker
-
-map.on("click", function(e){
-
-latSeleccionada = e.latlng.lat
-lngSeleccionada = e.latlng.lng
-
-if(marker){
-map.removeLayer(marker)
+// 🔹 URL dinámica del backend
+function getBackendUrl() {
+  return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://192.168.1.10:3000"
+    : "https://mi-servidor-produccion.com";
 }
 
-marker = L.marker([latSeleccionada,lngSeleccionada]).addTo(map)
+const agencyId = localStorage.getItem("agencyId");
+if(!agencyId){ window.location.href = "./dashboard.html"; }
 
-})
-
-async function guardar(){
-
-const data = {
-
-name: document.getElementById("name").value,
-address: document.getElementById("address").value,
-lat: latSeleccionada,
-lng: lngSeleccionada
-
+async function loadStores() {
+  try {
+    const res = await fetch(`${getBackendUrl()}/stores/${agencyId}`);
+    const stores = await res.json();
+    const list = document.getElementById("storeList");
+    list.innerHTML = stores.map(s => `<div class="card">${s.name} - ${s.address} (${s.lat}, ${s.lng})</div>`).join('');
+  } catch(err){
+    alert("⚠️ Error cargando tiendas");
+  }
 }
 
-await fetch("http://localhost:3000/stores",{
+async function addStore() {
+  const name = document.getElementById("storeName").value.trim();
+  const address = document.getElementById("storeAddress").value.trim();
+  const lat = parseFloat(document.getElementById("storeLat").value);
+  const lng = parseFloat(document.getElementById("storeLng").value);
 
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
+  if(!name || !address || isNaN(lat) || isNaN(lng)){
+    alert("⚠️ Completa todos los campos");
+    return;
+  }
 
-body: JSON.stringify(data)
-
-})
-
-alert("Tienda guardada")
-
+  try {
+    const res = await fetch(`${getBackendUrl()}/stores`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, address, lat, lng, agencyId })
+    });
+    const data = await res.json();
+    alert(data.message || "✅ Tienda agregada");
+    document.getElementById("storeName").value = "";
+    document.getElementById("storeAddress").value = "";
+    document.getElementById("storeLat").value = "";
+    document.getElementById("storeLng").value = "";
+    loadStores();
+  } catch(err){
+    alert("⚠️ Error agregando tienda");
+  }
 }
 
+// 🔙 Regresar
+function goBack() {
+  window.history.back();
+}
+
+// Inicializar lista
+loadStores();
 </script>
 
 </body>
-
 </html>

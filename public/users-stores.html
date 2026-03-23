@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Asignar Tiendas</title>
+
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+}
+
+/* 🔹 HEADER UNIFICADO */
+.header {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+}
+
+.header .back {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: white;
+}
+
+.header h1 {
+  margin: 0 auto;
+  font-size: 1.2em;
+}
+
+/* 🔹 CONTENIDO */
+.container { padding: 20px; }
+
+.card {
+  background: white;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.button {
+  background: var(--secondary);
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+  width: 100%;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.assigned {
+  font-size: 12px;
+  margin-top: 5px;
+  color: #555;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Asignar Tiendas a Usuarios</h1>
+</div>
+
+<div class="container" id="lista"></div>
+
+<script>
+
+// 🔙 Regresar
+function goBack(){
+  window.location.href = "./dashboard.html";
+}
+
+// 🔐 Validar rol
+const role = localStorage.getItem("role");
+if(role !== "admin" && role !== "agencia"){
+  alert("⚠️ No tienes permisos");
+  window.location.href = "./dashboard.html";
+}
+
+// 🌐 🔥 URL DINÁMICA (LOCAL + RENDER)
+function getBackendUrl(){
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  return isLocal 
+    ? "http://192.168.1.10:3000"
+    : "https://storepulse-backend.onrender.com"; // 🔥 CAMBIA si tu URL es diferente
+}
+
+// 📦 Cargar datos
+async function loadData(){
+  try {
+
+    const backend = getBackendUrl();
+
+    const resUsers = await fetch(`${backend}/users/${agencyId}`);
+    const users = await resUsers.json();
+
+    const resStores = await fetch(`${backend}/stores/${agencyId}`);
+    const stores = await resStores.json();
+
+    return { users, stores };
+
+  } catch(err){
+    alert("⚠️ Error cargando datos");
+    console.error(err);
+    return { users:[], stores:[] };
+  }
+}
+
+// 🖥 Render dinámico
+async function renderData(){
+
+  const { users, stores } = await loadData();
+  const contenedor = document.getElementById("lista");
+
+  contenedor.innerHTML = "";
+
+  users.forEach(u => {
+
+    const tiendasAsignadas = u.stores || [];
+
+    let options = stores.map(t => 
+      `<option value="${t._id}">${t.name}</option>`
+    ).join("");
+
+    contenedor.innerHTML += `
+      <div class="card">
+        <b>${u.name}</b><br>
+        ${u.email}<br>
+        Tipo: ${u.tipo}
+
+        <select id="select-${u._id}">
+          <option value="">Seleccionar tienda</option>
+          ${options}
+        </select>
+
+        <button class="button" onclick="asignar('${u._id}')">
+          ➕ Asignar tienda
+        </button>
+
+        <div class="assigned">
+          ${tiendasAsignadas.length > 0 
+            ? "Asignadas: " + tiendasAsignadas.map(id => {
+                const t = stores.find(s => s._id === id);
+                return t ? t.name : "";
+              }).join(", ")
+            : "Sin tiendas asignadas"
+          }
+        </div>
+      </div>
+    `;
+  });
+}
+
+// ➕ Asignar tienda
+async function asignar(userId){
+
+  const select = document.getElementById(`select-${userId}`);
+  const storeId = select.value;
+
+  if(!storeId){
+    alert("⚠️ Selecciona una tienda");
+    return;
+  }
+
+  try {
+
+    const backend = getBackendUrl();
+
+    const res = await fetch(`${backend}/users/${userId}/assign-store`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storeId })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok) throw new Error(data.error || "Error asignando tienda");
+
+    alert("✅ Tienda asignada correctamente");
+    renderData();
+
+  } catch(err){
+    alert(err.message);
+  }
+}
+
+// 🚀 Inicial
+const agencyId = localStorage.getItem("agencyId");
+renderData();
+
+</script>
+
+</body>
+</html>

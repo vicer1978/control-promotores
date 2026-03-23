@@ -1,171 +1,141 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Panel Admin - StorePulse</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #003366;
-      color: #fff;
-      margin: 0;
-      padding: 20px;
-    }
-
-    h1 {
-      color: #ffd700;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-
-    th, td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid #ffd700;
-    }
-
-    th {
-      background-color: #0055a5;
-    }
-
-    tr:hover {
-      background-color: #004080;
-    }
-
-    select, button {
-      padding: 8px;
-      margin-right: 5px;
-      border-radius: 5px;
-      border: none;
-      font-weight: bold;
-    }
-
-    select {
-      min-width: 150px;
-    }
-
-    button {
-      background-color: #ffd700;
-      color: #003366;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    button:hover {
-      background-color: #ffc300;
-    }
-
-    #logoutBtn {
-      display: block;
-      margin: 20px auto;
-      padding: 12px 25px;
-      border-radius: 8px;
-      font-size: 1em;
-    }
-
-  </style>
+<meta charset="UTF-8">
+<title>Admin - StorePulse</title>
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+  --text: #1A1A1A;
+}
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: var(--bg);
+}
+header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+}
+header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+.back {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.container {
+  padding: 20px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+input {
+  border: 1px solid #ccc;
+}
+button {
+  background: var(--secondary);
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+button:active {
+  transform: scale(0.98);
+}
+.error {
+  color: red;
+  font-size: 12px;
+  margin-top: 10px;
+  text-align: center;
+}
+</style>
 </head>
 <body>
 
-  <h1>Panel Admin - StorePulse</h1>
+<header>
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Panel Admin</h1>
+</header>
 
-  <table id="usersTable">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Email</th>
-        <th>Rol</th>
-        <th>Tiendas asignadas</th>
-        <th>Asignar tienda</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Filas generadas con JS -->
-    </tbody>
-  </table>
+<div class="container">
+  <input id="name" placeholder="Nombre">
+  <input id="email" placeholder="Correo">
+  <input id="password" type="password" placeholder="Contraseña">
+  <input id="agencyId" placeholder="ID Agencia">
+  <button onclick="registerUser()">Registrar Usuario</button>
+  <div class="error" id="error"></div>
+</div>
 
-  <button id="logoutBtn">Cerrar sesión</button>
+<script>
+// Flecha de retroceso
+function goBack() { window.history.back(); }
 
-  <script>
-    const apiUrl = "https://storepulse.onrender.com"; // Cambiar si es otro host
-    const tableBody = document.querySelector("#usersTable tbody");
+// 🔹 URL fija del backend para la APK y web
+const BACKEND_URL = "https://storepulse.onrender.com";
 
-    // Función para obtener todos los usuarios
-    async function getUsers() {
-      const res = await fetch(`${apiUrl}/users`);
-      const users = await res.json();
+async function registerUser() {
+  const name = document.getElementById("name").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const agencyId = document.getElementById("agencyId").value.trim();
+  const error = document.getElementById("error");
+  error.innerText = "";
 
-      tableBody.innerHTML = "";
+  if (!name || !email || !password || !agencyId) {
+    error.innerText = "⚠️ Completa todos los campos";
+    return;
+  }
 
-      for(const user of users){
-        const tr = document.createElement("tr");
+  try {
+    const res = await fetch(`${BACKEND_URL}/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({ name, email, password, agencyId })
+    });
 
-        const stores = await getUserStores(user._id);
+    const data = await res.json();
 
-        tr.innerHTML = `
-          <td>${user.name}</td>
-          <td>${user.email}</td>
-          <td>${user.role}</td>
-          <td>${stores.map(s => s.name).join(", ") || "Ninguna"}</td>
-          <td></td>
-        `;
-
-        // Select para asignar tiendas
-        const tdAssign = tr.querySelector("td:last-child");
-        const select = document.createElement("select");
-        select.innerHTML = `<option value="">Seleccionar tienda</option>`;
-        const storesList = await fetch(`${apiUrl}/stores`).then(r => r.json());
-        storesList.forEach(store => {
-          const option = document.createElement("option");
-          option.value = store._id;
-          option.textContent = store.name;
-          select.appendChild(option);
-        });
-        tdAssign.appendChild(select);
-
-        // Botón asignar
-        const assignBtn = document.createElement("button");
-        assignBtn.textContent = "Asignar";
-        assignBtn.onclick = async () => {
-          if(!select.value) return alert("Selecciona una tienda");
-          await fetch(`${apiUrl}/assign-store`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ userId: user._id, storeId: select.value })
-          });
-          alert("Tienda asignada");
-          getUsers(); // refrescar tabla
-        }
-        tdAssign.appendChild(assignBtn);
-
-        tableBody.appendChild(tr);
-      }
+    if (!res.ok) {
+      error.innerText = data.error || "⚠️ Error al registrar usuario";
+      return;
     }
 
-    // Función para obtener tiendas de un usuario
-    async function getUserStores(userId){
-      const res = await fetch(`${apiUrl}/user-stores/${userId}`);
-      return await res.json();
-    }
+    alert("Usuario registrado correctamente");
 
-    // Cerrar sesión
-    document.getElementById("logoutBtn").onclick = () => {
-      localStorage.removeItem("role");
-      localStorage.removeItem("userId");
-      window.location = "login.html";
-    }
+    // Limpiar campos
+    document.getElementById("name").value = "";
+    document.getElementById("email").value = "";
+    document.getElementById("password").value = "";
+    document.getElementById("agencyId").value = "";
 
-    // Cargar usuarios al iniciar
-    getUsers();
-
-  </script>
+  } catch (err) {
+    console.error(err);
+    error.innerText = "❌ No se pudo conectar al servidor";
+  }
+}
+</script>
 
 </body>
 </html>

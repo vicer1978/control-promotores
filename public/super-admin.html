@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Super Admin - StorePulse</title>
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+}
+body { margin:0;font-family:Arial;background:var(--bg); }
+.header { background:var(--primary); color:white; padding:15px; text-align:center; position:relative; }
+.back { position:absolute; left:10px; top:12px; background:transparent; border:none; color:white; font-size:16px; cursor:pointer; }
+.container { padding:20px; }
+.card { background:white; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+input { width:100%; padding:10px; margin:6px 0; border-radius:6px; border:1px solid #ccc; }
+.button { background:var(--secondary); border:none; padding:12px; border-radius:8px; width:100%; font-weight:bold; margin-top:10px; cursor:pointer; }
+.actions { display:flex; gap:5px; margin-top:10px; }
+.btn-small { flex:1; padding:8px; border:none; border-radius:6px; font-size:12px; color:white; cursor:pointer; }
+.activate { background:#388E3C; }
+.deactivate { background:#D32F2F; }
+.metric { font-size:18px; font-weight:bold; margin-bottom:5px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="back" onclick="goBack()">⬅</button>
+  Super Admin
+</div>
+
+<div class="container">
+
+  <!-- MÉTRICAS -->
+  <div class="card">
+    <div class="metric" id="totalAgencias">Agencias: 0</div>
+    <div class="metric" id="totalUsuarios">Usuarios: 0</div>
+  </div>
+
+  <!-- CREAR AGENCIA -->
+  <div class="card">
+    <h3>Crear Agencia</h3>
+    <input id="nombreAgencia" placeholder="Nombre de la agencia">
+    <input id="emailAgencia" placeholder="Correo de la agencia">
+    <button class="button" onclick="crearAgencia()">➕ Crear Agencia</button>
+  </div>
+
+  <!-- LISTA DE AGENCIAS -->
+  <div id="listaAgencias"></div>
+
+</div>
+
+<script>
+// 🔙 Regresar
+function goBack(){ window.location.href = "./dashboard.html"; }
+
+// 🔐 Validar acceso
+const role = localStorage.getItem("role");
+if(role !== "admin"){
+  alert("⚠️ Acceso restringido");
+  window.location.href = "./dashboard.html";
+}
+
+// 🔹 URL Backend
+function getBackendUrl(){
+  return (window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1")?
+    "http://192.168.1.10:3000":"https://mi-servidor-produccion.com";
+}
+
+// 📊 Cargar agencias y métricas
+async function loadAgencias(){
+  try{
+    const res = await fetch(`${getBackendUrl()}/agencies`);
+    const agencias = await res.json();
+
+    // Mostrar lista
+    const contenedor = document.getElementById("listaAgencias");
+    contenedor.innerHTML = "";
+    agencias.forEach(a => {
+      contenedor.innerHTML += `
+        <div class="card">
+          <b>${a.name}</b><br>
+          ${a.email}<br>
+          Estado: ${a.active ? "🟢 Activa" : "🔴 Inactiva"}
+          <div class="actions">
+            <button class="btn-small ${a.active ? 'deactivate':'activate'}"
+              onclick="toggleEstado('${a._id}', ${a.active})">
+              ${a.active ? 'Desactivar':'Activar'}
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    // Métricas
+    document.getElementById("totalAgencias").innerText = "Agencias: " + agencias.length;
+
+    // Traer total de usuarios
+    const resUsers = await fetch(`${getBackendUrl()}/users/count`);
+    const totalUsers = await resUsers.json();
+    document.getElementById("totalUsuarios").innerText = "Usuarios: " + totalUsers.count;
+
+  }catch(err){
+    console.error(err);
+    alert("⚠️ Error cargando agencias");
+  }
+}
+
+// 📊 Crear agencia
+async function crearAgencia(){
+  const nombre = document.getElementById("nombreAgencia").value.trim();
+  const email = document.getElementById("emailAgencia").value.trim();
+  if(!nombre || !email){ alert("⚠️ Completa todos los campos"); return; }
+
+  try{
+    const res = await fetch(`${getBackendUrl()}/agencies`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ name:nombre, email })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||"Error creando agencia");
+    alert("✅ Agencia creada");
+    document.getElementById("nombreAgencia").value = "";
+    document.getElementById("emailAgencia").value = "";
+    loadAgencias();
+  }catch(err){
+    alert(err.message);
+  }
+}
+
+// 🔄 Activar / Desactivar
+async function toggleEstado(id, active){
+  try{
+    const res = await fetch(`${getBackendUrl()}/agencies/${id}`, {
+      method:"PATCH",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ active: !active })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || "Error actualizando estado");
+    loadAgencias();
+  }catch(err){
+    alert(err.message);
+  }
+}
+
+// Inicial
+loadAgencias();
+
+</script>
+
+</body>
+</html>

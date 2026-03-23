@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Ranking - StorePulse</title>
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+  --text: #1A1A1A;
+}
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: var(--bg);
+}
+header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+}
+header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+.back {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+.container {
+  padding: 20px;
+}
+ul {
+  list-style: none;
+  padding: 0;
+}
+li {
+  background: white;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  background: var(--secondary);
+  color: white;
+  cursor: pointer;
+  margin-top: 15px;
+  width: 100%;
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Ranking Promotores</h1>
+</header>
+
+<div class="container">
+  <ul id="rankingList"></ul>
+  <button onclick="logout()">Cerrar sesión</button>
+</div>
+
+<script>
+// 🔹 URL dinámico del backend
+function getBackendUrl(){
+  return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
+    ? "http://192.168.1.10:3000"
+    : "https://mi-servidor-produccion.com";
+}
+
+// 🔹 Cargar ranking desde backend
+async function loadRanking(){
+  const agencyId = localStorage.getItem("agencyId");
+  if(!agencyId){ window.location.href="./login.html"; return; }
+
+  try {
+    const res = await fetch(`${getBackendUrl()}/stats/ranking/${agencyId}`);
+    const data = await res.json();
+    const ul = document.getElementById("rankingList");
+    ul.innerHTML = "";
+    data.forEach((r, i) => {
+      const li = document.createElement("li");
+      li.innerText = `${i+1}. ${r._id.name} - Check-ins: ${r.total}`;
+      ul.appendChild(li);
+    });
+  } catch(err) {
+    console.error(err);
+    alert("⚠️ No se pudo cargar ranking");
+  }
+}
+
+// 🔹 Funciones de navegación
+function logout(){
+  localStorage.clear();
+  window.location.href="./login.html";
+}
+function goBack(){ window.history.back(); }
+
+// Inicializar
+loadRanking();
+</script>
+
+</body>
+</html>

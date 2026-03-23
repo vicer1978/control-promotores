@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Preagotados - Promotor</title>
+<style>
+:root{--primary:#0B1F3A;--secondary:#D4AF37;--bg:#F5F7FA;--text:#1A1A1A;}
+body{margin:0;font-family:Arial;display:flex;height:100vh;background:var(--bg);}
+#sidebar{width:200px;background:var(--primary);color:white;padding:15px;display:flex;flex-direction:column;}
+#sidebar p{font-weight:bold;}
+#menu{list-style:none;padding:0;margin-top:15px;flex:1;}
+#menu li{margin-bottom:10px;}
+#menu li a{color:white;text-decoration:none;}
+#content{flex:1;padding:20px;overflow:auto;}
+.back{background:none;border:none;color:white;font-size:16px;cursor:pointer;margin-bottom:10px;}
+.button{padding:10px;border:none;border-radius:6px;background:var(--secondary);color:white;cursor:pointer;margin-top:10px;}
+input, select, textarea{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <button class="back" onclick="goBack()">⬅</button>
+  <p>Hola, <span id="userName"></span></p>
+  <ul id="menu"></ul>
+</div>
+
+<div id="content">
+  <h2>Productos Preagotados</h2>
+  <div id="pageContent">
+    <label>Producto:</label>
+    <input type="text" id="producto">
+    <button class="button" onclick="enviarPreagotado()">📤 Reportar Preagotado</button>
+  </div>
+</div>
+
+<script type="module">
+import { Camera, CameraResultType, CameraSource } from 'https://cdn.jsdelivr.net/npm/@capacitor/camera/dist/index.mjs';
+import { Geolocation } from 'https://cdn.jsdelivr.net/npm/@capacitor/geolocation/dist/index.mjs';
+
+// Funciones básicas
+function goBack(){window.history.back();}
+document.getElementById("userName").innerText=localStorage.getItem("userEmail")||"Usuario";
+
+// Menu dinámico
+const role=localStorage.getItem("role");
+const menu=document.getElementById("menu");
+if(role==="promotor"){
+  menu.innerHTML=`
+    <li><a href="inventario.html">Inventario</a></li>
+    <li><a href="agotados.html">Agotados</a></li>
+    <li><a href="preagotados.html">Preagotados</a></li>
+    <li><a href="exhibiciones.html">Exhibiciones</a></li>
+    <li><a href="ventas.html">Ventas</a></li>
+  `;
+}
+
+// Solicitar permisos
+async function requestPermissions(){
+  try{
+    await Geolocation.requestPermissions({permissions:['location']});
+    await Camera.requestPermissions();
+  }catch(e){console.warn("Permisos no otorgados",e);}
+}
+
+// Tomar foto
+async function takePhoto(){
+  await requestPermissions(); 
+  const photo=await Camera.getPhoto({
+    resultType:CameraResultType.Base64,
+    source:CameraSource.Camera,
+    quality:80
+  });
+  return photo.base64String;
+}
+
+// Enviar reporte de preagotado
+async function enviarPreagotado(){
+  const producto=document.getElementById("producto").value.trim();
+  if(!producto){ alert("Completa el campo"); return; }
+
+  const base64=await takePhoto();
+
+  const res=await fetch("https://storepulse.onrender.com/preagotados",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      producto,
+      photo:base64,
+      userId:localStorage.getItem("userId")
+    })
+  });
+
+  const data=await res.json();
+  alert(data.message || "Reporte enviado");
+}
+</script>
+
+</body>
+</html>

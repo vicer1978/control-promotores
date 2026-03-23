@@ -1,0 +1,10 @@
+{
+  "appId": "com.storepulse.app",
+  "appName": "StorePulse",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://storepulse.onrender.com",
+    "cleartext": false
+  }
+}

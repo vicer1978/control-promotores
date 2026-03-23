@@ -1,83 +1,113 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Check-in - StorePulse</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #003366;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-
-    h1 {
-      color: #ffd700;
-      margin-bottom: 20px;
-    }
-
-    button {
-      padding: 15px 25px;
-      border-radius: 8px;
-      border: none;
-      background-color: #ffd700;
-      color: #003366;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-      font-size: 1.1em;
-      margin-top: 15px;
-    }
-
-    button:hover {
-      background-color: #ffc300;
-    }
-
-    #message {
-      margin-top: 20px;
-      font-size: 1.1em;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Check-in - StorePulse</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #F5F7FA;
+}
+header {
+  background: #0B1F3A;
+  color: white;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+}
+header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+.back {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.container {
+  padding: 20px;
+}
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+input {
+  border: 1px solid #ccc;
+}
+button {
+  background: #D4AF37;
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+button:active { transform: scale(0.98); }
+.error { color: red; margin-top: 10px; }
+</style>
 </head>
 <body>
 
+<header>
+  <button class="back" onclick="goBack()">⬅</button>
   <h1>Check-in</h1>
-  <button onclick="hacerCheckin()">Hacer Check-in</button>
-  <div id="message"></div>
+</header>
 
-  <script>
-    const apiUrl = "https://storepulse.onrender.com"; // Cambiar si es otro host
+<div class="container">
+  <input type="file" id="photo" accept="image/*">
+  <button onclick="doCheckin()">Realizar Check-in</button>
+  <div class="error" id="error"></div>
+</div>
 
-    async function hacerCheckin() {
-      if(!navigator.geolocation){
-        alert("Tu navegador no soporta geolocalización");
-        return;
-      }
+<script>
+// Flecha de retroceso
+function goBack() { window.history.back(); }
 
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
+// 🔹 BACKEND FIJO
+const BACKEND_URL = "https://storepulse.onrender.com";
 
-        const res = await fetch(`${apiUrl}/checkin`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lat, lng })
-        });
+// ---------------- CHECKIN ----------------
+async function doCheckin() {
+  const error = document.getElementById("error");
+  error.innerText = "";
 
-        const data = await res.json();
-        document.getElementById("message").textContent = data.message;
+  const photo = document.getElementById("photo").files[0];
+  if(!photo){ error.innerText = "⚠️ Selecciona una foto"; return; }
+  if(!navigator.geolocation){ error.innerText = "⚠️ Geolocalización no disponible"; return; }
 
-      }, (err) => {
-        alert("Error al obtener ubicación: " + err.message);
-      });
+  navigator.geolocation.getCurrentPosition(async pos => {
+    try {
+      const formData = new FormData();
+      formData.append("photo", photo);
+      formData.append("lat", pos.coords.latitude);
+      formData.append("lng", pos.coords.longitude);
+      formData.append("userId", localStorage.getItem("userId"));
+
+      const res = await fetch(`${BACKEND_URL}/checkin`, { method: "POST", body: formData });
+      if(!res.ok) throw new Error("Error en el servidor");
+
+      const data = await res.json();
+      alert(data.message || "Check-in realizado correctamente");
+      document.getElementById("photo").value = "";
+
+    } catch(err) {
+      console.error(err);
+      error.innerText = "⚠️ No se pudo conectar al servidor";
     }
-  </script>
+  }, err => {
+    console.error(err);
+    error.innerText = "⚠️ No se pudo obtener ubicación";
+  });
+}
+</script>
 
 </body>
 </html>

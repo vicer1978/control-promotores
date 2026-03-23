@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Usuarios - StorePulse</title>
+
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+}
+
+body {
+  margin:0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+}
+
+/* 🔹 HEADER UNIFICADO */
+.header {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: var(--primary);
+  color:white;
+  padding:15px;
+}
+
+.header .back {
+  position:absolute;
+  left:15px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:20px;
+  cursor:pointer;
+  background:transparent;
+  border:none;
+  color:white;
+}
+
+.header h1 {
+  margin:0 auto;
+  font-size:1.2em;
+}
+
+/* 🔹 CONTENIDO */
+.container { padding:20px; }
+
+.button {
+  background: var(--secondary);
+  border:none;
+  padding:12px;
+  border-radius:8px;
+  width:100%;
+  font-weight:bold;
+  margin-bottom:15px;
+  cursor:pointer;
+}
+
+.card {
+  background:white;
+  border-radius:10px;
+  padding:12px;
+  margin-bottom:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.title { font-weight:bold; }
+
+.actions {
+  margin-top:10px;
+  display:flex;
+  gap:5px;
+}
+
+.btn-small {
+  flex:1;
+  padding:8px;
+  border:none;
+  border-radius:6px;
+  font-size:12px;
+  color:white;
+  cursor:pointer;
+}
+
+.edit { background:#1976D2; }
+.delete { background:#D32F2F; }
+.stores { background: var(--primary); }
+
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Gestión de Usuarios</h1>
+</div>
+
+<div class="container">
+  <button class="button" onclick="crear()">➕ Nuevo Usuario</button>
+  <div id="listaUsuarios"></div>
+</div>
+
+<script>
+
+// 🔙 Regresar
+function goBack(){
+  window.location.href="./dashboard.html";
+}
+
+// 🔐 Validar rol
+const role = localStorage.getItem("role");
+
+if(role !== "admin" && role !== "agencia"){
+  alert("⚠️ No tienes permisos");
+  window.location.href="./dashboard.html";
+}
+
+// 🌐 🔥 URL DINÁMICA (LOCAL + RENDER)
+function getBackendUrl(){
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  return isLocal 
+    ? "http://192.168.1.10:3000"
+    : "https://storepulse-backend.onrender.com"; // 🔥 CAMBIA si tu URL es diferente
+}
+
+const agencyId = localStorage.getItem("agencyId");
+
+// ➕ Crear
+function crear(){
+  window.location.href="./register.html";
+}
+
+// 🗑 Eliminar
+async function eliminar(id){
+
+  if(!confirm("¿Eliminar usuario?")) return;
+
+  try{
+
+    const res = await fetch(`${getBackendUrl()}/users/${id}`, { method:"DELETE" });
+
+    const data = await res.json();
+
+    if(!res.ok) throw new Error(data.error || "Error eliminando usuario");
+
+    alert("✅ Usuario eliminado");
+    render();
+
+  } catch(err){
+    alert(err.message);
+  }
+
+}
+
+// ✏️ Editar
+async function editar(id){
+
+  const nuevoNombre = prompt("Editar nombre");
+
+  if(!nuevoNombre) return;
+
+  try{
+
+    const res = await fetch(`${getBackendUrl()}/users/${id}`, {
+      method:"PUT",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ name:nuevoNombre })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok) throw new Error(data.error || "Error actualizando usuario");
+
+    alert("✅ Usuario actualizado");
+    render();
+
+  } catch(err){
+    alert(err.message);
+  }
+
+}
+
+// 🏪 Asignar tiendas
+function asignarTiendas(){
+  window.location.href="./users.stores.html";
+}
+
+// 🖥 Render
+async function render(){
+
+  try{
+
+    const res = await fetch(`${getBackendUrl()}/users/${agencyId}`);
+    const usuarios = await res.json();
+
+    const cont = document.getElementById("listaUsuarios");
+    cont.innerHTML = "";
+
+    if(usuarios.length===0){
+      cont.innerHTML="<p>No hay usuarios registrados</p>";
+      return;
+    }
+
+    usuarios.forEach(u=>{
+
+      cont.innerHTML += `
+        <div class="card">
+          <div class="title">${u.name}</div>
+          <div>${u.email}</div>
+          <div>Tipo: ${u.tipo}</div>
+
+          <div class="actions">
+            <button class="btn-small edit" onclick="editar('${u._id}')">✏️</button>
+            <button class="btn-small delete" onclick="eliminar('${u._id}')">🗑</button>
+            <button class="btn-small stores" onclick="asignarTiendas()">🏪</button>
+          </div>
+        </div>
+      `;
+    });
+
+  } catch(err){
+    alert("⚠️ Error cargando usuarios");
+    console.error(err);
+  }
+
+}
+
+// 🚀 Inicial
+render();
+
+</script>
+
+</body>
+</html>

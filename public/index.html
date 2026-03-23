@@ -2,88 +2,139 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bienvenido a StorePulse</title>
+  <title>StorePulse - Login</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0B1F3A">
   <style>
+    :root {
+      --primary: #0B1F3A;
+      --secondary: #D4AF37;
+      --bg: #F5F7FA;
+      --text: #1A1A1A;
+    }
     body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #003366, #FFD700);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
       margin: 0;
-      color: #fff;
-      text-align: center;
-    }
-
-    h1 { margin-bottom: 10px; font-size: 2.2em; }
-    p { margin-bottom: 30px; font-size: 1.1em; }
-
-    .buttons {
+      font-family: Arial;
+      background: var(--bg);
       display: flex;
-      flex-direction: column;
-      gap: 15px;
-      width: 200px;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
-
-    .buttons a {
-      text-decoration: none;
-      background-color: #003366;
-      color: #FFD700;
-      padding: 12px 0;
-      border-radius: 8px;
+    .login-box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 350px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .title {
+      text-align: center;
+      color: var(--primary);
+      font-size: 22px;
+      margin-bottom: 20px;
       font-weight: bold;
-      transition: 0.3s;
     }
-
-    .buttons a:hover {
-      background-color: #001f4d;
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    .button {
+      background: var(--secondary);
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      width: 100%;
+      font-weight: bold;
+      margin-top: 10px;
+      cursor: pointer;
       color: #fff;
+    }
+    .button.secondary {
+      background: #003366;
+      margin-top: 5px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      margin-top: 15px;
+      color: gray;
     }
   </style>
 </head>
 <body>
 
-  <h1>Bienvenido a StorePulse</h1>
-  <p>Selecciona una opción para continuar:</p>
+<div class="login-box">
+  <div class="title">StorePulse</div>
+  <input id="email" placeholder="Correo">
+  <input id="password" type="password" placeholder="Contraseña">
+  <button class="button" onclick="login()">Ingresar</button>
+  <button class="button secondary" onclick="window.location.href='./register.html'">Registrar</button>
+  <div class="footer">Control de promotores y demostradoras</div>
+</div>
 
-  <div class="buttons" id="buttons-container"></div>
+<script>
+  // 🔹 Detectar backend según entorno
+  function getBackendUrl() {
+    return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
+      ? "http://192.168.1.100:3000"
+      : "https://mi-servidor-produccion.com";
+  }
 
-  <script>
-    // Obtener rol del usuario desde localStorage
-    const role = localStorage.getItem("role");
+  // 🔹 Login
+  async function login() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
 
-    const container = document.getElementById("buttons-container");
-
-    const buttons = [];
-
-    if (!role) {
-      // Si no hay rol, mostrar solo registro y login
-      buttons.push({ text: "Registro Usuario", href: "register.html" });
-      buttons.push({ text: "Login", href: "login.html" });
-    } else if (role === "admin") {
-      // Botones para admin
-      buttons.push({ text: "Panel Admin", href: "admin.html" });
-      buttons.push({ text: "Usuarios", href: "users.html" });
-      buttons.push({ text: "Tiendas", href: "stores.html" });
-      buttons.push({ text: "Subir Foto", href: "upload.html" });
-    } else {
-      // Botones para usuario normal
-      buttons.push({ text: "Check-in", href: "checkin.html" });
-      buttons.push({ text: "Mis Tiendas", href: "user-stores.html" });
-      buttons.push({ text: "Subir Foto", href: "upload.html" });
+    if(!email || !password) {
+      alert("⚠️ Completa todos los campos");
+      return;
     }
 
-    // Generar los botones dinámicamente
-    buttons.forEach(b => {
-      const a = document.createElement("a");
-      a.href = b.href;
-      a.textContent = b.text;
-      container.appendChild(a);
-    });
-  </script>
+    try {
+      const res = await fetch(`${getBackendUrl()}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      if(!res.ok) {
+        const errData = await res.json().catch(()=>({}));
+        throw new Error(errData.error || "Usuario o contraseña incorrecta");
+      }
+
+      const data = await res.json();
+
+      // 🔹 Guardar sesión
+      localStorage.setItem("userId", data.userId);
+      localStorage.setItem("role", data.role);
+      localStorage.setItem("agencyId", data.agencyId || "");
+      localStorage.setItem("userName", data.name || "");
+
+      // 🔹 Redirigir según rol
+      switch(data.role) {
+        case "super-admin":
+          window.location.href = "./super-admin.html";
+          break;
+        case "admin":
+          window.location.href = "./admin.html";
+          break;
+        case "agencia":
+          window.location.href = "./dashboard.html";
+          break;
+        default:
+          window.location.href = "./dashboard.html";
+      }
+
+    } catch(err) {
+      alert(`⚠️ ${err.message}`);
+    }
+  }
+</script>
 
 </body>
 </html>

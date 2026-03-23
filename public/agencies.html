@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Agencias - StorePulse</title>
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+  --text: #1A1A1A;
+}
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: var(--bg);
+}
+header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+}
+header h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+.back {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.container {
+  padding: 20px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+input, button {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+input {
+  border: 1px solid #ccc;
+}
+button {
+  background: var(--secondary);
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+button:active {
+  transform: scale(0.98);
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 15px;
+}
+li {
+  background: white;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+li button {
+  background: #FF4B4B;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Agencias</h1>
+</header>
+
+<div class="container">
+  <input id="name" placeholder="Nombre de la agencia">
+  <button onclick="addAgency()">Agregar Agencia</button>
+  <ul id="list"></ul>
+</div>
+
+<script>
+// Flecha de retroceso
+function goBack() { window.history.back(); }
+
+// 🔹 URL fija del backend para la APK y web
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+async function loadAgencies() {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  try {
+    const res = await fetch(`${BACKEND_URL}/agencies`);
+    const data = await res.json();
+    data.forEach(a => {
+      const li = document.createElement("li");
+      li.innerHTML = `${a.name} <button onclick="deleteAgency('${a._id}')">Eliminar</button>`;
+      list.appendChild(li);
+    });
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = "<li style='color:red;'>❌ No se pudo cargar la lista de agencias</li>";
+  }
+}
+
+async function addAgency() {
+  const name = document.getElementById("name").value.trim();
+  if (!name) { alert("Ingrese nombre de la agencia"); return; }
+  try {
+    const res = await fetch(`${BACKEND_URL}/agencies`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ name })
+    });
+    if (!res.ok) throw new Error("Error al agregar agencia");
+    document.getElementById("name").value = "";
+    loadAgencies();
+  } catch (err) {
+    console.error(err);
+    alert("❌ No se pudo agregar la agencia");
+  }
+}
+
+async function deleteAgency(id) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/agencies/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Error al eliminar agencia");
+    loadAgencies();
+  } catch (err) {
+    console.error(err);
+    alert("❌ No se pudo eliminar la agencia");
+  }
+}
+
+// Cargar lista al iniciar
+loadAgencies();
+</script>
+
+</body>
+</html>

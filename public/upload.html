@@ -1,37 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Subir Evidencias - StorePulse</title>
+<style>
+:root { --primary:#0B1F3A; --secondary:#D4AF37; --bg:#F5F7FA; --text-color:#333; }
+body{margin:0;font-family:Arial,sans-serif;background:var(--bg);}
+.header{
+  display:flex;
+  align-items:center;
+  position:relative;
+  background:var(--primary);
+  color:white;
+  padding:15px;
+}
+.header .back{
+  position:absolute;
+  left:15px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:20px;
+  cursor:pointer;
+  background:transparent;
+  border:none;
+  color:white;
+}
+.header h1{
+  margin:0 auto;
+  font-size:1.2em;
+}
+.container{padding:20px;}
+select,input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:1px solid #ccc;}
+textarea{resize:none;}
+.button{
+  background:var(--secondary);
+  border:none;
+  padding:12px;
+  border-radius:8px;
+  width:100%;
+  font-weight:bold;
+  margin-top:10px;
+  cursor:pointer;
+}
+.preview{margin-top:10px;text-align:center;}
+.preview img{max-width:100%;border-radius:10px;}
+</style>
+</head>
 <body>
 
-<h2>Subir Foto</h2>
+<div class="header">
+  <button class="back" onclick="goBack()">⬅</button>
+  <h1>Subir Evidencias</h1>
+</div>
 
-<form id="form" enctype="multipart/form-data">
-  <input type="file" id="photo" name="photo" required>
-  <br><br>
-  <button type="submit">Subir</button>
-</form>
+<div class="container">
+  <label><b>🏪 Tienda</b></label>
+  <select id="tienda"></select>
+
+  <label><b>📊 Tipo de reporte</b></label>
+  <select id="tipoReporte">
+    <option value="checkin">Check-in</option>
+    <option value="exhibicion">Exhibición</option>
+    <option value="inventario">Inventario</option>
+  </select>
+
+  <label><b>📝 Comentarios</b></label>
+  <textarea id="comentarios" placeholder="Describe la actividad..."></textarea>
+
+  <label><b>📸 Evidencia</b></label>
+  <input type="file" accept="image/*" capture="camera" id="foto">
+
+  <div class="preview">
+    <img id="previewImg" style="display:none;">
+  </div>
+
+  <button class="button" onclick="getLocation()">📍 Obtener ubicación</button>
+  <p id="ubicacion">Ubicación no capturada</p>
+  <button class="button" onclick="subir()">⬆️ Subir Evidencia</button>
+</div>
 
 <script>
-const API_URL = "https://storepulse.onrender.com";
+const usuario = JSON.parse(localStorage.getItem("usuario")) || { _id:"demo", name:"Demo" };
+let lat=null,lng=null;
 
-document.getElementById("form").addEventListener("submit", async function(e){
-  e.preventDefault();
-  const formData = new FormData();
-  formData.append("photo", document.getElementById("photo").files[0]);
+function getBackendUrl(){
+  return (window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1")?
+    "http://192.168.1.10:3000":"https://mi-servidor-produccion.com";
+}
 
-  try {
-    const res = await fetch(`${API_URL}/upload-photo`, {
-      method: "POST",
-      body: formData
+function goBack(){ window.location.href="./dashboard.html"; }
+
+async function cargarTiendas(){
+  const agencyId = localStorage.getItem("agencyId");
+  if(!agencyId){ alert("⚠️ Agencia no encontrada"); return; }
+  try{
+    const res = await fetch(`${getBackendUrl()}/stores/${agencyId}`);
+    const stores = await res.json();
+    const select = document.getElementById("tienda");
+    stores.forEach(s=>{
+      const option = document.createElement("option");
+      option.value=s._id;
+      option.textContent=s.name;
+      select.appendChild(option);
     });
+  }catch(err){ console.error(err); alert("⚠️ Error cargando tiendas"); }
+}
 
-    const data = await res.json();
-    alert(data.message || data.error);
-
-  } catch(err) {
-    alert("Error conectando con la API");
-    console.error(err);
+document.getElementById("foto").addEventListener("change",function(e){
+  const file = e.target.files[0];
+  if(file){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = document.getElementById("previewImg");
+      img.src = e.target.result;
+      img.style.display="block";
+    };
+    reader.readAsDataURL(file);
   }
 });
+
+function getLocation(){
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{ lat=pos.coords.latitude; lng=pos.coords.longitude; document.getElementById("ubicacion").innerText="Ubicación capturada ✅"; },
+    ()=>{ alert("⚠️ Activa el GPS"); }
+  );
+}
+
+async function subir(){
+  const tienda=document.getElementById("tienda").value;
+  const tipo=document.getElementById("tipoReporte").value;
+  const comentarios=document.getElementById("comentarios").value;
+  const fileInput=document.getElementById("foto");
+  const fotoFile=fileInput.files[0];
+  if(!tienda||!fotoFile||!lat){ alert("⚠️ Completa todos los datos"); return; }
+  const formData=new FormData();
+  formData.append("usuarioId",usuario._id);
+  formData.append("storeId",tienda);
+  formData.append("tipo",tipo);
+  formData.append("comentarios",comentarios);
+  formData.append("lat",lat);
+  formData.append("lng",lng);
+  formData.append("foto",fotoFile);
+  try{
+    const res=await fetch(`${getBackendUrl()}/evidences`,{method:"POST",body:formData});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||"Error subiendo evidencia");
+    alert("✅ Evidencia subida correctamente");
+    limpiar();
+  }catch(err){ console.error(err); alert(err.message); }
+}
+
+function limpiar(){
+  document.getElementById("comentarios").value="";
+  document.getElementById("previewImg").style.display="none";
+  document.getElementById("foto").value="";
+  document.getElementById("ubicacion").innerText="Ubicación no capturada";
+  lat=null; lng=null;
+}
+
+cargarTiendas();
 </script>
 
 </body>

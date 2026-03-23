@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard - StorePulse</title>
+<style>
+:root { 
+  --primary:#0B1F3A; 
+  --secondary:#D4AF37; 
+  --bg:#F5F7FA; 
+  --text:#1A1A1A; 
+}
+body { 
+  margin:0; 
+  font-family:Arial, sans-serif; 
+  display:flex; 
+  min-height:100vh; 
+  background:var(--bg); 
+}
+#sidebar { 
+  width:220px; 
+  background:var(--primary); 
+  color:white; 
+  padding:15px; 
+  display:flex; 
+  flex-direction:column; 
+}
+#sidebar p { font-weight:bold; margin:5px 0; }
+#menu { list-style:none; padding:0; margin-top:15px; flex:1; }
+#menu li { margin-bottom:10px; }
+#menu li a { color:white; text-decoration:none; }
+#content { flex:1; padding:20px; overflow-y:auto; }
+.back { background:none; border:none; color:white; font-size:16px; cursor:pointer; margin-bottom:10px; }
+.card { background:white; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 3px 8px rgba(0,0,0,0.1); }
+h2 { margin:0 0 10px 0; }
+ul { list-style:none; padding-left:0; }
+li.item { background:#F9F9F9; padding:8px; border-radius:6px; margin-bottom:5px; }
+button.logout { background:var(--secondary); border:none; padding:10px 15px; color:white; border-radius:8px; cursor:pointer; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <button class="back" onclick="goBack()">⬅</button>
+  <p>Hola, <span id="userName"></span></p>
+  <ul id="menu"></ul>
+  <button class="logout" onclick="logout()">Cerrar sesión</button>
+</div>
+
+<div id="content">
+  <h1>Bienvenido a StorePulse</h1>
+
+  <div class="card">
+    <h2>Métricas Generales</h2>
+    <p>Total Usuarios: <span id="totalUsers">-</span></p>
+    <p>Total Tiendas: <span id="totalStores">-</span></p>
+    <p>Total Check-ins: <span id="totalCheckins">-</span></p>
+    <p>Usuarios Activos: <span id="activeUsers">-</span></p>
+  </div>
+
+  <div class="card">
+    <h2>Últimos Check-ins</h2>
+    <ul id="recentCheckins"></ul>
+  </div>
+</div>
+
+<script>
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+// Mostrar nombre de usuario
+const userName = localStorage.getItem("userEmail") || "Usuario";
+document.getElementById("userName").innerText = userName;
+
+// Configurar menú según rol
+const role = localStorage.getItem("role");
+const menu = document.getElementById("menu");
+
+if(role === "promotor") {
+  menu.innerHTML = `
+    <li><a href="inventario.html">Inventario</a></li>
+    <li><a href="agotados.html">Agotados</a></li>
+    <li><a href="preagotados.html">Preagotados</a></li>
+    <li><a href="exhibiciones.html">Exhibiciones</a></li>
+    <li><a href="ventas.html">Ventas</a></li>
+  `;
+} else if(role === "demostradora") {
+  menu.innerHTML = `
+    <li><a href="inventario_inicial.html">Inventario Inicial</a></li>
+    <li><a href="ventas.html">Ventas</a></li>
+    <li><a href="inventario_final.html">Inventario Final</a></li>
+    <li><a href="precios_marca.html">Precios Marca</a></li>
+    <li><a href="precios_competencia.html">Precios Competencia</a></li>
+  `;
+} else if(role === "admin") {
+  menu.innerHTML = `
+    <li><a href="users.html">Usuarios</a></li>
+    <li><a href="agencies.html">Agencias</a></li>
+    <li><a href="stores.html">Tiendas</a></li>
+    <li><a href="dashboard.html">Dashboard</a></li>
+  `;
+}
+
+// Funciones
+function goBack(){ window.history.back(); }
+function logout(){ localStorage.clear(); window.location.href="./login.html"; }
+
+// Cargar métricas y últimos check-ins
+async function loadDashboard() {
+  const agencyId = localStorage.getItem("agencyId");
+  if(!agencyId) return;
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/dashboard/${agencyId}`);
+    if(!res.ok) throw new Error("Error al cargar datos");
+    const data = await res.json();
+
+    document.getElementById("totalUsers").innerText = data.totalUsers || 0;
+    document.getElementById("totalStores").innerText = data.totalStores || 0;
+    document.getElementById("totalCheckins").innerText = data.totalCheckins || 0;
+    document.getElementById("activeUsers").innerText = data.activeUsers || 0;
+
+    const list = document.getElementById("recentCheckins");
+    list.innerHTML = "";
+    (data.recentCheckins || []).forEach(c => {
+      const li = document.createElement("li");
+      li.className = "item";
+      li.innerText = `${c.userId?.name || "-"} - ${new Date(c.date).toLocaleString()}`;
+      list.appendChild(li);
+    });
+
+  } catch(err){
+    console.error(err);
+    const list = document.getElementById("recentCheckins");
+    list.innerHTML = "<li style='color:red;'>⚠️ No se pudo conectar al servidor</li>";
+  }
+}
+
+loadDashboard();
+</script>
+
+</body>
+</html>

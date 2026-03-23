@@ -1,0 +1,4 @@
+<h2>Inventario Final</h2>
+<label>Producto:</label><input id="producto">
+<label>Cantidad:</label><input type="number" id="cantidad">
+<button onclick="enviarInventarioFinal()">📤 Enviar</button>

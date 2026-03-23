@@ -1,0 +1,33 @@
+:root {
+  --primary: #0B1F3A;   /* Azul marino */
+  --secondary: #D4AF37; /* Dorado */
+  --bg: #F5F7FA;
+  --text: #1A1A1A;
+}
+
+body {
+  background: var(--bg);
+  font-family: Arial, sans-serif;
+  color: var(--text);
+}
+
+.header {
+  background: var(--primary);
+  color: white;
+  padding: 15px;
+  text-align: center;
+}
+
+.button {
+  background: var(--secondary);
+  color: black;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+.button-secondary {
+  background: var(--primary);
+  color: white;
+}

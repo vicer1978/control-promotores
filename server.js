@@ -1,4 +1,4 @@
-// server.js
+// server.js – Configuración lista para Render
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -7,173 +7,174 @@ const multer = require("multer");
 const path = require("path");
 require("dotenv").config();
 
+// ------------------ MODELOS ------------------
 const User = require("./models/User");
 const Store = require("./models/Store");
+const Checkin = require("./models/Checkin");
+const Agency = require("./models/Agency");
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public"))); // Servir archivos estáticos
+// ------------------ MIDDLEWARE ------------------
+app.use(cors()); // Permitir solicitudes desde cualquier origen
+app.use(express.json()); // Parsear JSON
+app.use(express.static(path.join(__dirname, "public"))); // Servir frontend
+app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Carpeta de fotos
 
-// Puerto
+// ------------------ PORT ------------------
 const PORT = process.env.PORT || 3000;
 
-// Conexión a MongoDB Atlas
-const mongoUri = process.env.MONGO_URI;
-
-if (!mongoUri) {
-  console.error("❌ ERROR: No se encontró la variable de entorno MONGO_URI");
+// ------------------ CONEXIÓN MONGODB ------------------
+if (!process.env.MONGO_URI) {
+  console.error("❌ Falta MONGO_URI en variables de entorno");
   process.exit(1);
 }
 
-mongoose
-  .connect(mongoUri)
-  .then(() => console.log("✅ Conectado a MongoDB Atlas"))
-  .catch((err) => {
-    console.error("❌ ERROR al conectar MongoDB:", err);
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB conectado"))
+  .catch(err => {
+    console.error("❌ Error conectando a MongoDB:", err);
     process.exit(1);
   });
 
-// Configuración de multer para subir fotos
+// ------------------ MULTER (subida de fotos) ------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + "-" + file.originalname),
 });
 const upload = multer({ storage });
 
-// --- RUTAS API ---
+// ------------------ RUTAS ------------------
 
-// Registro de usuarios
-app.post("/register", async (req, res) => {
+// AGENCIAS
+app.post("/agencies", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const user = new User({ name, email, password });
-    await user.save();
-    res.json({ message: "Usuario registrado correctamente" });
-  } catch (error) {
-    console.error("Error en /register:", error);
-    res.status(500).json({ error: "Error al registrar usuario" });
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Nombre requerido" });
+
+    const agency = new Agency({ name });
+    await agency.save();
+    res.json(agency);
+  } catch (err) {
+    res.status(500).json({ error: "Error creando agencia" });
   }
 });
 
-// Login
+app.get("/agencies", async (req, res) => {
+  const agencies = await Agency.find().sort({ createdAt: -1 });
+  res.json(agencies);
+});
+
+app.delete("/agencies/:id", async (req, res) => {
+  try {
+    await Agency.findByIdAndDelete(req.params.id);
+    res.json({ message: "Agencia eliminada" });
+  } catch (err) {
+    res.status(500).json({ error: "Error eliminando agencia" });
+  }
+});
+
+// USUARIOS
+app.post("/register", async (req, res) => {
+  try {
+    const { name, email, password, agencyId } = req.body;
+    if (!agencyId) return res.status(400).json({ error: "Selecciona una agencia" });
+
+    const exists = await User.findOne({ email });
+    if (exists) return res.status(400).json({ error: "Email ya registrado" });
+
+    const user = new User({ name, email, password, role: "user", agencyId });
+    await user.save();
+
+    res.json({ message: "Usuario registrado" });
+  } catch (err) {
+    res.status(500).json({ error: "Error registro" });
+  }
+});
+
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email, password });
     if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
-    res.json({ message: "Login correcto", role: user.role, userId: user._id });
-  } catch (error) {
-    console.error("Error en /login:", error);
-    res.status(500).json({ error: "Error al hacer login" });
-  }
-});
 
-// Obtener todos los usuarios
-app.get("/users", async (req, res) => {
-  try {
-    const users = await User.find();
-    res.json(users);
-  } catch (error) {
-    console.error("Error en /users:", error);
-    res.status(500).json({ error: "Error al obtener usuarios" });
-  }
-});
-
-// Crear tienda
-app.post("/stores", async (req, res) => {
-  try {
-    const { name, address, lat, lng } = req.body;
-    const store = new Store({ name, address, lat, lng });
-    await store.save();
-    res.json({ message: "Tienda registrada" });
-  } catch (error) {
-    console.error("Error en /stores POST:", error);
-    res.status(500).json({ error: "Error al registrar tienda" });
-  }
-});
-
-// Obtener tiendas
-app.get("/stores", async (req, res) => {
-  try {
-    const stores = await Store.find();
-    res.json(stores);
-  } catch (error) {
-    console.error("Error en /stores GET:", error);
-    res.status(500).json({ error: "Error al obtener tiendas" });
-  }
-});
-
-// Check-in de promotores
-app.post("/checkin", async (req, res) => {
-  try {
-    const { lat, lng } = req.body;
-    const stores = await Store.find();
-    let dentro = false;
-    stores.forEach((store) => {
-      const distancia = Math.sqrt(Math.pow(lat - store.lat, 2) + Math.pow(lng - store.lng, 2));
-      if (distancia < 0.01) dentro = true;
-    });
     res.json({
-      message: dentro ? "Check-in permitido, estás en la tienda" : "No estás dentro de una tienda autorizada",
+      userId: user._id,
+      role: user.role,
+      agencyId: user.agencyId
     });
-  } catch (error) {
-    console.error("Error en /checkin:", error);
-    res.status(500).json({ error: "Error en check-in" });
+  } catch (err) {
+    res.status(500).json({ error: "Error login" });
   }
 });
 
-// Subir foto
-app.post("/upload-photo", upload.single("photo"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No se subió archivo" });
-  res.json({ message: "Foto subida correctamente", file: req.file.filename });
+app.get("/users/:agencyId", async (req, res) => {
+  const users = await User.find({ agencyId: req.params.agencyId });
+  res.json(users);
 });
 
-// Asignar tienda a usuario
-app.post("/assign-store", async (req, res) => {
+// TIENDAS
+app.post("/stores", async (req, res) => {
+  const { name, address, lat, lng, agencyId } = req.body;
+  if (!agencyId) return res.status(400).json({ error: "agencyId requerido" });
+
+  const store = new Store({ name, address, lat, lng, agencyId });
+  await store.save();
+  res.json({ message: "Tienda creada" });
+});
+
+app.get("/stores/:agencyId", async (req, res) => {
+  const stores = await Store.find({ agencyId: req.params.agencyId });
+  res.json(stores);
+});
+
+// CHECK-IN
+app.post("/checkin", upload.single("photo"), async (req, res) => {
   try {
-    const { userId, storeId } = req.body;
-    await User.findByIdAndUpdate(userId, { $push: { stores: storeId } });
-    res.json({ message: "Tienda asignada al promotor" });
-  } catch (error) {
-    console.error("Error en /assign-store:", error);
-    res.status(500).json({ error: "Error al asignar tienda" });
+    const { lat, lng, userId } = req.body;
+    if (!req.file) return res.status(400).json({ message: "Debes tomar foto" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "Usuario no existe" });
+
+    const stores = await Store.find({ agencyId: user.agencyId });
+    let dentro = false;
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) *
+                Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+    }
+
+    stores.forEach(store => {
+      const dist = getDistance(lat, lng, store.lat, store.lng);
+      if (dist < 0.1) dentro = true;
+    });
+
+    if (!dentro) return res.json({ message: "Fuera de tienda" });
+
+    await User.findByIdAndUpdate(userId, { lastLocation: { lat, lng, date: new Date() } });
+    await Checkin.create({
+      userId,
+      agencyId: user.agencyId,
+      lat,
+      lng,
+      photo: req.file.filename,
+      date: new Date()
+    });
+
+    res.json({ message: "Check-in OK" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error check-in" });
   }
 });
 
-// Obtener tiendas de un usuario
-app.get("/user-stores/:id", async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).populate("stores");
-    res.json(user.stores);
-  } catch (error) {
-    console.error("Error en /user-stores/:id:", error);
-    res.status(500).json({ error: "Error al obtener tiendas del usuario" });
-  }
-});
-
-// --- SERVIR FRONTEND SPA (Express 5 compatible) ---
-app.use((req, res, next) => {
-  const apiRoutes = [
-    "/register",
-    "/login",
-    "/users",
-    "/stores",
-    "/checkin",
-    "/upload-photo",
-    "/assign-store",
-    "/user-stores",
-  ];
-
-  if (apiRoutes.some(r => req.path.startsWith(r))) {
-    return next(); // Dejar pasar las rutas API
-  }
-
-  // Para cualquier otra ruta, servir index.html
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// --- INICIAR SERVIDOR ---
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+// ------------------ START ------------------
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor corriendo en puerto ${PORT}`));

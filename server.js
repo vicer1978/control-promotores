@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 3000;
 
 // ------------------ RUTA TEST ------------------
 app.get("/", (req, res) => {
-  res.send("✅ Backend StorePulse funcionando");
+  res.json({ message: "🔥 Backend StorePulse funcionando OK" });
 });
 
 // ------------------ CONEXIÓN MONGODB ------------------
@@ -48,6 +48,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) =>
     cb(null, Date.now() + "-" + file.originalname),
 });
+
 const upload = multer({ storage });
 
 // ------------------ RUTAS ------------------
@@ -56,7 +57,9 @@ const upload = multer({ storage });
 app.post("/agencies", async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name) return res.status(400).json({ error: "Nombre requerido" });
+
+    if (!name)
+      return res.status(400).json({ error: "Nombre requerido" });
 
     const agency = new Agency({ name });
     await agency.save();
@@ -97,6 +100,7 @@ app.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Selecciona una agencia" });
 
     const exists = await User.findOne({ email });
+
     if (exists)
       return res.status(400).json({ error: "Email ya registrado" });
 
@@ -109,6 +113,7 @@ app.post("/register", async (req, res) => {
     });
 
     await user.save();
+
     res.json({ message: "Usuario registrado" });
 
   } catch (err) {
@@ -122,6 +127,7 @@ app.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email, password });
+
     if (!user)
       return res.status(404).json({ message: "Usuario no encontrado" });
 
@@ -185,6 +191,7 @@ app.post("/checkin", upload.single("photo"), async (req, res) => {
       return res.status(400).json({ message: "Debes tomar foto" });
 
     const user = await User.findById(userId);
+
     if (!user)
       return res.status(404).json({ message: "Usuario no existe" });
 
@@ -234,12 +241,13 @@ app.post("/checkin", upload.single("photo"), async (req, res) => {
   }
 });
 
+// ------------------ 404 GLOBAL ------------------
+app.use((req, res) => {
+  res.status(404).json({ error: "Ruta no encontrada" });
+});
+
 // ------------------ START ------------------
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log("🔥 VERSION NUEVA DEPLOY ACTIVA");
-
-app.get("/", (req, res) => {
-  res.send("🔥 VERSION NUEVA FUNCIONANDO 123");
-});
 });

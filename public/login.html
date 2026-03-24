@@ -127,16 +127,16 @@ input {
 
 <script>
 
-// 🔥 BACKEND CORRECTO
+// 🔥 BACKEND OFICIAL
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔹 Cargar datos guardados
+// 🔹 Cargar usuario guardado
 window.onload = () => {
   const savedEmail = localStorage.getItem("savedEmail");
   if(savedEmail) document.getElementById("email").value = savedEmail;
 };
 
-// 👁️ Mostrar contraseña
+// 👁️ Mostrar / ocultar contraseña
 function togglePassword(){
   const pass = document.getElementById("password");
   pass.type = pass.type === "password" ? "text" : "password";
@@ -158,16 +158,17 @@ async function login(){
 
   try {
 
+    console.log("🔗 Intentando conectar a:", `${BACKEND_URL}/login`);
+
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ email, password })
     });
 
-    // 🔥 Si el servidor no responde correctamente
-    if(!res){
-      throw new Error("No hay respuesta del servidor");
-    }
+    console.log("📡 Status:", res.status);
 
     const data = await res.json();
 
@@ -193,9 +194,9 @@ async function login(){
 
   } catch(err){
 
-    console.error("ERROR LOGIN:", err);
+    console.error("❌ ERROR FETCH:", err);
 
-    // 🔥 ESTE ES EL ERROR REAL QUE TIENES
+    // 🔥 ESTE MENSAJE SOLO SALE SI EL BACKEND NO RESPONDE
     error.innerText = "❌ No se pudo conectar al servidor";
 
   }

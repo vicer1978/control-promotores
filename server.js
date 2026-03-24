@@ -238,4 +238,8 @@ app.post("/checkin", upload.single("photo"), async (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log("🔥 VERSION NUEVA DEPLOY ACTIVA");
+
+app.get("/", (req, res) => {
+  res.send("🔥 VERSION NUEVA FUNCIONANDO 123");
+});
 });

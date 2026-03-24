@@ -1,191 +1,207 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Login - StorePulse</title>
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#0B1F3A">
-  <style>
-    :root {
-      --primary: #0B1F3A;
-      --secondary: #D4AF37;
-      --bg: #F5F7FA;
-      --text: #1A1A1A;
-    }
-    body {
-      margin: 0;
-      font-family: Arial;
-      background: var(--bg);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    .login-container {
-      width: 90%;
-      max-width: 360px;
-      background: white;
-      border-radius: 15px;
-      padding: 30px;
-      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-    }
-    .logo {
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-      color: var(--primary);
-      margin-bottom: 20px;
-    }
-    .subtitle {
-      text-align: center;
-      font-size: 12px;
-      color: gray;
-      margin-bottom: 20px;
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-    .password-wrapper {
-      position: relative;
-    }
-    .toggle-pass {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    .button {
-      width: 100%;
-      padding: 12px;
-      background: var(--secondary);
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      margin-top: 10px;
-      cursor: pointer;
-      color: #fff;
-    }
-    .button:active { transform: scale(0.98); }
-    .error {
-      color: red;
-      font-size: 12px;
-      text-align: center;
-      margin-top: 10px;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 15px;
-      font-size: 11px;
-      color: gray;
-    }
-    label { font-size: 12px; display:block; margin-top:5px; }
-  </style>
+<meta charset="UTF-8">
+<title>Login - StorePulse</title>
+
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0B1F3A">
+
+<style>
+:root {
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
+}
+
+body {
+  margin: 0;
+  font-family: Arial;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.login-container {
+  width: 90%;
+  max-width: 360px;
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+}
+
+.logo {
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--primary);
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: gray;
+  margin-bottom: 20px;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.toggle-pass {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.button {
+  width: 100%;
+  padding: 12px;
+  background: var(--secondary);
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-top: 10px;
+  cursor: pointer;
+  color: #fff;
+}
+
+.error {
+  color: red;
+  font-size: 12px;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 11px;
+  color: gray;
+}
+</style>
+
 </head>
+
 <body>
 
 <div class="login-container">
+
   <div class="logo">StorePulse</div>
   <div class="subtitle">Control de promotores y demostradoras</div>
 
   <input id="email" placeholder="Correo electrónico">
+
   <div class="password-wrapper">
     <input id="password" type="password" placeholder="Contraseña">
     <button class="toggle-pass" onclick="togglePassword()">👁️</button>
   </div>
-  <label><input type="checkbox" id="rememberMe"> Guardar usuario y contraseña</label>
+
+  <label style="font-size:12px;">
+    <input type="checkbox" id="rememberMe"> Guardar usuario
+  </label>
 
   <button class="button" onclick="login()">Ingresar</button>
+
   <div class="error" id="error"></div>
   <div class="footer">Versión 1.0</div>
+
 </div>
 
-<script type="module">
-  import { Camera, CameraResultType, CameraSource } from 'https://cdn.jsdelivr.net/npm/@capacitor/camera/dist/index.mjs';
-  import { Geolocation } from 'https://cdn.jsdelivr.net/npm/@capacitor/geolocation/dist/index.mjs';
+<script>
 
-  const BACKEND_URL = "https://storepulse.onrender.com";
+// 🔥 BACKEND CORRECTO
+const BACKEND_URL = "https://storepulse.onrender.com";
 
-  // Recuperar usuario guardado
-  window.onload = () => {
-    const savedEmail = localStorage.getItem("savedEmail");
-    const savedPassword = localStorage.getItem("savedPassword");
-    if(savedEmail) document.getElementById("email").value = savedEmail;
-    if(savedPassword) document.getElementById("password").value = savedPassword;
-  };
+// 🔹 Cargar datos guardados
+window.onload = () => {
+  const savedEmail = localStorage.getItem("savedEmail");
+  if(savedEmail) document.getElementById("email").value = savedEmail;
+};
 
-  function togglePassword() {
-    const pass = document.getElementById("password");
-    pass.type = pass.type === "password" ? "text" : "password";
+// 👁️ Mostrar contraseña
+function togglePassword(){
+  const pass = document.getElementById("password");
+  pass.type = pass.type === "password" ? "text" : "password";
+}
+
+// 🔐 LOGIN
+async function login(){
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const error = document.getElementById("error");
+
+  error.innerText = "";
+
+  if(!email || !password){
+    error.innerText = "⚠️ Completa todos los campos";
+    return;
   }
 
-  async function requestPermissions() {
-    try {
-      await Geolocation.requestPermissions({ permissions: ['location'] });
-      await Camera.requestPermissions();
-    } catch(e) {
-      console.warn("Permisos no otorgados", e);
+  try {
+
+    const res = await fetch(`${BACKEND_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    // 🔥 Si el servidor no responde correctamente
+    if(!res){
+      throw new Error("No hay respuesta del servidor");
     }
-  }
 
-  async function login() {
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value.trim();
-    const error = document.getElementById("error");
-    error.innerText = "";
+    const data = await res.json();
 
-    if(!email || !password) {
-      error.innerText = "⚠️ Completa todos los campos";
+    if(!res.ok){
+      error.innerText = data.message || "⚠️ Credenciales incorrectas";
       return;
     }
 
-    try {
-      const res = await fetch(`${BACKEND_URL}/login`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
+    // ✅ Guardar sesión
+    localStorage.setItem("userId", data.userId);
+    localStorage.setItem("role", data.role);
+    localStorage.setItem("agencyId", data.agencyId);
 
-      if(!res.ok) {
-        error.innerText = data.message || "⚠️ Error al iniciar sesión";
-        return;
-      }
-
-      // Guardar sesión local
-      localStorage.setItem("userId", data.userId);
-      localStorage.setItem("role", data.role);
-      localStorage.setItem("agencyId", data.agencyId);
-      localStorage.setItem("userEmail", email);
-
-      // Guardar usuario/contraseña si marcó la opción
-      if(document.getElementById("rememberMe").checked){
-        localStorage.setItem("savedEmail", email);
-        localStorage.setItem("savedPassword", password);
-      } else {
-        localStorage.removeItem("savedEmail");
-        localStorage.removeItem("savedPassword");
-      }
-
-      // Solicitar permisos
-      await requestPermissions();
-
-      // Redirigir
-      window.location.href = "./dashboard.html";
-
-    } catch(err) {
-      console.error(err);
-      error.innerText = "❌ No se pudo conectar al servidor";
+    // 💾 Guardar email
+    if(document.getElementById("rememberMe").checked){
+      localStorage.setItem("savedEmail", email);
+    } else {
+      localStorage.removeItem("savedEmail");
     }
+
+    // 🚀 Redirigir
+    window.location.href = "./app.html";
+
+  } catch(err){
+
+    console.error("ERROR LOGIN:", err);
+
+    // 🔥 ESTE ES EL ERROR REAL QUE TIENES
+    error.innerText = "❌ No se pudo conectar al servidor";
+
   }
+
+}
+
 </script>
 
 </body>

@@ -24,21 +24,21 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ------------------ PORT ------------------
 const PORT = process.env.PORT || 3000;
 
-// ------------------ RUTA TEST ------------------
+// ------------------ TEST ------------------
 app.get("/", (req, res) => {
-  res.json({ message: "🔥 Backend StorePulse funcionando OK" });
+  res.send("✅ StorePulse backend funcionando");
 });
 
-// ------------------ CONEXIÓN MONGODB ------------------
+// ------------------ MONGODB ------------------
 if (!process.env.MONGO_URI) {
-  console.error("❌ Falta MONGO_URI en variables de entorno");
+  console.error("❌ Falta MONGO_URI");
   process.exit(1);
 }
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB conectado"))
   .catch(err => {
-    console.error("❌ Error conectando a MongoDB:", err.message);
+    console.error("❌ Error MongoDB:", err.message);
     process.exit(1);
   });
 
@@ -51,203 +51,166 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// ------------------ RUTAS ------------------
+// ================== RUTAS ==================
 
 // 🏢 AGENCIAS
 app.post("/agencies", async (req, res) => {
-  try {
-    const { name } = req.body;
-
-    if (!name)
-      return res.status(400).json({ error: "Nombre requerido" });
-
-    const agency = new Agency({ name });
-    await agency.save();
-
-    res.json(agency);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error creando agencia" });
-  }
+  const agency = new Agency({ name: req.body.name });
+  await agency.save();
+  res.json(agency);
 });
 
 app.get("/agencies", async (req, res) => {
-  try {
-    const agencies = await Agency.find().sort({ createdAt: -1 });
-    res.json(agencies);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error obteniendo agencias" });
-  }
-});
-
-app.delete("/agencies/:id", async (req, res) => {
-  try {
-    await Agency.findByIdAndDelete(req.params.id);
-    res.json({ message: "Agencia eliminada" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error eliminando agencia" });
-  }
+  const agencies = await Agency.find();
+  res.json(agencies);
 });
 
 // 👤 USUARIOS
 app.post("/register", async (req, res) => {
-  try {
-    const { name, email, password, agencyId } = req.body;
+  const { name, email, password, agencyId } = req.body;
 
-    if (!agencyId)
-      return res.status(400).json({ error: "Selecciona una agencia" });
+  const exists = await User.findOne({ email });
+  if (exists) return res.status(400).json({ error: "Email ya registrado" });
 
-    const exists = await User.findOne({ email });
+  const user = new User({ name, email, password, role: "user", agencyId });
+  await user.save();
 
-    if (exists)
-      return res.status(400).json({ error: "Email ya registrado" });
-
-    const user = new User({
-      name,
-      email,
-      password,
-      role: "user",
-      agencyId
-    });
-
-    await user.save();
-
-    res.json({ message: "Usuario registrado" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error registro" });
-  }
+  res.json({ message: "Usuario registrado" });
 });
 
 app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const user = await User.findOne(req.body);
+  if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
 
-    const user = await User.findOne({ email, password });
-
-    if (!user)
-      return res.status(404).json({ message: "Usuario no encontrado" });
-
-    res.json({
-      userId: user._id,
-      role: user.role,
-      agencyId: user.agencyId
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error login" });
-  }
+  res.json(user);
 });
 
 app.get("/users/:agencyId", async (req, res) => {
-  try {
-    const users = await User.find({ agencyId: req.params.agencyId });
-    res.json(users);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error obteniendo usuarios" });
-  }
+  const users = await User.find({ agencyId: req.params.agencyId });
+  res.json(users);
 });
 
-// 🏪 TIENDAS
+// 🏪 STORES
 app.post("/stores", async (req, res) => {
-  try {
-    const { name, address, lat, lng, agencyId } = req.body;
-
-    if (!agencyId)
-      return res.status(400).json({ error: "agencyId requerido" });
-
-    const store = new Store({ name, address, lat, lng, agencyId });
-    await store.save();
-
-    res.json({ message: "Tienda creada" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error creando tienda" });
-  }
+  const store = new Store(req.body);
+  await store.save();
+  res.json({ message: "Tienda creada" });
 });
 
 app.get("/stores/:agencyId", async (req, res) => {
-  try {
-    const stores = await Store.find({ agencyId: req.params.agencyId });
-    res.json(stores);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error obteniendo tiendas" });
-  }
+  const stores = await Store.find({ agencyId: req.params.agencyId });
+  res.json(stores);
 });
 
-// 📍 CHECK-IN
+// 📍 CHECKIN
 app.post("/checkin", upload.single("photo"), async (req, res) => {
-  try {
-    const { lat, lng, userId } = req.body;
 
-    if (!req.file)
-      return res.status(400).json({ message: "Debes tomar foto" });
+  const { lat, lng, userId } = req.body;
 
-    const user = await User.findById(userId);
+  const user = await User.findById(userId);
+  const stores = await Store.find({ agencyId: user.agencyId });
 
-    if (!user)
-      return res.status(404).json({ message: "Usuario no existe" });
+  let dentro = false;
 
-    const stores = await Store.find({ agencyId: user.agencyId });
+  function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
 
-    let dentro = false;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) ** 2;
 
-    function getDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) *
-        Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) ** 2;
-
-      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-    }
-
-    stores.forEach(store => {
-      const dist = getDistance(lat, lng, store.lat, store.lng);
-      if (dist < 0.1) dentro = true;
-    });
-
-    if (!dentro)
-      return res.json({ message: "Fuera de tienda" });
-
-    await User.findByIdAndUpdate(userId, {
-      lastLocation: { lat, lng, date: new Date() }
-    });
-
-    await Checkin.create({
-      userId,
-      agencyId: user.agencyId,
-      lat,
-      lng,
-      photo: req.file.filename,
-      date: new Date()
-    });
-
-    res.json({ message: "Check-in OK" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error check-in" });
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   }
+
+  stores.forEach(store => {
+    const dist = getDistance(lat, lng, store.lat, store.lng);
+    if (dist < 0.1) dentro = true;
+  });
+
+  if (!dentro) return res.json({ message: "Fuera de tienda" });
+
+  await Checkin.create({
+    userId,
+    agencyId: user.agencyId,
+    lat,
+    lng,
+    photo: req.file.filename,
+    date: new Date()
+  });
+
+  res.json({ message: "Check-in OK" });
 });
 
-// ------------------ 404 GLOBAL ------------------
+// 📊 DASHBOARD
+app.get("/dashboard/:agencyId", async (req, res) => {
+  const agencyId = req.params.agencyId;
+
+  const totalUsers = await User.countDocuments({ agencyId });
+  const totalStores = await Store.countDocuments({ agencyId });
+  const totalCheckins = await Checkin.countDocuments({ agencyId });
+
+  const activeUsers = await User.countDocuments({
+    agencyId,
+    lastLocation: { $exists: true }
+  });
+
+  res.json({ totalUsers, totalStores, totalCheckins, activeUsers });
+});
+
+// 📋 HISTORIAL
+app.get("/checkins/:agencyId", async (req, res) => {
+  const data = await Checkin.find({ agencyId: req.params.agencyId })
+    .populate("userId")
+    .sort({ date: -1 });
+
+  res.json(data);
+});
+
+// 🏆 RANKING
+app.get("/stats/ranking/:agencyId", async (req, res) => {
+  const ranking = await Checkin.aggregate([
+    { $match: { agencyId: new mongoose.Types.ObjectId(req.params.agencyId) } },
+    { $group: { _id: "$userId", total: { $sum: 1 } } },
+    { $sort: { total: -1 } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "_id",
+        foreignField: "_id",
+        as: "_id"
+      }
+    },
+    { $unwind: "$_id" }
+  ]);
+
+  res.json(ranking);
+});
+
+// 📄 REPORT
+app.get("/report/:agencyId", async (req, res) => {
+  const { start, end } = req.query;
+
+  const data = await Checkin.find({
+    agencyId: req.params.agencyId,
+    date: {
+      $gte: new Date(start),
+      $lte: new Date(end)
+    }
+  });
+
+  res.json(data);
+});
+
+// ------------------ 404 ------------------
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
 });
 
 // ------------------ START ------------------
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log("🔥 VERSION NUEVA DEPLOY ACTIVA");
+  console.log(`🚀 Servidor en puerto ${PORT}`);
 });

@@ -16,7 +16,7 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
 .small { padding:5px 10px; margin-top:5px; background:red; color:white; border:none; border-radius:6px; cursor:pointer; }
 .kpi { font-size:22px; font-weight:bold; }
 .store-list { display:flex; gap:10px; margin-top:10px; }
-.store-list div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; }
+.store-list > div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; }
 .store-item { background:#D4AF37; color:white; padding:5px 8px; margin:5px 0; border-radius:6px; cursor:grab; }
 .store-item.dragging { opacity:0.5; }
 </style>
@@ -50,16 +50,14 @@ const agencyId = localStorage.getItem("agencyId");
 let allUsers = [];
 let allAgencies = [];
 let allStores = [];
-let currentUserStores = {}; // Para cada usuario
+let currentUserStores = {}; 
 
 // 🔐 SEGURIDAD
 if(!userId) window.location.href = "./login.html";
-
-// Control UI por rol
 if(role !== "superadmin") document.getElementById("menuAgencies").style.display = "none";
 if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display = "none";
 
-// ---------------- FETCH CON HEADER ----------------
+// ---------------- FETCH ----------------
 async function fetchWithAuth(url, options={}) {
   options.headers = { ...(options.headers||{}), userId };
   const res = await fetch(url, options);
@@ -137,7 +135,7 @@ function renderUsers(users){
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 
-  // ⚡ Drag & Drop
+  // Drag & Drop
   Object.keys(currentUserStores).forEach(uid=>{
     const container = document.getElementById(`storeContainer_${uid}`);
     const cols = container.querySelectorAll(".store-list > div");
@@ -174,8 +172,8 @@ async function dropStore(ev, uid, target){
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
   const storeObj = allStores.find(s=>s._id===storeId);
-
   const userStores = currentUserStores[uid];
+
   if(target==="assigned"){
     if(!userStores.assigned.some(s=>s._id===storeId)) userStores.assigned.push(storeObj);
     userStores.available = userStores.available.filter(s=>s._id!==storeId);
@@ -184,7 +182,6 @@ async function dropStore(ev, uid, target){
     userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
 
-  // Actualizar backend
   await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
     method:"PUT",
     headers:{ "Content-Type":"application/json" },
@@ -258,11 +255,15 @@ async function loadStores(){
   if(role!=="admin" && role!=="superadmin") return;
   if(role==="superadmin") allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
   allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
+
   document.getElementById("content").innerHTML = `
     <div class="card">
       <h3>Crear Tienda</h3>
       <input id="newStore" placeholder="Nombre de tienda">
       ${role==="superadmin"?'<label>Agencia</label><select id="agencyIdStore">'+allAgencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("")+'</select>':""}
+      <input id="storeAddress" placeholder="Dirección de la tienda">
+      <input id="storeLat" placeholder="Latitud" type="number" step="any">
+      <input id="storeLng" placeholder="Longitud" type="number" step="any">
       <button onclick="createStore()">Crear Tienda</button>
     </div>
   `;
@@ -270,15 +271,28 @@ async function loadStores(){
 
 async function createStore(){
   const name = document.getElementById("newStore").value;
-  if(!name) return alert("Ingresa nombre");
-  const newStore = await fetchWithAuth(`${BACKEND_URL}/stores`, {
+  const address = document.getElementById("storeAddress").value;
+  const lat = parseFloat(document.getElementById("storeLat").value);
+  const lng = parseFloat(document.getElementById("storeLng").value);
+  const agencyStore = role==="superadmin" ? document.getElementById("agencyIdStore")?.value : agencyId;
+
+  if(!name || !address || isNaN(lat) || isNaN(lng)){
+    return alert("Completa todos los campos: nombre, dirección, latitud y longitud");
+  }
+
+  try {
+    const newStore = await fetchWithAuth(`${BACKEND_URL}/stores`, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ name, lat:0, lng:0, agencyId: role==="superadmin"?document.getElementById("agencyIdStore")?.value:agencyId })
-  });
-  allStores.push(newStore);
-  alert("Tienda creada ✅");
-  loadStores();
+      body: JSON.stringify({ name, address, lat, lng, agencyId: agencyStore })
+    });
+    allStores.push(newStore);
+    alert("Tienda creada ✅");
+    loadStores();
+  } catch(err){
+    alert("Error creando tienda");
+    console.error(err);
+  }
 }
 
 // ---------------- FILTROS ----------------
@@ -286,7 +300,6 @@ function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter
 
 // ---------------- LOGOUT ----------------
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
-
 </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// server.js – StorePulse PRO MAX SaaS FINAL
+// server.js – StorePulse PRO MAX SaaS FINAL 🔥
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -10,6 +10,7 @@ const crypto = require("crypto");
 require("dotenv").config();
 
 // ------------------ MODELOS ------------------
+
 const User = require("./models/User");
 const Store = require("./models/Store");
 const Checkin = require("./models/Checkin");
@@ -18,10 +19,11 @@ const Agency = require("./models/Agency");
 const app = express();
 
 // ------------------ MIDDLEWARE ------------------
+
 app.use(cors({
   origin: "*",
   methods: ["GET","POST","PUT","DELETE"],
-  allowedHeaders: ["Content-Type"]
+  allowedHeaders: ["Content-Type","userId"]
 }));
 
 app.use(express.json());
@@ -31,9 +33,11 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ------------------ PORT ------------------
+
 const PORT = process.env.PORT || 3000;
 
-// ------------------ RUTAS HTML ------------------
+// ------------------ HTML ------------------
+
 app.get("/", (req,res)=>{
   res.sendFile(path.join(__dirname,"public","login.html"));
 });
@@ -44,7 +48,8 @@ app.get("/", (req,res)=>{
   });
 });
 
-// ------------------ MONGODB ------------------
+// ------------------ DB ------------------
+
 mongoose.connect(process.env.MONGO_URI)
 .then(()=> console.log("✅ MongoDB conectado"))
 .catch(err=>{
@@ -53,6 +58,7 @@ mongoose.connect(process.env.MONGO_URI)
 });
 
 // ------------------ MULTER ------------------
+
 const storage = multer.diskStorage({
   destination: (req,file,cb)=> cb(null,"uploads/"),
   filename: (req,file,cb)=> cb(null, Date.now()+"-"+file.originalname)
@@ -60,6 +66,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ------------------ EMAIL ------------------
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -68,7 +75,9 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// ------------------ AGENCIAS ------------------
+// =====================================================
+// 🏢 AGENCIAS (MULTI EMPRESA)
+// =====================================================
 
 app.post("/agencies", async (req,res)=>{
   try{
@@ -91,12 +100,13 @@ app.get("/agencies", async (req,res)=>{
   res.json(agencies);
 });
 
-// ------------------ USUARIOS ------------------
+// =====================================================
+// 👤 USUARIOS
+// =====================================================
 
-// 🔹 REGISTRO SAAS
+// 🔹 REGISTER
 app.post("/register", async (req,res)=>{
   try{
-
     let { name, email, password } = req.body;
 
     email = email.trim().toLowerCase();
@@ -128,7 +138,6 @@ app.post("/register", async (req,res)=>{
 // 🔹 LOGIN
 app.post("/login", async (req,res)=>{
   try{
-
     let { email, password } = req.body;
 
     email = email.trim().toLowerCase();
@@ -152,22 +161,21 @@ app.post("/login", async (req,res)=>{
   }
 });
 
-// 🔹 TODOS LOS USUARIOS
+// 🔹 TODOS
 app.get("/users", async (req,res)=>{
   const users = await User.find().populate("agencyId");
   res.json(users);
 });
 
-// 🔹 USUARIOS POR AGENCIA
+// 🔹 POR AGENCIA
 app.get("/users/:agencyId", async (req,res)=>{
   const users = await User.find({ agencyId:req.params.agencyId });
   res.json(users);
 });
 
-// 🔹 CREAR USUARIO ADMIN
+// 🔹 CREAR (ADMIN)
 app.post("/admin/create-user", async (req,res)=>{
   try{
-
     let { name,email,password,role,agencyId } = req.body;
 
     email = email.trim().toLowerCase();
@@ -199,10 +207,9 @@ app.post("/admin/create-user", async (req,res)=>{
 // 🔹 CAMBIAR ROL
 app.put("/users/:id/role", async (req,res)=>{
   try{
-
     const { role } = req.body;
 
-    const rolesValidos = ["promotor","demostradora","admin","superadmin"];
+    const rolesValidos = ["promotor","demostradora","user","admin","superadmin"];
 
     if(!rolesValidos.includes(role)){
       return res.status(400).json({error:"Rol inválido"});
@@ -218,17 +225,37 @@ app.put("/users/:id/role", async (req,res)=>{
   }
 });
 
-// 🔹 ELIMINAR USUARIO
+// 🔥 🔥 🔥 AQUI ESTÁ LO QUE TE FALTABA 🔥 🔥 🔥
+
+// 🔹 CAMBIAR AGENCIA
+app.put("/users/:id/agency", async (req,res)=>{
+  try{
+    const { agencyId } = req.body;
+
+    await User.findByIdAndUpdate(req.params.id,{
+      agencyId: agencyId || null
+    });
+
+    res.json({message:"Agencia actualizada"});
+
+  }catch(err){
+    console.error(err);
+    res.status(500).json({error:"Error actualizando agencia"});
+  }
+});
+
+// 🔹 DELETE
 app.delete("/users/:id", async (req,res)=>{
   await User.findByIdAndDelete(req.params.id);
   res.json({message:"Usuario eliminado"});
 });
 
-// ------------------ RECUPERACIÓN ------------------
+// =====================================================
+// 🔐 RECUPERACIÓN
+// =====================================================
 
 app.post("/recover", async (req,res)=>{
   try{
-
     let { email } = req.body;
 
     email = email.trim().toLowerCase();
@@ -253,7 +280,6 @@ app.post("/recover", async (req,res)=>{
       subject: "Recuperar contraseña",
       html: `
         <h3>Recuperación de contraseña</h3>
-        <p>Haz clic en el siguiente enlace:</p>
         <a href="${link}">${link}</a>
       `
     });
@@ -266,10 +292,8 @@ app.post("/recover", async (req,res)=>{
   }
 });
 
-// 🔹 RESET
 app.post("/reset", async (req,res)=>{
   try{
-
     const { token,password } = req.body;
 
     const user = await User.findOne({
@@ -295,7 +319,9 @@ app.post("/reset", async (req,res)=>{
   }
 });
 
-// ------------------ STORES ------------------
+// =====================================================
+// 🏪 STORES
+// =====================================================
 
 app.post("/stores", async (req,res)=>{
   const { name,address,lat,lng,agencyId } = req.body;
@@ -315,11 +341,12 @@ app.get("/stores/:agencyId", async (req,res)=>{
   res.json(stores);
 });
 
-// ------------------ CHECKIN ------------------
+// =====================================================
+// 📍 CHECKIN
+// =====================================================
 
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
   try{
-
     const { lat,lng,userId } = req.body;
 
     const user = await User.findById(userId);
@@ -349,11 +376,13 @@ app.post("/checkin", upload.single("photo"), async (req,res)=>{
 });
 
 // ------------------ 404 ------------------
+
 app.use((req,res)=>{
   res.status(404).json({error:"Ruta no encontrada"});
 });
 
 // ------------------ START ------------------
+
 app.listen(PORT,"0.0.0.0", ()=>{
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log("🔥 STOREPULSE SAAS PRO MAX ACTIVO");

@@ -6,6 +6,7 @@
 <title>Admin PRO - StorePulse</title>
 
 <style>
+
 body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
 
 .sidebar {
@@ -72,6 +73,7 @@ input, select {
   font-size:22px;
   font-weight:bold;
 }
+
 </style>
 
 </head>
@@ -80,6 +82,7 @@ input, select {
 
 <div class="sidebar">
   <h2>⚡ Admin PRO</h2>
+
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
@@ -94,10 +97,14 @@ input, select {
 <script>
 
 const BACKEND_URL = "https://storepulse.onrender.com";
+
 const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
 
-// 🔐 PROTECCIÓN
+let allUsers = [];
+let allAgencies = [];
+
+// 🔐 SEGURIDAD
 if(!userId){
   window.location.href = "./login.html";
 }
@@ -130,15 +137,16 @@ async function loadDashboard(){
 
 // ---------------- USUARIOS ----------------
 
-let allUsers = [];
-
 async function loadUsers(){
 
-  const res = await fetch(`${BACKEND_URL}/users`,{
-    headers:{ userId }
-  });
+  const [usersRes, agenciesRes] = await Promise.all([
+    fetch(`${BACKEND_URL}/users`,{ headers:{ userId } }),
+    fetch(`${BACKEND_URL}/agencies`,{ headers:{ userId } })
+  ]);
 
-  allUsers = await res.json();
+  allUsers = await usersRes.json();
+  allAgencies = await agenciesRes.json();
+
   renderUsers(allUsers);
 }
 
@@ -159,19 +167,36 @@ function renderUsers(users){
   `;
 
   users.forEach(u=>{
+
+    let agencyOptions = `<option value="">Sin agencia</option>`;
+
+    allAgencies.forEach(a=>{
+      const selected = (u.agencyId && (u.agencyId._id || u.agencyId) == a._id) ? "selected" : "";
+      agencyOptions += `<option value="${a._id}" ${selected}>${a.name}</option>`;
+    });
+
     html += `
       <div class="user">
         <b>${u.name}</b> (${u.email})<br>
 
-        Rol:
+        <b>Rol:</b>
         <select onchange="changeRole('${u._id}', this.value)">
           <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
           <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
+          <option value="user" ${u.role==="user"?"selected":""}>User</option>
           <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
           <option value="superadmin" ${u.role==="superadmin"?"selected":""}>Super Admin</option>
         </select>
 
+        <br><br>
+
+        <b>🏢 Agencia:</b>
+        <select onchange="changeAgency('${u._id}', this.value)">
+          ${agencyOptions}
+        </select>
+
         <br>
+
         <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
       </div>
     `;
@@ -200,11 +225,8 @@ function filterByRole(role){
 
 async function loadCreateUser(){
 
-  const agenciesRes = await fetch(`${BACKEND_URL}/agencies`,{
-    headers:{ userId }
-  });
-
-  const agencies = await agenciesRes.json();
+  const res = await fetch(`${BACKEND_URL}/agencies`,{ headers:{ userId } });
+  const agencies = await res.json();
 
   let options = "";
   agencies.forEach(a=>{
@@ -243,14 +265,8 @@ function toggleAgency(){
   const role = document.getElementById("role").value;
   const agencyDiv = document.getElementById("agencyContainer");
 
-  if(role === "admin" || role === "superadmin"){
-    agencyDiv.style.display = "none";
-  } else {
-    agencyDiv.style.display = "block";
-  }
+  agencyDiv.style.display = (role === "admin") ? "none" : "block";
 }
-
-// ---------------- CREAR ----------------
 
 async function createUser(){
 
@@ -263,7 +279,7 @@ async function createUser(){
     role: roleSel
   };
 
-  if(roleSel !== "admin" && roleSel !== "superadmin"){
+  if(roleSel !== "admin"){
     body.agencyId = document.getElementById("agencyId").value;
   }
 
@@ -280,10 +296,9 @@ async function createUser(){
   loadUsers();
 }
 
-// ---------------- ROLE ----------------
+// ---------------- ACCIONES ----------------
 
 async function changeRole(id, role){
-
   await fetch(`${BACKEND_URL}/users/${id}/role`,{
     method:"PUT",
     headers:{
@@ -294,7 +309,18 @@ async function changeRole(id, role){
   });
 }
 
-// ---------------- DELETE ----------------
+async function changeAgency(id, agencyId){
+  await fetch(`${BACKEND_URL}/users/${id}/agency`,{
+    method:"PUT",
+    headers:{
+      "Content-Type":"application/json",
+      "userId": userId
+    },
+    body: JSON.stringify({ agencyId })
+  });
+
+  alert("🏢 Agencia actualizada");
+}
 
 async function deleteUser(id){
 

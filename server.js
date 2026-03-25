@@ -1,4 +1,4 @@
-// server.js – StorePulse PRO listo para Render
+// server.js – StorePulse PRO FINAL listo para Render
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -24,11 +24,11 @@ app.use(cors({
   allowedHeaders: ["Content-Type"]
 }));
 
-// 🔥 PARSEO (CLAVE PARA QUE FUNCIONE LOGIN)
+// 🔥 PARSEO (CLAVE)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔥 FRONTEND
+// 🔥 FRONTEND (HTML)
 app.use(express.static(path.join(__dirname, "public")));
 
 // 🔥 IMÁGENES
@@ -37,9 +37,9 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ------------------ PORT ------------------
 const PORT = process.env.PORT || 3000;
 
-// ------------------ RUTA TEST ------------------
+// ------------------ RUTA PRINCIPAL (🔥 FIX CLAVE) ------------------
 app.get("/", (req, res) => {
-  res.json({ message: "🔥 Backend StorePulse funcionando OK" });
+  res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 // ------------------ CONEXIÓN MONGODB ------------------
@@ -61,6 +61,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) =>
     cb(null, Date.now() + "-" + file.originalname),
 });
+
 const upload = multer({ storage });
 
 // ------------------ RUTAS ------------------

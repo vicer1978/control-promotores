@@ -15,6 +15,9 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
 .user { border-bottom:1px solid #eee; padding:10px 0; }
 .small { padding:5px 10px; margin-top:5px; background:red; color:white; border:none; border-radius:6px; cursor:pointer; }
 .kpi { font-size:22px; font-weight:bold; }
+.store-list { display:flex; gap:10px; margin-top:10px; }
+.store-list div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; }
+.store-item { background:#D4AF37; color:white; padding:5px 8px; margin:5px 0; border-radius:6px; cursor:grab; }
 </style>
 </head>
 <body>
@@ -24,9 +27,10 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
-  <div id="menuAgencies">
+  <div id="menuAgencies" style="display:${role==="superadmin"?"block":"none"}">
     <button onclick="loadAgencies()">🏢 Agencias</button>
   </div>
+  <button onclick="loadStores()">🏬 Tiendas</button>
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
@@ -43,12 +47,11 @@ const agencyId = localStorage.getItem("agencyId");
 let allUsers = [];
 let allAgencies = [];
 let allStores = [];
+let assignedStoresArr = [];
+let availableStoresArr = [];
 
 // 🔐 SEGURIDAD
-if(!userId){ window.location.href = "./login.html"; }
-
-// 🔥 CONTROL UI POR ROL
-if(role !== "superadmin"){ document.getElementById("menuAgencies").style.display = "none"; }
+if(!userId) window.location.href = "./login.html";
 
 // ---------------- FETCH CON HEADER ----------------
 async function fetchWithAuth(url, options={}) {
@@ -79,90 +82,76 @@ async function loadDashboard(){
 async function loadUsers(){
   try {
     allUsers = await fetchWithAuth(`${BACKEND_URL}/users`);
-    if(role==="superadmin"){ allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`); }
     allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
+    if(role==="superadmin") allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
     renderUsers(allUsers);
   } catch(err){ alert("Error cargando usuarios"); }
 }
 
 function renderUsers(users){
-  let html = `<div class="card">
-      <h3>Usuarios</h3>
-      <input placeholder="Buscar..." oninput="filterUsers(this.value)">
-  `;
+  let html = `<div class="card"><h3>Usuarios</h3><input placeholder="Buscar..." oninput="filterUsers(this.value)">`;
 
   users.forEach(u=>{
     let agencySelect = "";
-    let storeSelect = "";
-
-    // 🔹 Agencia
     if(role==="superadmin"){
       let options = `<option value="">Sin agencia</option>`;
       allAgencies.forEach(a=>{
         const selected = (u.agencyId && (u.agencyId._id || u.agencyId) === a._id) ? "selected" : "";
         options += `<option value="${a._id}" ${selected}>${a.name}</option>`;
       });
-      agencySelect = `<br><b>🏢 Agencia:</b>
-        <select onchange="changeAgency('${u._id}', this.value)">${options}</select>`;
+      agencySelect = `<br><b>🏢 Agencia:</b><select onchange="changeAgency('${u._id}', this.value)">${options}</select>`;
     }
 
-    // 🔹 Tiendas (solo promotor o demostradora)
-    if(["promotor","demostradora"].includes(u.role)){
-      let storeOptions = allStores
-        .filter(s => role==="superadmin" || s.agencyId?._id == agencyId)
-        .map(s => {
-          const selected = u.stores?.some(us => us._id == s._id) ? "selected" : "";
-          return `<option value="${s._id}" ${selected}>${s.name}</option>`;
-        }).join("");
-      storeSelect = `<br><b>🏪 Tiendas:</b>
-        <select multiple onchange="changeStores('${u._id}', Array.from(this.selectedOptions).map(o=>o.value))">${storeOptions}</select>`;
+    let storesSection = "";
+    if(u.role==="promotor" || u.role==="demostradora"){
+      assignedStoresArr = u.stores || [];
+      availableStoresArr = allStores.filter(s => !assignedStoresArr.some(as => as._id === s._id));
+      storesSection = renderStoreDragDrop(u._id);
     }
 
-    html += `<div class="user">
-      <b>${u.name}</b> (${u.email})<br>
-      <b>Rol:</b>
-      <select onchange="changeRole('${u._id}', this.value)">
-        <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
-        <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
-        <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
-      </select>
-      ${agencySelect}
-      ${storeSelect}
-      <br>
-      <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
-    </div>`;
+    html += `
+      <div class="user">
+        <b>${u.name}</b> (${u.email})<br>
+        <b>Rol:</b>
+        <select onchange="changeRole('${u._id}', this.value)">
+          <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
+          <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
+          <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
+        </select>
+        ${agencySelect}
+        ${storesSection}
+        <br>
+        <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
+      </div>
+    `;
   });
-
-  // 🔹 Crear Tienda
-  if(role==="superadmin" || role==="admin"){
-    html += `<div class="card">
-      <h3>Crear Tienda</h3>
-      <input id="newStoreName" placeholder="Nombre de la tienda">
-      <input id="newStoreAddress" placeholder="Dirección">
-      <input id="newStoreLat" placeholder="Latitud">
-      <input id="newStoreLng" placeholder="Longitud">
-      <button onclick="createStore()">Crear Tienda</button>
-    </div>`;
-  }
 
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 }
 
-function filterUsers(term){
-  term = term.toLowerCase();
-  renderUsers(allUsers.filter(u => u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)));
+function renderStoreDragDrop(uid){
+  let html = `<div class="store-list" id="storeContainer_${uid}">
+    <div>
+      <h4>🟢 Disponibles</h4>
+      ${availableStoresArr.map(s=>`<div class="store-item" draggable="true" ondragstart="drag(event)" id="store_${s._id}">${s.name}</div>`).join("")}
+    </div>
+    <div>
+      <h4>🔵 Asignadas</h4>
+      ${assignedStoresArr.map(s=>`<div class="store-item" draggable="true" ondragstart="drag(event)" id="store_${s._id}">${s.name}</div>`).join("")}
+    </div>
+  </div>`;
+  return html;
 }
 
 // ---------------- CREAR USUARIO ----------------
 async function loadCreateUser(){
-  allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
-  allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
-
-  let agencyOptions = `<option value="">Sin agencia</option>`;
-  allAgencies.forEach(a=> agencyOptions += `<option value="${a._id}">${a.name}</option>`);
-
-  let storeOptions = allStores.map(s => `<option value="${s._id}">${s.name}</option>`).join("");
+  let agencySelect = "";
+  if(role==="superadmin"){
+    let agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
+    let options = agencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("");
+    agencySelect = `<label>Agencia</label><select id="agencyId">${options}</select>`;
+  }
 
   document.getElementById("content").innerHTML = `
     <div class="card">
@@ -171,76 +160,42 @@ async function loadCreateUser(){
       <input id="email" placeholder="Email">
       <input id="password" placeholder="Password">
       <label>Rol</label>
-      <select id="role" onchange="toggleStores()">
+      <select id="role">
         <option value="promotor">Promotor</option>
         <option value="demostradora">Demostradora</option>
         <option value="admin">Admin</option>
       </select>
-      <br><label>Agencia</label>
-      <select id="agencyId">${agencyOptions}</select>
-      <br><div id="storeSelection">
-        <label>Tiendas</label>
-        <select id="storeIds" multiple>${storeOptions}</select>
-      </div>
+      ${agencySelect}
       <button onclick="createUser()">Crear</button>
     </div>
   `;
-  toggleStores();
-}
-
-function toggleStores(){
-  const roleVal = document.getElementById("role").value;
-  document.getElementById("storeSelection").style.display = ["promotor","demostradora"].includes(roleVal) ? "block" : "none";
 }
 
 async function createUser(){
-  const selectedStores = Array.from(document.getElementById("storeIds")?.selectedOptions||[]).map(o=>o.value);
   const body = {
     name: document.getElementById("name").value,
     email: document.getElementById("email").value,
     password: document.getElementById("password").value,
     role: document.getElementById("role").value,
-    agencyId: document.getElementById("agencyId")?.value || null,
-    storeIds: selectedStores
+    agencyId: role==="superadmin" ? document.getElementById("agencyId")?.value : agencyId
   };
   try{
-    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, {
-      method:"POST",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify(body)
-    });
+    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, { method:"POST", headers: { "Content-Type":"application/json" }, body: JSON.stringify(body) });
     alert("Usuario creado");
     loadUsers();
-  } catch(err){ alert("Error creando usuario"); console.error(err); }
+  } catch(err){ alert("Error creando usuario"); }
 }
 
 // ---------------- ACCIONES ----------------
 async function changeRole(id, role){
-  await fetchWithAuth(`${BACKEND_URL}/users/${id}/role`, {
-    method:"PUT",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ role })
-  });
+  await fetchWithAuth(`${BACKEND_URL}/users/${id}/role`, { method:"PUT", headers: { "Content-Type":"application/json" }, body: JSON.stringify({ role }) });
+  loadUsers();
 }
 
 async function changeAgency(id, agencyId){
-  await fetchWithAuth(`${BACKEND_URL}/users/${id}/agency`, {
-    method:"PUT",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ agencyId })
-  });
+  if(role!=="superadmin") return alert("Solo SuperAdmin puede asignar agencias");
+  await fetchWithAuth(`${BACKEND_URL}/users/${id}/agency`, { method:"PUT", headers: { "Content-Type":"application/json" }, body: JSON.stringify({ agencyId }) });
   alert("Agencia actualizada");
-}
-
-async function changeStores(userId, storeIds){
-  try{
-    await fetchWithAuth(`${BACKEND_URL}/users/${userId}/stores`, {
-      method:"PUT",
-      headers: { "Content-Type":"application/json" },
-      body: JSON.stringify({ storeIds })
-    });
-    alert("Tiendas actualizadas");
-  } catch(err){ console.error(err); alert("Error actualizando tiendas"); }
 }
 
 async function deleteUser(id){
@@ -249,29 +204,9 @@ async function deleteUser(id){
   loadUsers();
 }
 
-// ---------------- TIENDAS ----------------
-async function createStore(){
-  const name = document.getElementById("newStoreName").value;
-  const address = document.getElementById("newStoreAddress").value;
-  const lat = parseFloat(document.getElementById("newStoreLat").value);
-  const lng = parseFloat(document.getElementById("newStoreLng").value);
-  if(!name || !address || isNaN(lat) || isNaN(lng)){ alert("Completa todos los campos correctamente"); return; }
-
-  let body = { name, address, lat, lng };
-  if(role!=="superadmin") body.agencyId = agencyId;
-
-  await fetchWithAuth(`${BACKEND_URL}/stores`, {
-    method:"POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  alert("Tienda creada");
-  loadUsers();
-}
-
 // ---------------- AGENCIAS ----------------
 async function loadAgencies(){
-  if(role!=="superadmin") return;
+  if(role!=="superadmin") return alert("Solo SuperAdmin puede acceder a Agencias");
   let agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
   let html = `<div class="card"><h3>Agencias</h3>`;
   agencies.forEach(a=> html+=`<p>${a.name}</p>`);
@@ -280,20 +215,66 @@ async function loadAgencies(){
 }
 
 async function createAgency(){
-  await fetchWithAuth(`${BACKEND_URL}/agencies`, {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ name: document.getElementById("newAgency").value })
-  });
+  if(role!=="superadmin") return;
+  await fetchWithAuth(`${BACKEND_URL}/agencies`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ name: document.getElementById("newAgency").value }) });
   loadAgencies();
 }
 
-// ---------------- LOGOUT ----------------
-function logout(){
-  localStorage.clear();
-  window.location.href = "./login.html";
+// ---------------- TIENDAS ----------------
+async function loadStores(){
+  if(role==="admin" || role==="superadmin"){
+    allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
+    document.getElementById("content").innerHTML = `
+      <div class="card">
+        <h3>Crear Tienda</h3>
+        <input id="newStore" placeholder="Nombre de tienda">
+        ${role==="superadmin"?'<label>Agencia</label><select id="agencyIdStore">'+allAgencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("")+'</select>':""}
+        <button onclick="createStore()">Crear Tienda</button>
+      </div>
+    `;
+  }
 }
-</script>
 
+async function createStore(){
+  const name = document.getElementById("newStore").value;
+  if(!name) return alert("Ingresa nombre");
+  try {
+    await fetchWithAuth(`${BACKEND_URL}/stores`, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ name, lat:0, lng:0, agencyId:role==="superadmin"?document.getElementById("agencyIdStore")?.value:agencyId })
+    });
+    allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
+    alert("Tienda creada ✅");
+    loadStores();
+  } catch(err){ console.error(err); alert("Error creando tienda"); }
+}
+
+// ---------------- DRAG & DROP ----------------
+let draggedItem = null;
+function drag(ev){ draggedItem = ev.target; }
+function allowDrop(ev){ ev.preventDefault(); }
+async function drop(ev, uid, target){ 
+  ev.preventDefault();
+  if(!draggedItem) return;
+  const storeId = draggedItem.id.replace("store_","");
+  if(target==="assigned"){
+    assignedStoresArr.push(allStores.find(s=>s._id===storeId));
+    availableStoresArr = availableStoresArr.filter(s=>s._id!==storeId);
+  } else {
+    availableStoresArr.push(allStores.find(s=>s._id===storeId));
+    assignedStoresArr = assignedStoresArr.filter(s=>s._id!==storeId);
+  }
+  renderUsers(allUsers);
+  await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ stores:assignedStoresArr.map(s=>s._id) }) });
+}
+
+// ---------------- FILTROS ----------------
+function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter(u=>u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))); }
+
+// ---------------- LOGOUT ----------------
+function logout(){ localStorage.clear(); window.location.href="./login.html"; }
+
+</script>
 </body>
 </html>

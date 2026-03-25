@@ -1,108 +1,180 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>Login - StorePulse</title>
 
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0B1F3A">
+
 <style>
 :root {
-  --primary:#0B1F3A;
-  --secondary:#D4AF37;
-  --bg:#F5F7FA;
+  --primary: #0B1F3A;
+  --secondary: #D4AF37;
+  --bg: #F5F7FA;
 }
 
-body{
-  margin:0;
-  font-family:Arial;
-  background:var(--bg);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
+body {
+  margin: 0;
+  font-family: Arial;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
 }
 
-.container{
-  width:90%;
-  max-width:360px;
-  background:#fff;
-  padding:30px;
-  border-radius:15px;
-  box-shadow:0 6px 15px rgba(0,0,0,0.1);
+.login-container {
+  width: 90%;
+  max-width: 360px;
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
 }
 
-.logo{
-  text-align:center;
-  font-size:24px;
-  font-weight:bold;
-  color:var(--primary);
-  margin-bottom:20px;
+.logo {
+  text-align: center;
+  font-size: 26px;
+  font-weight: bold;
+  color: var(--primary);
+  margin-bottom: 10px;
 }
 
-input{
-  width:100%;
-  padding:12px;
-  margin:8px 0;
-  border-radius:8px;
-  border:1px solid #ccc;
+.subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: gray;
+  margin-bottom: 20px;
 }
 
-button{
-  width:100%;
-  padding:12px;
-  background:var(--secondary);
-  border:none;
-  border-radius:8px;
-  color:white;
-  font-weight:bold;
-  cursor:pointer;
+input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
 }
 
-.links{
-  text-align:center;
-  margin-top:10px;
+.password-wrapper {
+  position: relative;
 }
 
-.links a{
-  display:block;
-  margin:5px 0;
-  color:var(--primary);
-  font-size:13px;
-  cursor:pointer;
+.toggle-pass {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
 }
 
-.error{
-  color:red;
-  font-size:12px;
-  text-align:center;
-  margin-top:10px;
+.button {
+  width: 100%;
+  padding: 12px;
+  background: var(--secondary);
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-top: 10px;
+  cursor: pointer;
+  color: #fff;
+  transition: 0.2s;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
+
+.links {
+  text-align: center;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+.links a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.error {
+  color: red;
+  font-size: 12px;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 11px;
+  color: gray;
 }
 </style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="login-container">
 
   <div class="logo">StorePulse</div>
+  <div class="subtitle">Control de promotores y demostradoras</div>
 
-  <input id="email" placeholder="Correo">
-  <input id="password" type="password" placeholder="Contraseña">
+  <input id="email" placeholder="Correo electrónico">
 
-  <button onclick="login()">Ingresar</button>
+  <div class="password-wrapper">
+    <input id="password" type="password" placeholder="Contraseña">
+    <button class="toggle-pass" onclick="togglePassword()" id="eyeBtn">👁️</button>
+  </div>
+
+  <label style="font-size:12px;">
+    <input type="checkbox" id="rememberMe"> Guardar usuario
+  </label>
+
+  <button class="button" onclick="login()">Ingresar</button>
 
   <div class="links">
-    <a href="./forgot.html">¿Olvidaste tu contraseña?</a>
-    <a href="./register.html">¿No tienes cuenta? Regístrate</a>
+    <a href="./recover.html">¿Olvidaste tu contraseña?</a><br>
+    <span>¿No tienes cuenta?</span>
+    <a href="./register.html">Regístrate</a>
   </div>
 
   <div class="error" id="error"></div>
+  <div class="footer">Versión 2.0</div>
 
 </div>
 
 <script>
 
+// 🔥 BACKEND
 const BACKEND_URL = "https://storepulse.onrender.com";
 
+// 🔹 Cargar email guardado
+window.onload = () => {
+  const savedEmail = localStorage.getItem("savedEmail");
+  if(savedEmail) document.getElementById("email").value = savedEmail;
+};
+
+// 👁️ Mostrar / ocultar contraseña (MEJORADO)
+function togglePassword(){
+  const pass = document.getElementById("password");
+  const btn = document.getElementById("eyeBtn");
+
+  if(pass.type === "password"){
+    pass.type = "text";
+    btn.innerText = "🙈";
+  } else {
+    pass.type = "password";
+    btn.innerText = "👁️";
+  }
+}
+
+// 🔐 LOGIN PRO
 async function login(){
 
   const email = document.getElementById("email").value.trim();
@@ -112,37 +184,58 @@ async function login(){
   error.innerText = "";
 
   if(!email || !password){
-    error.innerText = "⚠️ Completa los campos";
+    error.innerText = "⚠️ Completa todos los campos";
     return;
   }
 
-  try{
+  try {
 
-    // 🔥 Wake up backend
+    console.log("🔗 Conectando a:", BACKEND_URL);
+
+    // 🔥 Despertar backend (Render sleep)
     await fetch(BACKEND_URL);
 
     const res = await fetch(`${BACKEND_URL}/login`, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ email, password })
     });
+
+    console.log("📡 Status:", res.status);
 
     const data = await res.json();
 
     if(!res.ok){
-      error.innerText = data.message;
+      error.innerText = data.message || "⚠️ Credenciales incorrectas";
       return;
     }
 
+    // 💾 Guardar sesión
     localStorage.setItem("userId", data.userId);
-    localStorage.setItem("agencyId", data.agencyId);
     localStorage.setItem("role", data.role);
+    localStorage.setItem("agencyId", data.agencyId || "");
 
-    window.location.href = "./app.html";
+    // 💾 Recordar email
+    if(document.getElementById("rememberMe").checked){
+      localStorage.setItem("savedEmail", email);
+    } else {
+      localStorage.removeItem("savedEmail");
+    }
 
-  }catch(err){
-    console.error(err);
-    error.innerText = "❌ Error de conexión";
+    // 🚀 Redirección inteligente
+    if(data.role === "admin" || data.role === "superadmin"){
+      window.location.href = "./admin.html";
+    } else {
+      window.location.href = "./app.html";
+    }
+
+  } catch(err){
+
+    console.error("❌ ERROR LOGIN:", err);
+    error.innerText = "❌ No se pudo conectar al servidor";
+
   }
 }
 

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+<meta charset="UTF-8">
+<title>Mapa en Vivo - StorePulse</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+}
+
+#map{
+  height:100vh;
+  width:100%;
+}
+</style>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY"></script>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script>
+
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+let map;
+let markers = [];
+
+function initMap(){
+  map = new google.maps.Map(document.getElementById("map"),{
+    zoom: 12,
+    center: { lat:20.67, lng:-103.35 } // Guadalajara default
+  });
+
+  loadUsers();
+  setInterval(loadUsers, 5000); // 🔥 tiempo real
+}
+
+async function loadUsers(){
+
+  const agencyId = localStorage.getItem("agencyId");
+
+  const res = await fetch(`${BACKEND_URL}/users/${agencyId}`);
+  const users = await res.json();
+
+  // limpiar markers
+  markers.forEach(m => m.setMap(null));
+  markers = [];
+
+  users.forEach(u => {
+
+    if(!u.lastLocation) return;
+
+    const marker = new google.maps.Marker({
+      position:{
+        lat: u.lastLocation.lat,
+        lng: u.lastLocation.lng
+      },
+      map,
+      title: u.name
+    });
+
+    const info = new google.maps.InfoWindow({
+      content: `
+        <b>${u.name}</b><br>
+        Última actividad:<br>
+        ${new Date(u.lastLocation.date).toLocaleString()}
+      `
+    });
+
+    marker.addListener("click", ()=> info.open(map, marker));
+
+    markers.push(marker);
+
+  });
+}
+
+initMap();
+
+</script>
+
+</body>
+</html>

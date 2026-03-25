@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>Registro - StorePulse</title>
-
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0B1F3A">
 
 <style>
 :root {
@@ -16,79 +14,82 @@
 
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   background: var(--bg);
-}
-
-/* 🔹 HEADER UNIFICADO */
-.header {
-  display: flex;
-  align-items: center;
-  position: relative;
-  background: var(--primary);
-  color: white;
-  padding: 15px;
-}
-
-.header .back {
-  position: absolute;
-  left: 15px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  color: white;
-}
-
-.header h1 {
-  margin: 0 auto;
-  font-size: 1.2em;
-}
-
-/* 🔹 FORM */
-.container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
+  height: 100vh;
 }
 
-.box {
+.container {
+  width: 90%;
+  max-width: 360px;
   background: white;
-  padding: 25px;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 350px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  border-radius: 15px;
+  padding: 30px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
 }
 
-input, select {
+.logo {
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: gray;
+  margin-bottom: 20px;
+}
+
+input {
   width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 8px;
   border: 1px solid #ccc;
 }
 
 .button {
+  width: 100%;
+  padding: 12px;
   background: var(--secondary);
   border: none;
-  padding: 12px;
   border-radius: 8px;
-  width: 100%;
   font-weight: bold;
   margin-top: 10px;
   cursor: pointer;
   color: #fff;
 }
 
-.footer {
+.links {
   text-align: center;
   font-size: 12px;
-  margin-top: 15px;
-  color: gray;
+  margin-top: 10px;
+}
+
+.links a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.error {
+  color: red;
+  font-size: 12px;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.success {
+  color: green;
+  font-size: 12px;
+  text-align: center;
+  margin-top: 10px;
 }
 </style>
 
@@ -96,109 +97,89 @@ input, select {
 
 <body>
 
-<div class="header">
-  <button class="back" onclick="goBack()">⬅</button>
-  <h1>Registrar Usuario</h1>
-</div>
-
 <div class="container">
-  <div class="box">
 
-    <input id="name" placeholder="Nombre">
-    <input id="email" placeholder="Correo">
-    <input id="password" type="password" placeholder="Contraseña">
+  <div class="logo">StorePulse</div>
+  <div class="subtitle">Crear cuenta</div>
 
-    <select id="agency">
-      <option value="">Selecciona agencia</option>
-    </select>
+  <input id="name" placeholder="Nombre completo">
+  <input id="email" placeholder="Correo electrónico">
+  <input id="password" type="password" placeholder="Contraseña">
 
-    <button class="button" onclick="register()">Registrar</button>
+  <button class="button" onclick="register()">Registrarme</button>
 
-    <div class="footer">
-      Control de promotores y demostradoras
-    </div>
-
+  <div class="links">
+    <span>¿Ya tienes cuenta?</span>
+    <a href="./login.html">Iniciar sesión</a>
   </div>
+
+  <div class="error" id="error"></div>
+  <div class="success" id="success"></div>
+
 </div>
 
 <script>
 
-// 🔙 Regresar
-function goBack(){
-  window.location.href = "./users.html";
-}
+const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🌐 🔥 URL DINÁMICA (LOCAL + RENDER)
-function getBackendUrl(){
-  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  return isLocal 
-    ? "http://192.168.1.10:3000"
-    : "https://storepulse.onrender.com"; // 🔥 CAMBIA si tu URL es diferente
-}
-
-// 🔹 Cargar agencias
-async function loadAgencies(){
-
-  try {
-
-    const res = await fetch(`${getBackendUrl()}/agencies`);
-    const agencies = await res.json();
-
-    const select = document.getElementById("agency");
-
-    agencies.forEach(a=>{
-      const opt = document.createElement("option");
-      opt.value = a._id;
-      opt.textContent = a.name;
-      select.appendChild(opt);
-    });
-
-  } catch(err){
-    alert("⚠️ Error cargando agencias");
-    console.error(err);
-  }
-
-}
-
-// 🔹 Registrar usuario
 async function register(){
 
   const name = document.getElementById("name").value.trim();
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value.trim();
-  const agencyId = document.getElementById("agency").value;
 
-  if(!name || !email || !password || !agencyId){
-    alert("⚠️ Completa todos los campos");
+  const error = document.getElementById("error");
+  const success = document.getElementById("success");
+
+  error.innerText = "";
+  success.innerText = "";
+
+  if(!name || !email || !password){
+    error.innerText = "⚠️ Completa todos los campos";
     return;
   }
 
   try {
 
-    const res = await fetch(`${getBackendUrl()}/register`, {
+    // 🔥 Wake-up backend
+    await fetch(BACKEND_URL);
+
+    const res = await fetch(`${BACKEND_URL}/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, agencyId })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        password
+      })
     });
 
     const data = await res.json();
 
-    if(!res.ok) throw new Error(data.error || "Error registrando usuario");
+    if(!res.ok){
+      error.innerText = data.error || "Error al registrarse";
+      return;
+    }
 
-    alert("✅ Usuario registrado correctamente");
-    window.location.href = "./users.html";
+    success.innerText = "✅ Usuario registrado correctamente";
+
+    // 🔥 Redirigir después de 1.5s
+    setTimeout(() => {
+      window.location.href = "./login.html";
+    }, 1500);
 
   } catch(err){
-    alert(err.message);
+
     console.error(err);
+    error.innerText = "❌ No se pudo conectar al servidor";
+
   }
-
 }
-
-// 🚀 Inicial
-loadAgencies();
 
 </script>
 
 </body>
+
 </html>

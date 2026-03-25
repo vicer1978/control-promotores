@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>Usuarios - StorePulse</title>
 
 <style>
+
 :root {
   --primary: #0B1F3A;
   --secondary: #D4AF37;
@@ -17,7 +19,7 @@ body {
   background: var(--bg);
 }
 
-/* 🔹 HEADER UNIFICADO */
+/* HEADER */
 .header {
   display: flex;
   align-items: center;
@@ -44,7 +46,7 @@ body {
   font-size:1.2em;
 }
 
-/* 🔹 CONTENIDO */
+/* CONTENIDO */
 .container { padding:20px; }
 
 .button {
@@ -88,7 +90,16 @@ body {
 .delete { background:#D32F2F; }
 .stores { background: var(--primary); }
 
+select {
+  width:100%;
+  padding:6px;
+  margin-top:5px;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
 </style>
+
 </head>
 
 <body>
@@ -112,21 +123,23 @@ function goBack(){
 
 // 🔐 Validar rol
 const role = localStorage.getItem("role");
-
-if(role !== "admin" && role !== "agencia"){
+if(role !== "admin" && role !== "superadmin"){
   alert("⚠️ No tienes permisos");
   window.location.href="./dashboard.html";
 }
 
-// 🌐 🔥 URL DINÁMICA (LOCAL + RENDER)
-function getBackendUrl(){
-  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  return isLocal 
-    ? "http://192.168.1.10:3000"
-    : "https://storepulse.onrender.com"; // 🔥 CAMBIA si tu URL es diferente
-}
+// 🌐 BACKEND
+const BACKEND_URL = "https://storepulse.onrender.com";
 
 const agencyId = localStorage.getItem("agencyId");
+
+let agencies = [];
+
+// 🔹 Cargar agencias
+async function loadAgencies(){
+  const res = await fetch(`${BACKEND_URL}/agencies`);
+  agencies = await res.json();
+}
 
 // ➕ Crear
 function crear(){
@@ -138,94 +151,90 @@ async function eliminar(id){
 
   if(!confirm("¿Eliminar usuario?")) return;
 
-  try{
+  await fetch(`${BACKEND_URL}/users/${id}`, { method:"DELETE" });
 
-    const res = await fetch(`${getBackendUrl()}/users/${id}`, { method:"DELETE" });
-
-    const data = await res.json();
-
-    if(!res.ok) throw new Error(data.error || "Error eliminando usuario");
-
-    alert("✅ Usuario eliminado");
-    render();
-
-  } catch(err){
-    alert(err.message);
-  }
-
+  alert("✅ Usuario eliminado");
+  render();
 }
 
-// ✏️ Editar
+// ✏️ Editar nombre
 async function editar(id){
 
   const nuevoNombre = prompt("Editar nombre");
 
   if(!nuevoNombre) return;
 
-  try{
+  await fetch(`${BACKEND_URL}/users/${id}`, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ name:nuevoNombre })
+  });
 
-    const res = await fetch(`${getBackendUrl()}/users/${id}`, {
-      method:"PUT",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ name:nuevoNombre })
-    });
-
-    const data = await res.json();
-
-    if(!res.ok) throw new Error(data.error || "Error actualizando usuario");
-
-    alert("✅ Usuario actualizado");
-    render();
-
-  } catch(err){
-    alert(err.message);
-  }
-
+  alert("✅ Usuario actualizado");
+  render();
 }
 
-// 🏪 Asignar tiendas
-function asignarTiendas(){
-  window.location.href="./users.stores.html";
+// 🔥 CAMBIAR AGENCIA
+async function cambiarAgencia(userId, agencyId){
+
+  await fetch(`${BACKEND_URL}/users/${userId}/agency`,{
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ agencyId })
+  });
+
+  alert("🏢 Agencia actualizada");
 }
 
 // 🖥 Render
 async function render(){
 
-  try{
+  await loadAgencies();
 
-    const res = await fetch(`${getBackendUrl()}/users/${agencyId}`);
-    const usuarios = await res.json();
+  const res = await fetch(`${BACKEND_URL}/users/${agencyId}`);
+  const usuarios = await res.json();
 
-    const cont = document.getElementById("listaUsuarios");
-    cont.innerHTML = "";
+  const cont = document.getElementById("listaUsuarios");
+  cont.innerHTML = "";
 
-    if(usuarios.length===0){
-      cont.innerHTML="<p>No hay usuarios registrados</p>";
-      return;
-    }
+  if(usuarios.length===0){
+    cont.innerHTML="<p>No hay usuarios registrados</p>";
+    return;
+  }
 
-    usuarios.forEach(u=>{
+  usuarios.forEach(u=>{
 
-      cont.innerHTML += `
-        <div class="card">
-          <div class="title">${u.name}</div>
-          <div>${u.email}</div>
-          <div>Tipo: ${u.tipo}</div>
+    let options = "";
 
-          <div class="actions">
-            <button class="btn-small edit" onclick="editar('${u._id}')">✏️</button>
-            <button class="btn-small delete" onclick="eliminar('${u._id}')">🗑</button>
-            <button class="btn-small stores" onclick="asignarTiendas()">🏪</button>
-          </div>
-        </div>
+    agencies.forEach(a=>{
+      options += `
+        <option value="${a._id}" ${u.agencyId===a._id?"selected":""}>
+          ${a.name}
+        </option>
       `;
     });
 
-  } catch(err){
-    alert("⚠️ Error cargando usuarios");
-    console.error(err);
-  }
+    cont.innerHTML += `
+      <div class="card">
 
+        <div class="title">${u.name}</div>
+        <div>${u.email}</div>
+
+        <div><b>Rol:</b> ${u.role}</div>
+
+        <label>🏢 Agencia:</label>
+        <select onchange="cambiarAgencia('${u._id}', this.value)">
+          ${options}
+        </select>
+
+        <div class="actions">
+          <button class="btn-small edit" onclick="editar('${u._id}')">✏️</button>
+          <button class="btn-small delete" onclick="eliminar('${u._id}')">🗑</button>
+        </div>
+
+      </div>
+    `;
+  });
 }
 
 // 🚀 Inicial

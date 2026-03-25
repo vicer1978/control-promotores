@@ -1,13 +1,18 @@
-const mongoose = require("mongoose");
+// models/Checkin.js
 
-const checkinSchema = new mongoose.Schema({
+const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
+
+const checkinSchema = new Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true
   },
   agencyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Agency"
+    type: Schema.Types.ObjectId,
+    ref: "Agency",
+    required: true
   },
   lat: Number,
   lng: Number,
@@ -16,6 +21,6 @@ const checkinSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: true }); // createdAt y updatedAt automáticamente
 
 module.exports = mongoose.model("Checkin", checkinSchema);

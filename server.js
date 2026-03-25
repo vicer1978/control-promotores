@@ -1,12 +1,10 @@
-// server.js – StorePulse PRO MAX SaaS SEGURO 🔐
+// server.js – StorePulse PRO MAX SAAS SEGURO 🔐
 
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-const nodemailer = require("nodemailer");
-const crypto = require("crypto");
 require("dotenv").config();
 
 // ------------------ MODELOS ------------------
@@ -26,7 +24,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -56,30 +53,23 @@ mongoose.connect(process.env.MONGO_URI)
 // 🔐 MIDDLEWARE SEGURIDAD
 // =====================================================
 
-// 🔹 Obtener usuario desde header
+// Obtener usuario desde header
 async function auth(req,res,next){
   try{
     const userId = req.headers.userid;
-
-    if(!userId){
-      return res.status(401).json({error:"No autorizado"});
-    }
+    if(!userId) return res.status(401).json({error:"No autorizado"});
 
     const user = await User.findById(userId);
-
-    if(!user){
-      return res.status(401).json({error:"Usuario inválido"});
-    }
+    if(!user) return res.status(401).json({error:"Usuario inválido"});
 
     req.user = user;
     next();
-
   }catch{
     res.status(500).json({error:"Error auth"});
   }
 }
 
-// 🔹 Solo admin o superadmin
+// Solo admin o superadmin
 function onlyAdmin(req,res,next){
   if(req.user.role !== "admin" && req.user.role !== "superadmin"){
     return res.status(403).json({error:"Acceso denegado"});
@@ -87,7 +77,7 @@ function onlyAdmin(req,res,next){
   next();
 }
 
-// 🔹 Solo superadmin
+// Solo superadmin
 function onlySuper(req,res,next){
   if(req.user.role !== "superadmin"){
     return res.status(403).json({error:"Solo superadmin"});
@@ -98,7 +88,6 @@ function onlySuper(req,res,next){
 // =====================================================
 // 🏢 AGENCIAS
 // =====================================================
-
 app.post("/agencies", auth, onlySuper, async (req,res)=>{
   try{
     const agency = new Agency({ name:req.body.name });
@@ -118,13 +107,11 @@ app.get("/agencies", auth, async (req,res)=>{
 // 👤 USUARIOS
 // =====================================================
 
-// 🔹 REGISTER (libre)
+// REGISTER (libre)
 app.post("/register", async (req,res)=>{
   try{
     let { name,email,password } = req.body;
-
     email = email.trim().toLowerCase();
-
     const exists = await User.findOne({ email });
     if(exists) return res.status(400).json({error:"Email ya registrado"});
 
@@ -137,70 +124,62 @@ app.post("/register", async (req,res)=>{
     });
 
     await user.save();
-
     res.json({message:"Usuario registrado"});
-
   }catch{
     res.status(500).json({error:"Error registro"});
   }
 });
 
-// 🔹 LOGIN
+// LOGIN
 app.post("/login", async (req,res)=>{
   try{
     const { email,password } = req.body;
-
     const user = await User.findOne({
       email: email.trim().toLowerCase(),
       password: password.trim()
     });
 
-    if(!user){
-      return res.status(404).json({message:"Usuario no encontrado"});
-    }
+    if(!user) return res.status(404).json({message:"Usuario no encontrado"});
 
     res.json({
       userId:user._id,
       role:user.role,
       agencyId:user.agencyId
     });
-
   }catch{
     res.status(500).json({error:"Error login"});
   }
 });
 
-// 🔹 GET USERS (SEGURIDAD CLAVE)
-app.get("/users", auth, async (req,res)=>{
+// GET USERS (con opción de filtrar por agencia)
+app.get("/users/:agencyId?", auth, async (req, res) => {
+  try {
+    const { agencyId } = req.params;
 
-  // SUPERADMIN VE TODO
-  if(req.user.role === "superadmin"){
-    const users = await User.find().populate("agencyId");
-    return res.json(users);
+    // SUPERADMIN ve todos o filtra por agencia
+    if (req.user.role === "superadmin") {
+      const users = agencyId 
+        ? await User.find({ agencyId }).populate("agencyId")
+        : await User.find().populate("agencyId");
+      return res.json(users);
+    }
+
+    // ADMIN solo ve su propia agencia
+    const users = await User.find({ agencyId: req.user.agencyId }).populate("agencyId");
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener usuarios" });
   }
-
-  // ADMIN SOLO SU AGENCIA
-  const users = await User.find({
-    agencyId:req.user.agencyId
-  }).populate("agencyId");
-
-  res.json(users);
 });
 
-// 🔹 CREAR USUARIO
+// CREAR USUARIO
 app.post("/admin/create-user", auth, onlyAdmin, async (req,res)=>{
-
   try{
-
     let { name,email,password,role,agencyId } = req.body;
-
     const exists = await User.findOne({ email });
     if(exists) return res.status(400).json({error:"Email ya existe"});
 
-    // 🔥 CLAVE: admin NO puede asignar otra agencia
-    if(req.user.role === "admin"){
-      agencyId = req.user.agencyId;
-    }
+    if(req.user.role === "admin") agencyId = req.user.agencyId;
 
     const user = new User({
       name,
@@ -211,61 +190,63 @@ app.post("/admin/create-user", auth, onlyAdmin, async (req,res)=>{
     });
 
     await user.save();
-
     res.json({message:"Usuario creado"});
-
   }catch{
     res.status(500).json({error:"Error creando usuario"});
   }
 });
 
-// 🔹 CAMBIAR ROL
+// CAMBIAR ROL
 app.put("/users/:id/role", auth, onlyAdmin, async (req,res)=>{
+  try{
+    const userToEdit = await User.findById(req.params.id);
+    if(!userToEdit) return res.status(404).json({error:"Usuario no encontrado"});
 
-  const userToEdit = await User.findById(req.params.id);
+    if(req.user.role !== "superadmin" &&
+       userToEdit.agencyId?.toString() !== req.user.agencyId?.toString()){
+      return res.status(403).json({error:"No permitido"});
+    }
 
-  // 🔥 NO puedes modificar fuera de tu agencia
-  if(req.user.role !== "superadmin" &&
-     userToEdit.agencyId?.toString() !== req.user.agencyId?.toString()){
-    return res.status(403).json({error:"No permitido"});
+    await User.findByIdAndUpdate(req.params.id,{ role:req.body.role });
+    res.json({message:"Rol actualizado"});
+  }catch{
+    res.status(500).json({error:"Error actualizando rol"});
   }
-
-  await User.findByIdAndUpdate(req.params.id,{
-    role:req.body.role
-  });
-
-  res.json({message:"Rol actualizado"});
 });
 
-// 🔹 CAMBIAR AGENCIA (SOLO SUPERADMIN)
+// CAMBIAR AGENCIA (solo superadmin)
 app.put("/users/:id/agency", auth, onlySuper, async (req,res)=>{
-
-  await User.findByIdAndUpdate(req.params.id,{
-    agencyId:req.body.agencyId || null
-  });
-
-  res.json({message:"Agencia actualizada"});
-});
-
-// 🔹 DELETE
-app.delete("/users/:id", auth, onlyAdmin, async (req,res)=>{
-
-  const userToDelete = await User.findById(req.params.id);
-
-  if(req.user.role !== "superadmin" &&
-     userToDelete.agencyId?.toString() !== req.user.agencyId?.toString()){
-    return res.status(403).json({error:"No permitido"});
+  try{
+    await User.findByIdAndUpdate(req.params.id,{
+      agencyId:req.body.agencyId || null
+    });
+    res.json({message:"Agencia actualizada"});
+  }catch{
+    res.status(500).json({error:"Error actualizando agencia"});
   }
+});
 
-  await User.findByIdAndDelete(req.params.id);
+// DELETE USUARIO
+app.delete("/users/:id", auth, onlyAdmin, async (req,res)=>{
+  try{
+    const userToDelete = await User.findById(req.params.id);
+    if(!userToDelete) return res.status(404).json({error:"Usuario no encontrado"});
 
-  res.json({message:"Usuario eliminado"});
+    if(req.user.role !== "superadmin" &&
+       userToDelete.agencyId?.toString() !== req.user.agencyId?.toString()){
+      return res.status(403).json({error:"No permitido"});
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({message:"Usuario eliminado"});
+  }catch{
+    res.status(500).json({error:"Error eliminando usuario"});
+  }
 });
 
 // =====================================================
-// 📍 CHECKIN (SEGURO)
+// 📍 CHECKIN
 // =====================================================
-
 const storage = multer.diskStorage({
   destination:(req,file,cb)=> cb(null,"uploads/"),
   filename:(req,file,cb)=> cb(null,Date.now()+"-"+file.originalname)
@@ -273,23 +254,24 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
+  try{
+    const { userId, lat, lng } = req.body;
+    const user = await User.findById(userId);
+    if(!user) return res.status(404).json({error:"Usuario no existe"});
 
-  const { userId } = req.body;
+    await Checkin.create({
+      userId,
+      agencyId:user.agencyId,
+      lat,
+      lng,
+      photo:req.file?.filename,
+      date:new Date()
+    });
 
-  const user = await User.findById(userId);
-
-  if(!user) return res.status(404).json({error:"Usuario no existe"});
-
-  await Checkin.create({
-    userId,
-    agencyId:user.agencyId,
-    lat:req.body.lat,
-    lng:req.body.lng,
-    photo:req.file?.filename,
-    date:new Date()
-  });
-
-  res.json({message:"Check-in OK"});
+    res.json({message:"Check-in OK"});
+  }catch{
+    res.status(500).json({error:"Error checkin"});
+  }
 });
 
 // ------------------ 404 ------------------

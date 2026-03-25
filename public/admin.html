@@ -1,94 +1,32 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
 <meta charset="UTF-8">
 <title>Admin PRO - StorePulse</title>
-
 <style>
 body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
-
-.sidebar {
-  width:240px;
-  background:#0B1F3A;
-  color:white;
-  padding:20px;
-}
-
+.sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; }
 .sidebar h2 { margin-bottom:20px; }
-
-.sidebar button {
-  width:100%;
-  margin:8px 0;
-  padding:12px;
-  background:#D4AF37;
-  border:none;
-  border-radius:8px;
-  color:white;
-  cursor:pointer;
-  font-weight:bold;
-}
-
+.sidebar button { width:100%; margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; font-weight:bold; }
 .main { flex:1; padding:20px; }
-
-.card {
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.05);
-}
-
-.grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
-  gap:10px;
-}
-
-input, select {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  border-radius:8px;
-  border:1px solid #ccc;
-}
-
-.user {
-  border-bottom:1px solid #eee;
-  padding:10px 0;
-}
-
-.small {
-  padding:5px 10px;
-  margin-top:5px;
-  background:red;
-  color:white;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-}
-
-.kpi {
-  font-size:22px;
-  font-weight:bold;
-}
+.card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:10px; }
+input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #ccc; }
+.user { border-bottom:1px solid #eee; padding:10px 0; }
+.small { padding:5px 10px; margin-top:5px; background:red; color:white; border:none; border-radius:6px; cursor:pointer; }
+.kpi { font-size:22px; font-weight:bold; }
 </style>
 </head>
-
 <body>
 
 <div class="sidebar">
   <h2>⚡ Admin PRO</h2>
-
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
-
-  <!-- SOLO SUPERADMIN -->
   <div id="menuAgencies">
     <button onclick="loadAgencies()">🏢 Agencias</button>
   </div>
-
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
@@ -97,9 +35,7 @@ input, select {
 </div>
 
 <script>
-
 const BACKEND_URL = "https://storepulse.onrender.com";
-
 const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
 const agencyId = localStorage.getItem("agencyId");
@@ -117,19 +53,23 @@ if(role !== "superadmin"){
   document.getElementById("menuAgencies").style.display = "none";
 }
 
+// ---------------- FETCH CON HEADER ----------------
+async function fetchWithAuth(url, options={}){
+  options.headers = { ...(options.headers||{}), userId };
+  const res = await fetch(url, options);
+  if(!res.ok) throw new Error("Error al obtener datos");
+  return await res.json();
+}
+
 // ---------------- DASHBOARD ----------------
-
 async function loadDashboard(){
-
-  let url = `${BACKEND_URL}/users`;
-
-  // 🔥 ADMIN SOLO VE SU AGENCIA
-  if(role !== "superadmin"){
-    url = `${BACKEND_URL}/users/${agencyId}`;
+  let users;
+  try {
+    users = await fetchWithAuth(`${BACKEND_URL}/users`);
+  } catch(err) {
+    alert("Error cargando usuarios");
+    return;
   }
-
-  const res = await fetch(url);
-  const users = await res.json();
 
   document.getElementById("content").innerHTML = `
     <h2>Dashboard</h2>
@@ -143,49 +83,32 @@ async function loadDashboard(){
 }
 
 // ---------------- USUARIOS ----------------
-
 async function loadUsers(){
-
-  let usersUrl = `${BACKEND_URL}/users`;
-
-  if(role !== "superadmin"){
-    usersUrl = `${BACKEND_URL}/users/${agencyId}`;
+  try {
+    allUsers = await fetchWithAuth(`${BACKEND_URL}/users`);
+    if(role==="superadmin"){
+      allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
+    }
+    renderUsers(allUsers);
+  } catch(err) {
+    alert("Error cargando usuarios");
   }
-
-  const usersRes = await fetch(usersUrl);
-  allUsers = await usersRes.json();
-
-  // SOLO SUPERADMIN CARGA AGENCIAS
-  if(role === "superadmin"){
-    const agenciesRes = await fetch(`${BACKEND_URL}/agencies`);
-    allAgencies = await agenciesRes.json();
-  }
-
-  renderUsers(allUsers);
 }
 
 function renderUsers(users){
-
   let html = `
     <div class="card">
       <h3>Usuarios</h3>
       <input placeholder="Buscar..." oninput="filterUsers(this.value)">
   `;
-
   users.forEach(u=>{
-
     let agencySelect = "";
-
-    // 🔥 SOLO SUPERADMIN VE AGENCIA
-    if(role === "superadmin"){
-
+    if(role==="superadmin"){
       let options = `<option value="">Sin agencia</option>`;
-
       allAgencies.forEach(a=>{
-        const selected = (u.agencyId && (u.agencyId._id || u.agencyId) == a._id) ? "selected" : "";
+        const selected = (u.agencyId && (u.agencyId._id || u.agencyId) === a._id) ? "selected" : "";
         options += `<option value="${a._id}" ${selected}>${a.name}</option>`;
       });
-
       agencySelect = `
         <br>
         <b>🏢 Agencia:</b>
@@ -198,168 +121,123 @@ function renderUsers(users){
     html += `
       <div class="user">
         <b>${u.name}</b> (${u.email})<br>
-
         <b>Rol:</b>
         <select onchange="changeRole('${u._id}', this.value)">
           <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
           <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
           <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
         </select>
-
         ${agencySelect}
-
         <br>
         <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
       </div>
     `;
   });
-
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 }
 
+function filterUsers(term){
+  term = term.toLowerCase();
+  renderUsers(allUsers.filter(u => u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)));
+}
+
 // ---------------- CREAR USUARIO ----------------
-
 async function loadCreateUser(){
-
   let agencySelect = "";
-
-  if(role === "superadmin"){
-    const res = await fetch(`${BACKEND_URL}/agencies`);
-    const agencies = await res.json();
-
-    let options = "";
-    agencies.forEach(a=>{
-      options += `<option value="${a._id}">${a.name}</option>`;
-    });
-
-    agencySelect = `
-      <label>Agencia</label>
-      <select id="agencyId">${options}</select>
-    `;
+  if(role==="superadmin"){
+    let agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
+    let options = agencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("");
+    agencySelect = `<label>Agencia</label><select id="agencyId">${options}</select>`;
   }
 
   document.getElementById("content").innerHTML = `
     <div class="card">
       <h3>Crear Usuario</h3>
-
       <input id="name" placeholder="Nombre">
       <input id="email" placeholder="Email">
       <input id="password" placeholder="Password">
-
       <label>Rol</label>
       <select id="role">
         <option value="promotor">Promotor</option>
         <option value="demostradora">Demostradora</option>
         <option value="admin">Admin</option>
       </select>
-
       ${agencySelect}
-
       <button onclick="createUser()">Crear</button>
     </div>
   `;
 }
 
 async function createUser(){
-
-  const roleSel = document.getElementById("role").value;
-
   const body = {
     name: document.getElementById("name").value,
     email: document.getElementById("email").value,
     password: document.getElementById("password").value,
-    role: roleSel,
-    agencyId: role === "superadmin"
-      ? document.getElementById("agencyId")?.value
-      : agencyId
+    role: document.getElementById("role").value,
+    agencyId: role==="superadmin" ? document.getElementById("agencyId")?.value : agencyId
   };
-
-  await fetch(`${BACKEND_URL}/admin/create-user`,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-
-  alert("Usuario creado");
-  loadUsers();
+  try{
+    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, {
+      method:"POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    alert("Usuario creado");
+    loadUsers();
+  } catch(err){
+    alert("Error creando usuario");
+  }
 }
 
 // ---------------- ACCIONES ----------------
-
 async function changeRole(id, role){
-  await fetch(`${BACKEND_URL}/users/${id}/role`,{
+  await fetchWithAuth(`${BACKEND_URL}/users/${id}/role`, {
     method:"PUT",
-    headers:{ "Content-Type":"application/json" },
+    headers: { "Content-Type":"application/json" },
     body: JSON.stringify({ role })
   });
 }
 
 async function changeAgency(id, agencyId){
-  await fetch(`${BACKEND_URL}/users/${id}/agency`,{
+  await fetchWithAuth(`${BACKEND_URL}/users/${id}/agency`, {
     method:"PUT",
-    headers:{ "Content-Type":"application/json" },
+    headers: { "Content-Type":"application/json" },
     body: JSON.stringify({ agencyId })
   });
-
   alert("Agencia actualizada");
 }
 
 async function deleteUser(id){
-
   if(!confirm("¿Eliminar usuario?")) return;
-
-  await fetch(`${BACKEND_URL}/users/${id}`,{
-    method:"DELETE"
-  });
-
+  await fetchWithAuth(`${BACKEND_URL}/users/${id}`, { method:"DELETE" });
   loadUsers();
 }
 
 // ---------------- AGENCIAS ----------------
-
 async function loadAgencies(){
-
-  if(role !== "superadmin") return;
-
-  const res = await fetch(`${BACKEND_URL}/agencies`);
-  const agencies = await res.json();
-
+  if(role!=="superadmin") return;
+  let agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
   let html = `<div class="card"><h3>Agencias</h3>`;
-
-  agencies.forEach(a=>{
-    html += `<p>${a.name}</p>`;
-  });
-
-  html += `
-    <input id="newAgency" placeholder="Nueva agencia">
-    <button onclick="createAgency()">Crear</button>
-  </div>`;
-
+  agencies.forEach(a=> html+=`<p>${a.name}</p>`);
+  html += `<input id="newAgency" placeholder="Nueva agencia"><button onclick="createAgency()">Crear</button></div>`;
   document.getElementById("content").innerHTML = html;
 }
 
 async function createAgency(){
-
-  await fetch(`${BACKEND_URL}/agencies`,{
+  await fetchWithAuth(`${BACKEND_URL}/agencies`, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      name: document.getElementById("newAgency").value
-    })
+    body: JSON.stringify({ name: document.getElementById("newAgency").value })
   });
-
   loadAgencies();
 }
 
 // ---------------- LOGOUT ----------------
-
 function logout(){
   localStorage.clear();
   window.location.href = "./login.html";
 }
-
 </script>
-
 </body>
 </html>

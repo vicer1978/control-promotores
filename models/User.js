@@ -1,22 +1,18 @@
 // models/User.js
 
 const mongoose = require("mongoose");
-
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
-
   name: { type: String, required: true },
-
   email: { type: String, required: true, unique: true },
-
   password: { type: String, required: true },
 
   // 🔥 Roles
   role: { 
     type: String, 
-    enum: ["user", "promotor", "demostradora", "admin", "superadmin"],
-    default: "user" 
+    enum: ["promotor", "demostradora", "admin", "superadmin"], 
+    default: "promotor" 
   },
 
   // 🏪 Tiendas asignadas
@@ -32,13 +28,13 @@ const userSchema = new Schema({
   // 🏢 Agencia
   agencyId: { 
     type: Schema.Types.ObjectId, 
-    ref: "Agency" 
+    ref: "Agency",
+    default: null
   },
 
-  // 🔐 RECUPERACIÓN DE PASSWORD (AQUÍ VA 🔥)
+  // 🔐 Recuperación de password
   resetToken: String,
   resetTokenExpire: Date
-
-});
+}, { timestamps: true }); // Agrega createdAt y updatedAt automáticamente
 
 module.exports = mongoose.model("User", userSchema);

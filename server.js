@@ -1,10 +1,12 @@
-// server.js – StorePulse PRO FINAL COMPLETO
+// server.js – StorePulse PRO FINAL + RECOVERY + FIX HTML
 
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 require("dotenv").config();
 
 // ------------------ MODELOS ------------------
@@ -16,52 +18,72 @@ const Agency = require("./models/Agency");
 const app = express();
 
 // ------------------ MIDDLEWARE ------------------
-
-// 🔥 CORS PRO
 app.use(cors({
   origin: "*",
   methods: ["GET","POST","PUT","DELETE"],
   allowedHeaders: ["Content-Type"]
 }));
 
-// 🔥 PARSEO
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔥 FRONTEND
 app.use(express.static(path.join(__dirname, "public")));
-
-// 🔥 IMÁGENES
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ------------------ PORT ------------------
 const PORT = process.env.PORT || 3000;
 
-// ------------------ HOME (FIX LOGIN) ------------------
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "login.html"));
+// ------------------ RUTA PRINCIPAL ------------------
+app.get("/", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","login.html"));
+});
+
+// ------------------ FIX HTML RENDER ------------------
+app.get("/login.html", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","login.html"));
+});
+
+app.get("/register.html", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","register.html"));
+});
+
+app.get("/recover.html", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","recover.html"));
+});
+
+app.get("/app.html", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","app.html"));
+});
+
+app.get("/admin.html", (req,res)=>{
+  res.sendFile(path.join(__dirname,"public","admin.html"));
 });
 
 // ------------------ MONGODB ------------------
 mongoose.connect(process.env.MONGO_URI)
 .then(()=> console.log("✅ MongoDB conectado"))
 .catch(err=>{
-  console.error("❌ Error Mongo:", err);
+  console.error("❌ Error Mongo:", err.message);
   process.exit(1);
 });
 
 // ------------------ MULTER ------------------
 const storage = multer.diskStorage({
-  destination: (req, file, cb)=> cb(null, "uploads/"),
-  filename: (req, file, cb)=> cb(null, Date.now()+"-"+file.originalname)
+  destination: (req,file,cb)=> cb(null,"uploads/"),
+  filename: (req,file,cb)=> cb(null, Date.now()+"-"+file.originalname)
 });
 const upload = multer({ storage });
 
-// =====================================================
-// ===================== RUTAS ==========================
-// =====================================================
+// ------------------ EMAIL CONFIG ------------------
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
-// 🏢 AGENCIAS
+// ------------------ AGENCIAS ------------------
 app.post("/agencies", async (req,res)=>{
   try{
     const { name } = req.body;
@@ -77,21 +99,14 @@ app.post("/agencies", async (req,res)=>{
 });
 
 app.get("/agencies", async (req,res)=>{
-  const data = await Agency.find().sort({createdAt:-1});
-  res.json(data);
+  const agencies = await Agency.find().sort({createdAt:-1});
+  res.json(agencies);
 });
 
-app.delete("/agencies/:id", async (req,res)=>{
-  await Agency.findByIdAndDelete(req.params.id);
-  res.json({message:"Agencia eliminada"});
-});
-
-// 👤 USUARIOS
-
-// 🔹 REGISTER (YA PERMITE ROLE)
+// ------------------ USUARIOS ------------------
 app.post("/register", async (req,res)=>{
   try{
-    const { name,email,password,role,agencyId } = req.body;
+    const { name, email, password } = req.body;
 
     const exists = await User.findOne({ email });
     if(exists) return res.status(400).json({error:"Email ya registrado"});
@@ -100,8 +115,7 @@ app.post("/register", async (req,res)=>{
       name,
       email,
       password,
-      role: role || "user",
-      agencyId
+      role:"user"
     });
 
     await user.save();
@@ -112,19 +126,17 @@ app.post("/register", async (req,res)=>{
   }
 });
 
-// 🔹 LOGIN
+// 🔐 LOGIN FIX
 app.post("/login", async (req,res)=>{
   try{
-    const { email,password } = req.body;
+    const { email, password } = req.body;
 
     const user = await User.findOne({
       email: email.trim(),
       password: password.trim()
     });
 
-    if(!user){
-      return res.status(404).json({message:"Usuario no encontrado"});
-    }
+    if(!user) return res.status(404).json({message:"Usuario no encontrado"});
 
     res.json({
       userId: user._id,
@@ -137,34 +149,71 @@ app.post("/login", async (req,res)=>{
   }
 });
 
-// 🔹 LISTAR USUARIOS
-app.get("/users/:agencyId", async (req,res)=>{
-  const users = await User.find({ agencyId: req.params.agencyId });
-  res.json(users);
-});
-
-// 🔹 ELIMINAR USUARIO
-app.delete("/users/:id", async (req,res)=>{
+// 🔥 RECUPERACIÓN PASSWORD
+app.post("/recover", async (req,res)=>{
   try{
-    await User.findByIdAndDelete(req.params.id);
-    res.json({message:"Usuario eliminado"});
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if(!user) return res.json({message:"Si existe el correo, recibirás instrucciones"});
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    user.resetToken = token;
+    user.resetTokenExpire = Date.now() + 3600000; // 1 hora
+    await user.save();
+
+    const link = `https://storepulse.onrender.com/reset.html?token=${token}`;
+
+    await transporter.sendMail({
+      to: email,
+      subject: "Recuperar contraseña",
+      html: `<h3>Recuperación</h3>
+             <p>Da clic:</p>
+             <a href="${link}">${link}</a>`
+    });
+
+    res.json({message:"Correo enviado"});
+
   }catch(err){
-    res.status(500).json({error:"Error eliminando usuario"});
+    console.error(err);
+    res.status(500).json({error:"Error recuperación"});
   }
 });
 
-// 🏪 TIENDAS
+// 🔐 RESET PASSWORD
+app.post("/reset", async (req,res)=>{
+  try{
+    const { token, password } = req.body;
+
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpire: { $gt: Date.now() }
+    });
+
+    if(!user) return res.status(400).json({error:"Token inválido"});
+
+    user.password = password;
+    user.resetToken = undefined;
+    user.resetTokenExpire = undefined;
+
+    await user.save();
+
+    res.json({message:"Contraseña actualizada"});
+
+  }catch(err){
+    res.status(500).json({error:"Error reset"});
+  }
+});
+
+// ------------------ STORES ------------------
 app.post("/stores", async (req,res)=>{
-  try{
-    const { name,address,lat,lng,agencyId } = req.body;
+  const { name, address, lat, lng, agencyId } = req.body;
 
-    const store = new Store({ name,address,lat,lng,agencyId });
-    await store.save();
+  const store = new Store({ name,address,lat,lng,agencyId });
+  await store.save();
 
-    res.json({message:"Tienda creada"});
-  }catch(err){
-    res.status(500).json({error:"Error creando tienda"});
-  }
+  res.json({message:"Tienda creada"});
 });
 
 app.get("/stores/:agencyId", async (req,res)=>{
@@ -172,47 +221,14 @@ app.get("/stores/:agencyId", async (req,res)=>{
   res.json(stores);
 });
 
-// 📍 CHECK-IN
+// ------------------ CHECKIN ------------------
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
   try{
 
     const { lat,lng,userId } = req.body;
 
-    if(!req.file){
-      return res.status(400).json({message:"Debes tomar foto"});
-    }
-
     const user = await User.findById(userId);
-    if(!user){
-      return res.status(404).json({message:"Usuario no existe"});
-    }
-
-    const stores = await Store.find({ agencyId:user.agencyId });
-
-    let dentro = false;
-
-    function getDistance(lat1,lon1,lat2,lon2){
-      const R = 6371;
-      const dLat = (lat2-lat1)*Math.PI/180;
-      const dLon = (lon2-lon1)*Math.PI/180;
-
-      const a =
-        Math.sin(dLat/2)**2 +
-        Math.cos(lat1*Math.PI/180) *
-        Math.cos(lat2*Math.PI/180) *
-        Math.sin(dLon/2)**2;
-
-      return R*(2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)));
-    }
-
-    stores.forEach(store=>{
-      const dist = getDistance(lat,lng,store.lat,store.lng);
-      if(dist < 0.1) dentro = true;
-    });
-
-    if(!dentro){
-      return res.json({message:"Fuera de tienda"});
-    }
+    if(!user) return res.status(404).json({message:"Usuario no existe"});
 
     await User.findByIdAndUpdate(userId,{
       lastLocation:{ lat,lng,date:new Date() }
@@ -221,9 +237,8 @@ app.post("/checkin", upload.single("photo"), async (req,res)=>{
     await Checkin.create({
       userId,
       agencyId:user.agencyId,
-      lat,
-      lng,
-      photo:req.file.filename,
+      lat,lng,
+      photo:req.file?.filename,
       date:new Date()
     });
 
@@ -241,6 +256,6 @@ app.use((req,res)=>{
 
 // ------------------ START ------------------
 app.listen(PORT,"0.0.0.0", ()=>{
-  console.log(`🚀 Server corriendo en puerto ${PORT}`);
+  console.log(`🚀 Server corriendo ${PORT}`);
   console.log("🔥 STOREPULSE PRO ACTIVO");
 });

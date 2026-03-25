@@ -28,17 +28,13 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
-  <div id="menuAgencies">
-    <button onclick="loadAgencies()">🏢 Agencias</button>
-  </div>
-  <div id="menuStores">
-    <button onclick="loadStores()">🏬 Tiendas</button>
-  </div>
+  <div id="menuAgencies"><button onclick="loadAgencies()">🏢 Agencias</button></div>
+  <div id="menuStores"><button onclick="loadStores()">🏬 Tiendas</button></div>
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
 <div class="main" id="content">
-  <h2>Bienvenido</h2>
+  <h2>Bienvenido al panel Admin PRO</h2>
 </div>
 
 <script>
@@ -54,8 +50,8 @@ let currentUserStores = {};
 
 // 🔐 Seguridad
 if(!userId) window.location.href = "./login.html";
-if(role !== "superadmin") document.getElementById("menuAgencies").style.display = "none";
-if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display = "none";
+if(role!=="superadmin") document.getElementById("menuAgencies").style.display="none";
+if(role!=="admin" && role!=="superadmin") document.getElementById("menuStores").style.display="none";
 
 // ---------------- FETCH ----------------
 async function fetchWithAuth(url, options={}) {
@@ -94,7 +90,6 @@ async function loadUsers(){
 
 function renderUsers(users){
   let html = `<div class="card"><h3>Usuarios</h3><input placeholder="Buscar..." oninput="filterUsers(this.value)">`;
-
   users.forEach(u=>{
     let agencySelect = "";
     if(role==="superadmin"){
@@ -131,7 +126,6 @@ function renderUsers(users){
       </div>
     `;
   });
-
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 
@@ -165,15 +159,14 @@ function renderStoreDragDrop(uid){
 // ---------------- DRAG & DROP ----------------
 let draggedStore = null;
 function dragStart(ev){ draggedStore = ev.target; ev.target.classList.add("dragging"); }
-
 async function dropStore(ev, uid, target){
   ev.preventDefault();
   if(!draggedStore) return;
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
   const storeObj = allStores.find(s=>s._id===storeId);
-
   const userStores = currentUserStores[uid];
+
   if(target==="assigned"){
     if(!userStores.assigned.some(s=>s._id===storeId)) userStores.assigned.push(storeObj);
     userStores.available = userStores.available.filter(s=>s._id!==storeId);
@@ -182,18 +175,16 @@ async function dropStore(ev, uid, target){
     userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
 
-  // Actualizar backend
   try{
     await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
       method:"PUT",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ storeIds: userStores.assigned.map(s => typeof s==="string"?s:s._id) })
+      body: JSON.stringify({ storeIds: userStores.assigned.map(s=>s._id) })
     });
   } catch(err){
     console.error("Error actualizando tiendas:", err);
     alert("Error actualizando tiendas: " + (err.message||err));
   }
-
   renderUsers(allUsers);
 }
 
@@ -219,8 +210,7 @@ async function loadCreateUser(){
       </select>
       ${agencySelect}
       <button onclick="createUser()">Crear</button>
-    </div>
-  `;
+    </div>`;
 }
 
 async function createUser(){
@@ -232,8 +222,12 @@ async function createUser(){
     agencyId: role==="superadmin"?document.getElementById("agencyId")?.value:agencyId
   };
   try{
-    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
-    alert("Usuario creado");
+    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    alert("Usuario creado ✅");
     loadUsers();
   } catch(err){ alert("Error creando usuario"); }
 }
@@ -243,7 +237,7 @@ async function loadAgencies(){
   if(role!=="superadmin") return;
   let agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
   let html = `<div class="card"><h3>Agencias</h3>`;
-  agencies.forEach(a=> html+=`<p>${a.name}</p>`);
+  agencies.forEach(a=> html+=`<p>${a.name} <button onclick="deleteAgency('${a._id}')">Eliminar</button></p>`);
   html += `<input id="newAgency" placeholder="Nueva agencia"><button onclick="createAgency()">Crear</button></div>`;
   document.getElementById("content").innerHTML = html;
 }
@@ -253,6 +247,12 @@ async function createAgency(){
   const name = document.getElementById("newAgency").value;
   if(!name) return alert("Ingresa nombre");
   await fetchWithAuth(`${BACKEND_URL}/agencies`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ name }) });
+  loadAgencies();
+}
+
+async function deleteAgency(id){
+  if(!confirm("Eliminar agencia?")) return;
+  await fetchWithAuth(`${BACKEND_URL}/agencies/${id}`, { method:"DELETE" });
   loadAgencies();
 }
 
@@ -270,8 +270,7 @@ async function loadStores(){
       <input id="addressStore" placeholder="Dirección">
       ${role==="superadmin"?'<label>Agencia</label><select id="agencyIdStore">'+allAgencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("")+'</select>':""}
       <button onclick="createStore()">Crear Tienda</button>
-    </div>
-  `;
+    </div>`;
 }
 
 async function createStore(){
@@ -280,11 +279,10 @@ async function createStore(){
   const lng = parseFloat(document.getElementById("lngStore").value);
   const address = document.getElementById("addressStore").value;
   if(!name || isNaN(lat) || isNaN(lng) || !address) return alert("Completa todos los campos");
-  
   const newStore = await fetchWithAuth(`${BACKEND_URL}/stores`, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ name, lat, lng, address, agencyId: role==="superadmin"?document.getElementById("agencyIdStore")?.value:agencyId })
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ name, lat, lng, address, agencyId: role==="superadmin"?document.getElementById("agencyIdStore")?.value:agencyId })
   });
   allStores.push(newStore);
   alert("Tienda creada ✅");
@@ -292,10 +290,39 @@ async function createStore(){
 }
 
 // ---------------- FILTROS ----------------
-function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter(u=>u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))); }
+function filterUsers(term){ 
+  term=term.toLowerCase(); 
+  renderUsers(allUsers.filter(u=>u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))); 
+}
 
 // ---------------- LOGOUT ----------------
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
+
+// ---------------- ACTUALIZAR ROL ----------------
+async function changeRole(userId,newRole){
+  try{
+    await fetchWithAuth(`${BACKEND_URL}/users/${userId}/role`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ role:newRole }) });
+    loadUsers();
+  } catch(err){ alert("Error actualizando rol"); }
+}
+
+// ---------------- ACTUALIZAR AGENCIA ----------------
+async function changeAgency(userId, agencyId){
+  try{
+    await fetchWithAuth(`${BACKEND_URL}/users/${userId}/agency`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agencyId }) });
+    loadUsers();
+  } catch(err){ alert("Error actualizando agencia"); }
+}
+
+// ---------------- ELIMINAR USUARIO ----------------
+async function deleteUser(userId){
+  if(!confirm("Eliminar usuario?")) return;
+  try{
+    await fetchWithAuth(`${BACKEND_URL}/users/${userId}`, { method:"DELETE" });
+    loadUsers();
+  } catch(err){ alert("Error eliminando usuario"); }
+}
+
 </script>
 </body>
 </html>

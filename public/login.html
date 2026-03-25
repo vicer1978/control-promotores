@@ -127,7 +127,7 @@ input {
 
 <script>
 
-// 🔥 BACKEND OFICIAL
+// 🌐 BACKEND
 const BACKEND_URL = "https://storepulse.onrender.com";
 
 // 🔹 Cargar usuario guardado
@@ -158,7 +158,10 @@ async function login(){
 
   try {
 
-    console.log("🔗 Intentando conectar a:", `${BACKEND_URL}/login`);
+    console.log("🔗 Despertando backend...");
+    await fetch(BACKEND_URL); // 🔥 evita sleep de Render
+
+    console.log("🔗 Enviando login a:", `${BACKEND_URL}/login`);
 
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: "POST",
@@ -182,25 +185,29 @@ async function login(){
     localStorage.setItem("role", data.role);
     localStorage.setItem("agencyId", data.agencyId);
 
-    // 💾 Guardar email
+    // 💾 Recordar email
     if(document.getElementById("rememberMe").checked){
       localStorage.setItem("savedEmail", email);
     } else {
       localStorage.removeItem("savedEmail");
     }
 
+    console.log("✅ Login exitoso");
+
     // 🚀 Redirigir
     window.location.href = "./app.html";
 
   } catch(err){
 
-    console.error("❌ ERROR FETCH:", err);
+    console.error("❌ ERROR REAL:", err);
 
-    // 🔥 ESTE MENSAJE SOLO SALE SI EL BACKEND NO RESPONDE
-    error.innerText = "❌ No se pudo conectar al servidor";
+    if(err.message.includes("Failed to fetch")){
+      error.innerText = "❌ Error de conexión con el servidor";
+    } else {
+      error.innerText = "❌ Error inesperado";
+    }
 
   }
-
 }
 
 </script>

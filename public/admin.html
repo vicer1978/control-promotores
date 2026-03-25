@@ -5,20 +5,25 @@
 <title>Admin PRO - StorePulse</title>
 <style>
 body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
-.sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; }
+.sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; display:flex; flex-direction:column; }
 .sidebar h2 { margin-bottom:20px; }
-.sidebar button { width:100%; margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; font-weight:bold; }
-.main { flex:1; padding:20px; }
-.card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+.sidebar button { width:100%; margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; font-weight:bold; transition:0.2s; }
+.sidebar button:hover { background:#cfa233; }
+.main { flex:1; padding:20px; overflow-y:auto; }
+.card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); transition:0.2s; }
+.card:hover { box-shadow:0 6px 15px rgba(0,0,0,0.1); }
 .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:10px; }
-input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #ccc; }
-.user { border-bottom:1px solid #eee; padding:10px 0; }
+input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #ccc; transition:0.2s; }
+input:focus, select:focus { border-color:#0B1F3A; outline:none; }
+.user { border-bottom:1px solid #eee; padding:10px 0; transition:0.2s; }
+.user:hover { background:#fafafa; }
 .small { padding:5px 10px; margin-top:5px; background:red; color:white; border:none; border-radius:6px; cursor:pointer; }
 .kpi { font-size:22px; font-weight:bold; }
 .store-list { display:flex; gap:10px; margin-top:10px; }
-.store-list div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; }
-.store-item { background:#D4AF37; color:white; padding:5px 8px; margin:5px 0; border-radius:6px; cursor:grab; }
-.store-item.dragging { opacity:0.5; }
+.store-list div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; transition:0.2s; }
+.store-list div.dragover { background:#e0e7ff; }
+.store-item { background:#D4AF37; color:white; padding:5px 8px; margin:5px 0; border-radius:6px; cursor:grab; user-select:none; transition:0.2s; }
+.store-item.dragging { opacity:0.5; transform:scale(0.95); }
 </style>
 </head>
 <body>
@@ -28,18 +33,12 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
-  <div id="menuAgencies">
-    <button onclick="loadAgencies()">🏢 Agencias</button>
-  </div>
-  <div id="menuStores">
-    <button onclick="loadStores()">🏬 Tiendas</button>
-  </div>
+  <div id="menuAgencies"><button onclick="loadAgencies()">🏢 Agencias</button></div>
+  <div id="menuStores"><button onclick="loadStores()">🏬 Tiendas</button></div>
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
-<div class="main" id="content">
-  <h2>Bienvenido</h2>
-</div>
+<div class="main" id="content"><h2>Bienvenido</h2></div>
 
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
@@ -47,14 +46,11 @@ const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
 const agencyId = localStorage.getItem("agencyId");
 
-let allUsers = [];
-let allAgencies = [];
-let allStores = [];
-let currentUserStores = {};
+let allUsers = [], allAgencies = [], allStores = [], currentUserStores = {};
 
 if(!userId) window.location.href = "./login.html";
-if(role !== "superadmin") document.getElementById("menuAgencies").style.display = "none";
-if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display = "none";
+if(role !== "superadmin") document.getElementById("menuAgencies").style.display="none";
+if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display="none";
 
 async function fetchWithAuth(url, options={}) {
   options.headers = { ...(options.headers||{}), "userId": userId };
@@ -96,7 +92,7 @@ function renderUsers(users){
     if(role==="superadmin"){
       let options = `<option value="">Sin agencia</option>`;
       allAgencies.forEach(a=>{
-        const selected = (u.agencyId && (u.agencyId._id || u.agencyId) === a._id) ? "selected" : "";
+        const selected = (u.agencyId && ((u.agencyId._id || u.agencyId) === a._id)) ? "selected" : "";
         options += `<option value="${a._id}" ${selected}>${a.name}</option>`;
       });
       agencySelect = `<br><b>🏢 Agencia:</b><select onchange="changeAgency('${u._id}', this.value)">${options}</select>`;
@@ -104,15 +100,14 @@ function renderUsers(users){
 
     let storesSection = "";
     if(u.role==="promotor" || u.role==="demostradora"){
-      currentUserStores[u._id] = {
-        assigned: u.stores || [],
-        available: allStores.filter(s => !(u.stores||[]).some(as => as._id === s._id))
-      };
+      const assigned = (u.stores||[]).map(s=>typeof s==="string"?allStores.find(a=>a._id===s):s).filter(Boolean);
+      const available = allStores.filter(s => !assigned.some(as => as._id === s._id));
+      currentUserStores[u._id] = { assigned, available };
       storesSection = renderStoreDragDrop(u._id);
     }
 
     html += `
-      <div class="user">
+      <div class="user" id="user_${u._id}">
         <b>${u.name}</b> (${u.email})<br>
         <b>Rol:</b>
         <select onchange="changeRole('${u._id}', this.value)">
@@ -122,22 +117,25 @@ function renderUsers(users){
         </select>
         ${agencySelect}
         ${storesSection}
-        <br>
-        <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
+        <br><button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
       </div>
     `;
   });
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 
-  // Drag & Drop
+  // Drag & Drop dinámico
   Object.keys(currentUserStores).forEach(uid=>{
     const container = document.getElementById(`storeContainer_${uid}`);
     if(!container) return;
     const cols = container.querySelectorAll(".store-list > div");
     cols.forEach((col,index)=>{
-      col.ondragover = e=>e.preventDefault();
-      col.ondrop = e=>dropStore(e, uid, index===1?"assigned":"available");
+      col.ondragover = e=>{ e.preventDefault(); col.classList.add("dragover"); };
+      col.ondragleave = e=>{ col.classList.remove("dragover"); };
+      col.ondrop = e=>{
+        col.classList.remove("dragover");
+        dropStore(e, uid, index===1?"assigned":"available");
+      };
     });
   });
 }
@@ -161,13 +159,13 @@ function renderStoreDragDrop(uid){
 // ---------------- DRAG & DROP ----------------
 let draggedStore = null;
 function dragStart(ev){ draggedStore = ev.target; ev.target.classList.add("dragging"); }
-
 async function dropStore(ev, uid, target){
   ev.preventDefault();
   if(!draggedStore) return;
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
   const storeObj = allStores.find(s=>s._id===storeId);
+  if(!storeObj) return;
   const userStores = currentUserStores[uid];
 
   if(target==="assigned"){
@@ -178,18 +176,19 @@ async function dropStore(ev, uid, target){
     userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
 
+  // Actualización sin recargar usuarios
   try{
     await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
       method:"PUT",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ storeIds: userStores.assigned.map(s => s._id) })
+      body: JSON.stringify({ storeIds: userStores.assigned.map(s=>s._id) })
     });
-  }catch(err){
-    console.error("Error actualizando tiendas:", err);
-    alert("Error actualizando tiendas: " + err.message);
-  }
+  }catch(err){ console.error(err); alert("Error actualizando tiendas: "+err.message); }
 
-  renderUsers(allUsers);
+  // Solo actualizamos las listas de tiendas del usuario movido
+  const userDiv = document.getElementById(`user_${uid}`);
+  const newStoresHTML = renderStoreDragDrop(uid);
+  userDiv.querySelector(".store-list")?.replaceWith(document.createRange().createContextualFragment(newStoresHTML));
 }
 
 // ---------------- CREAR USUARIO ----------------
@@ -242,7 +241,6 @@ async function loadAgencies(){
   html += `<input id="newAgency" placeholder="Nueva agencia"><button onclick="createAgency()">Crear</button></div>`;
   document.getElementById("content").innerHTML = html;
 }
-
 async function createAgency(){
   if(role!=="superadmin") return;
   const name = document.getElementById("newAgency").value;
@@ -268,7 +266,6 @@ async function loadStores(){
     </div>
   `;
 }
-
 async function createStore(){
   const name = document.getElementById("newStore").value;
   const lat = parseFloat(document.getElementById("latStore").value);
@@ -293,7 +290,6 @@ async function changeRole(uid,newRole){
   try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/role`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ role:newRole }) }); loadUsers(); }
   catch(err){ alert("Error cambiando rol: "+err.message); }
 }
-
 async function changeAgency(uid,aid){
   try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/agency`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agencyId:aid }) }); loadUsers(); }
   catch(err){ alert("Error cambiando agencia: "+err.message); }

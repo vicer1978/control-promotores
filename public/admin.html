@@ -31,6 +31,9 @@ input, select { width:100%; padding:10px; margin:5px 0; border-radius:8px; borde
   <div id="menuAgencies">
     <button onclick="loadAgencies()">🏢 Agencias</button>
   </div>
+  <div id="menuStores">
+    <button onclick="loadStores()">🏬 Tiendas</button>
+  </div>
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
@@ -47,12 +50,14 @@ const agencyId = localStorage.getItem("agencyId");
 let allUsers = [];
 let allAgencies = [];
 let allStores = [];
-let assignedStoresArr = [];
-let availableStoresArr = [];
+let currentUserStores = {}; // Para cada usuario
 
 // 🔐 SEGURIDAD
 if(!userId) window.location.href = "./login.html";
+
+// Control UI por rol
 if(role !== "superadmin") document.getElementById("menuAgencies").style.display = "none";
+if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display = "none";
 
 // ---------------- FETCH CON HEADER ----------------
 async function fetchWithAuth(url, options={}) {
@@ -105,8 +110,10 @@ function renderUsers(users){
 
     let storesSection = "";
     if(u.role==="promotor" || u.role==="demostradora"){
-      assignedStoresArr = u.stores || [];
-      availableStoresArr = allStores.filter(s => !assignedStoresArr.some(as => as._id === s._id));
+      currentUserStores[u._id] = {
+        assigned: u.stores || [],
+        available: allStores.filter(s => !(u.stores||[]).some(as => as._id === s._id))
+      };
       storesSection = renderStoreDragDrop(u._id);
     }
 
@@ -130,54 +137,60 @@ function renderUsers(users){
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
 
-  // ⚡ Añadir eventos drag & drop
-  allUsers.forEach(u=>{
-    if(u.role==="promotor" || u.role==="demostradora"){
-      const container = document.getElementById(`storeContainer_${u._id}`);
-      const cols = container.querySelectorAll("div");
-      cols.forEach((col,index)=>{
-        col.ondragover = ev => ev.preventDefault();
-        col.ondrop = ev => drop(ev,u._id,index===1?"assigned":"available");
-      });
-    }
+  // ⚡ Drag & Drop
+  Object.keys(currentUserStores).forEach(uid=>{
+    const container = document.getElementById(`storeContainer_${uid}`);
+    const cols = container.querySelectorAll(".store-list > div");
+    cols.forEach((col,index)=>{
+      col.ondragover = e=>e.preventDefault();
+      col.ondrop = e=>dropStore(e, uid, index===1?"assigned":"available");
+    });
   });
 }
 
-// Renderizar drag & drop de tiendas
 function renderStoreDragDrop(uid){
+  const assigned = currentUserStores[uid].assigned;
+  const available = currentUserStores[uid].available;
   return `
-  <div class="store-list" id="storeContainer_${uid}">
-    <div>
-      <h4>🟢 Disponibles</h4>
-      ${availableStoresArr.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
-    </div>
-    <div>
-      <h4>🔵 Asignadas</h4>
-      ${assignedStoresArr.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
-    </div>
-  </div>`;
+    <div class="store-list" id="storeContainer_${uid}">
+      <div>
+        <h4>🟢 Disponibles</h4>
+        ${available.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
+      </div>
+      <div>
+        <h4>🔵 Asignadas</h4>
+        ${assigned.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
+      </div>
+    </div>`;
 }
 
-// ---------------- DRAG & DROP LOGIC ----------------
+// ---------------- DRAG & DROP ----------------
 let draggedStore = null;
-function dragStart(ev){
-  draggedStore = ev.target;
-  ev.target.classList.add("dragging");
-}
-async function drop(ev, uid, target){
+function dragStart(ev){ draggedStore = ev.target; ev.target.classList.add("dragging"); }
+
+async function dropStore(ev, uid, target){
   ev.preventDefault();
   if(!draggedStore) return;
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
   const storeObj = allStores.find(s=>s._id===storeId);
+
+  const userStores = currentUserStores[uid];
   if(target==="assigned"){
-    assignedStoresArr.push(storeObj);
-    availableStoresArr = availableStoresArr.filter(s=>s._id!==storeId);
+    if(!userStores.assigned.some(s=>s._id===storeId)) userStores.assigned.push(storeObj);
+    userStores.available = userStores.available.filter(s=>s._id!==storeId);
   } else {
-    availableStoresArr.push(storeObj);
-    assignedStoresArr = assignedStoresArr.filter(s=>s._id!==storeId);
+    if(!userStores.available.some(s=>s._id===storeId)) userStores.available.push(storeObj);
+    userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
-  await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ stores:assignedStoresArr.map(s=>s._id) }) });
+
+  // Actualizar backend
+  await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ stores: userStores.assigned.map(s=>s._id) })
+  });
+
   renderUsers(allUsers);
 }
 
@@ -213,10 +226,10 @@ async function createUser(){
     email: document.getElementById("email").value,
     password: document.getElementById("password").value,
     role: document.getElementById("role").value,
-    agencyId: role==="superadmin" ? document.getElementById("agencyId")?.value : agencyId
+    agencyId: role==="superadmin"?document.getElementById("agencyId")?.value:agencyId
   };
   try{
-    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, { method:"POST", headers: { "Content-Type":"application/json" }, body: JSON.stringify(body) });
+    await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
     alert("Usuario creado");
     loadUsers();
   } catch(err){ alert("Error creando usuario"); }
@@ -263,7 +276,7 @@ async function createStore(){
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ name, lat:0, lng:0, agencyId: role==="superadmin"?document.getElementById("agencyIdStore")?.value:agencyId })
   });
-  allStores.push(newStore); // no se asigna automáticamente
+  allStores.push(newStore);
   alert("Tienda creada ✅");
   loadStores();
 }
@@ -273,6 +286,7 @@ function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter
 
 // ---------------- LOGOUT ----------------
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
+
 </script>
 </body>
 </html>

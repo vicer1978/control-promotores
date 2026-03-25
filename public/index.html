@@ -1,139 +1,151 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>StorePulse - Login</title>
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#0B1F3A">
-  <style>
-    :root {
-      --primary: #0B1F3A;
-      --secondary: #D4AF37;
-      --bg: #F5F7FA;
-      --text: #1A1A1A;
-    }
-    body {
-      margin: 0;
-      font-family: Arial;
-      background: var(--bg);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-    .login-box {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 350px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    .title {
-      text-align: center;
-      color: var(--primary);
-      font-size: 22px;
-      margin-bottom: 20px;
-      font-weight: bold;
-    }
-    input, select {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-    .button {
-      background: var(--secondary);
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      width: 100%;
-      font-weight: bold;
-      margin-top: 10px;
-      cursor: pointer;
-      color: #fff;
-    }
-    .button.secondary {
-      background: #003366;
-      margin-top: 5px;
-    }
-    .footer {
-      text-align: center;
-      font-size: 12px;
-      margin-top: 15px;
-      color: gray;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Login - StorePulse</title>
+
+<style>
+:root {
+  --primary:#0B1F3A;
+  --secondary:#D4AF37;
+  --bg:#F5F7FA;
+}
+
+body{
+  margin:0;
+  font-family:Arial;
+  background:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+.container{
+  width:90%;
+  max-width:360px;
+  background:#fff;
+  padding:30px;
+  border-radius:15px;
+  box-shadow:0 6px 15px rgba(0,0,0,0.1);
+}
+
+.logo{
+  text-align:center;
+  font-size:24px;
+  font-weight:bold;
+  color:var(--primary);
+  margin-bottom:20px;
+}
+
+input{
+  width:100%;
+  padding:12px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  background:var(--secondary);
+  border:none;
+  border-radius:8px;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.links{
+  text-align:center;
+  margin-top:10px;
+}
+
+.links a{
+  display:block;
+  margin:5px 0;
+  color:var(--primary);
+  font-size:13px;
+  cursor:pointer;
+}
+
+.error{
+  color:red;
+  font-size:12px;
+  text-align:center;
+  margin-top:10px;
+}
+</style>
 </head>
+
 <body>
 
-<div class="login-box">
-  <div class="title">StorePulse</div>
+<div class="container">
+
+  <div class="logo">StorePulse</div>
+
   <input id="email" placeholder="Correo">
   <input id="password" type="password" placeholder="Contraseña">
-  <button class="button" onclick="login()">Ingresar</button>
-  <button class="button secondary" onclick="window.location.href='./register.html'">Registrar</button>
-  <div class="footer">Control de promotores y demostradoras</div>
+
+  <button onclick="login()">Ingresar</button>
+
+  <div class="links">
+    <a href="./forgot.html">¿Olvidaste tu contraseña?</a>
+    <a href="./register.html">¿No tienes cuenta? Regístrate</a>
+  </div>
+
+  <div class="error" id="error"></div>
+
 </div>
 
 <script>
-  // 🔹 Detectar backend según entorno
-  function getBackendUrl() {
-    return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
-      ? "http://192.168.1.100:3000"
-      : "https://https://storepulse.onrender.com";
+
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+async function login(){
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const error = document.getElementById("error");
+
+  error.innerText = "";
+
+  if(!email || !password){
+    error.innerText = "⚠️ Completa los campos";
+    return;
   }
 
-  // 🔹 Login
-  async function login() {
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value.trim();
+  try{
 
-    if(!email || !password) {
-      alert("⚠️ Completa todos los campos");
+    // 🔥 Wake up backend
+    await fetch(BACKEND_URL);
+
+    const res = await fetch(`${BACKEND_URL}/login`, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok){
+      error.innerText = data.message;
       return;
     }
 
-    try {
-      const res = await fetch(`${getBackendUrl()}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+    localStorage.setItem("userId", data.userId);
+    localStorage.setItem("agencyId", data.agencyId);
+    localStorage.setItem("role", data.role);
 
-      if(!res.ok) {
-        const errData = await res.json().catch(()=>({}));
-        throw new Error(errData.error || "Usuario o contraseña incorrecta");
-      }
+    window.location.href = "./app.html";
 
-      const data = await res.json();
-
-      // 🔹 Guardar sesión
-      localStorage.setItem("userId", data.userId);
-      localStorage.setItem("role", data.role);
-      localStorage.setItem("agencyId", data.agencyId || "");
-      localStorage.setItem("userName", data.name || "");
-
-      // 🔹 Redirigir según rol
-      switch(data.role) {
-        case "super-admin":
-          window.location.href = "./super-admin.html";
-          break;
-        case "admin":
-          window.location.href = "./admin.html";
-          break;
-        case "agencia":
-          window.location.href = "./dashboard.html";
-          break;
-        default:
-          window.location.href = "./dashboard.html";
-      }
-
-    } catch(err) {
-      alert(`⚠️ ${err.message}`);
-    }
+  }catch(err){
+    console.error(err);
+    error.innerText = "❌ Error de conexión";
   }
+}
+
 </script>
 
 </body>

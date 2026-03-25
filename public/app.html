@@ -6,7 +6,6 @@
 <title>StorePulse App</title>
 
 <style>
-
 :root {
   --primary: #0B1F3A;
   --secondary: #D4AF37;
@@ -85,9 +84,7 @@ button {
   color: white;
   font-weight: bold;
 }
-
 </style>
-
 </head>
 
 <body>
@@ -101,7 +98,12 @@ button {
   <button onclick="loadCheckin()">📍 Check-in</button>
   <button onclick="loadHistory()">📋 Historial</button>
   <button onclick="loadRanking()">🏆 Ranking</button>
-  <button onclick="loadReport()">📄 Reportes</button>
+
+  <!-- 🔥 SOLO ADMIN -->
+  <div id="reportMenu">
+    <button onclick="loadReport()">📄 Reportes</button>
+  </div>
+
   <button onclick="logout()">🚪 Salir</button>
 
 </div>
@@ -114,29 +116,36 @@ button {
 
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔥 VALIDAR SESIÓN (SAAS PRO)
+const userId = localStorage.getItem("userId");
+const role = localStorage.getItem("role");
+const agencyId = localStorage.getItem("agencyId");
+
+// 🔐 VALIDACIÓN GLOBAL SAAS
 (function(){
-  const userId = localStorage.getItem("userId");
-  const role = localStorage.getItem("role");
 
   if(!userId){
     window.location.href = "./login.html";
+    return;
   }
 
+  // 🔥 UI DINÁMICA POR ROL
+  if(role !== "admin"){
+    document.getElementById("reportMenu").style.display = "none";
+  }
+
+  // 🔥 INFO USUARIO
   document.getElementById("userInfo").innerText =
-    "Rol: " + role;
+    `Rol: ${role} ${agencyId ? "| Agencia activa" : "| Sin agencia"}`;
+
 })();
+
 
 // ---------------- DASHBOARD ----------------
 
 async function loadDashboard(){
 
-  const agencyId = localStorage.getItem("agencyId");
-
   if(!agencyId){
-    document.getElementById("content").innerHTML =
-      `<div class="card">⚠️ No tienes agencia asignada</div>`;
-    return;
+    return showError("⚠️ No tienes agencia asignada");
   }
 
   try{
@@ -154,11 +163,11 @@ async function loadDashboard(){
       </div>
     `;
 
-  }catch(err){
-    document.getElementById("content").innerHTML =
-      `<div class="card" style="color:red;">❌ Error cargando dashboard</div>`;
+  }catch{
+    showError("❌ Error cargando dashboard");
   }
 }
+
 
 // ---------------- CHECK-IN ----------------
 
@@ -189,7 +198,7 @@ function doCheckin(){
     formData.append("photo", photo);
     formData.append("lat", pos.coords.latitude);
     formData.append("lng", pos.coords.longitude);
-    formData.append("userId", localStorage.getItem("userId"));
+    formData.append("userId", userId);
 
     try{
 
@@ -201,18 +210,24 @@ function doCheckin(){
       const data = await res.json();
       document.getElementById("msg").innerText = data.message;
 
-    }catch(err){
+    }catch{
       document.getElementById("msg").innerText = "❌ Error en check-in";
     }
 
+  }, () => {
+    alert("❌ Activa tu ubicación");
   });
+
 }
+
 
 // ---------------- HISTORIAL ----------------
 
 async function loadHistory(){
 
-  const agencyId = localStorage.getItem("agencyId");
+  if(!agencyId){
+    return showError("⚠️ Sin agencia asignada");
+  }
 
   try{
 
@@ -228,17 +243,19 @@ async function loadHistory(){
     html += `</div>`;
     document.getElementById("content").innerHTML = html;
 
-  }catch(err){
-    document.getElementById("content").innerHTML =
-      `<div class="card">❌ Error cargando historial</div>`;
+  }catch{
+    showError("❌ Error cargando historial");
   }
 }
+
 
 // ---------------- RANKING ----------------
 
 async function loadRanking(){
 
-  const agencyId = localStorage.getItem("agencyId");
+  if(!agencyId){
+    return showError("⚠️ Sin agencia asignada");
+  }
 
   try{
 
@@ -254,15 +271,19 @@ async function loadRanking(){
     html += `</div>`;
     document.getElementById("content").innerHTML = html;
 
-  }catch(err){
-    document.getElementById("content").innerHTML =
-      `<div class="card">❌ Error cargando ranking</div>`;
+  }catch{
+    showError("❌ Error cargando ranking");
   }
 }
+
 
 // ---------------- REPORTES ----------------
 
 function loadReport(){
+
+  if(role !== "admin"){
+    return showError("❌ No autorizado");
+  }
 
   document.getElementById("content").innerHTML = `
     <div class="card">
@@ -276,7 +297,6 @@ function loadReport(){
 
 function generateReport(){
 
-  const agencyId = localStorage.getItem("agencyId");
   const start = document.getElementById("start").value;
   const end = document.getElementById("end").value;
 
@@ -287,6 +307,15 @@ function generateReport(){
 
   window.open(`${BACKEND_URL}/report/${agencyId}?start=${start}&end=${end}`);
 }
+
+
+// ---------------- UTIL ----------------
+
+function showError(msg){
+  document.getElementById("content").innerHTML =
+    `<div class="card" style="color:red;">${msg}</div>`;
+}
+
 
 // ---------------- LOGOUT ----------------
 

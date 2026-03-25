@@ -8,123 +8,117 @@
 <style>
 
 :root {
-  --primary: #0B1F3A;
-  --secondary: #D4AF37;
-  --bg: #F5F7FA;
+  --primary:#0B1F3A;
+  --secondary:#D4AF37;
+  --bg:#F5F7FA;
 }
 
-body {
-  margin: 0;
-  font-family: Arial;
-  background: var(--bg);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+body{
+  margin:0;
+  font-family:Arial;
+  background:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
 
-.container {
-  width: 90%;
-  max-width: 360px;
-  background: white;
-  border-radius: 15px;
-  padding: 30px;
-  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+.container{
+  width:90%;
+  max-width:360px;
+  background:white;
+  border-radius:15px;
+  padding:30px;
+  box-shadow:0 6px 15px rgba(0,0,0,0.1);
 }
 
-.logo {
-  text-align: center;
-  font-size: 26px;
-  font-weight: bold;
-  color: var(--primary);
-  margin-bottom: 10px;
+.logo{
+  text-align:center;
+  font-size:26px;
+  font-weight:bold;
+  color:var(--primary);
 }
 
-.subtitle {
-  text-align: center;
-  font-size: 12px;
-  color: gray;
-  margin-bottom: 20px;
+.subtitle{
+  text-align:center;
+  font-size:12px;
+  color:gray;
+  margin-bottom:20px;
 }
 
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+input{
+  width:100%;
+  padding:12px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid #ccc;
 }
 
-/* PASSWORD */
-.password-wrapper {
-  position: relative;
+.password-wrapper{
+  position:relative;
 }
 
-.toggle-pass {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 16px;
+.toggle-pass{
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  border:none;
+  background:none;
+  cursor:pointer;
 }
 
-/* BUTTON */
-.button {
-  width: 100%;
-  padding: 12px;
-  background: var(--secondary);
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  margin-top: 10px;
-  cursor: pointer;
-  color: #fff;
+.button{
+  width:100%;
+  padding:12px;
+  background:var(--secondary);
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+  margin-top:10px;
+  cursor:pointer;
+  color:white;
 }
 
-.button:hover {
-  opacity: 0.9;
+.button:disabled{
+  opacity:0.6;
+  cursor:not-allowed;
 }
 
-/* LINKS */
-.links {
-  text-align: center;
-  font-size: 12px;
-  margin-top: 12px;
+.links{
+  text-align:center;
+  font-size:12px;
+  margin-top:12px;
 }
 
-.links a {
-  color: var(--primary);
-  text-decoration: none;
-  font-weight: bold;
+.links a{
+  color:var(--primary);
+  font-weight:bold;
+  text-decoration:none;
 }
 
-/* MENSAJES */
-.error {
-  color: red;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 10px;
+.error{
+  color:red;
+  font-size:12px;
+  text-align:center;
+  margin-top:10px;
 }
 
-.success {
-  color: green;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 10px;
+.success{
+  color:green;
+  font-size:12px;
+  text-align:center;
+  margin-top:10px;
 }
 
-.footer {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 11px;
-  color: gray;
+.footer{
+  text-align:center;
+  margin-top:15px;
+  font-size:11px;
+  color:gray;
 }
 
 </style>
-
 </head>
 
 <body>
@@ -142,7 +136,7 @@ input {
     <button class="toggle-pass" onclick="togglePassword()" id="eyeBtn">👁️</button>
   </div>
 
-  <button class="button" onclick="register()">Registrarme</button>
+  <button class="button" id="btnRegister" onclick="register()">Registrarme</button>
 
   <div class="links">
     <span>¿Ya tienes cuenta?</span>
@@ -152,7 +146,7 @@ input {
   <div class="error" id="error"></div>
   <div class="success" id="success"></div>
 
-  <div class="footer">Versión 3.0 SaaS</div>
+  <div class="footer">StorePulse SaaS</div>
 
 </div>
 
@@ -160,7 +154,21 @@ input {
 
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 👁️ Mostrar / ocultar contraseña
+// 🔐 SI YA ESTÁ LOGUEADO → REDIRIGIR
+window.onload = () => {
+  const userId = localStorage.getItem("userId");
+  const role = localStorage.getItem("role");
+
+  if(userId && role){
+    if(role === "admin" || role === "superadmin"){
+      window.location.href = "./admin.html";
+    } else {
+      window.location.href = "./app.html";
+    }
+  }
+};
+
+// 👁️ PASSWORD
 function togglePassword(){
   const pass = document.getElementById("password");
   const btn = document.getElementById("eyeBtn");
@@ -174,12 +182,14 @@ function togglePassword(){
   }
 }
 
-// 🔐 REGISTRO PRO
+// 🔐 REGISTER PRO
 async function register(){
 
-  const name = document.getElementById("name").value.trim();
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value.trim();
+  const btn = document.getElementById("btnRegister");
+
+  let name = document.getElementById("name").value.trim();
+  let email = document.getElementById("email").value.trim().toLowerCase();
+  let password = document.getElementById("password").value.trim();
 
   const error = document.getElementById("error");
   const success = document.getElementById("success");
@@ -194,49 +204,48 @@ async function register(){
   }
 
   if(password.length < 4){
-    error.innerText = "⚠️ La contraseña debe tener al menos 4 caracteres";
+    error.innerText = "⚠️ Mínimo 4 caracteres";
     return;
   }
 
+  // 🔄 BLOQUEAR BOTÓN
+  btn.disabled = true;
+  btn.innerText = "Creando...";
+
   try {
 
-    console.log("🔗 Conectando a backend...");
-
-    // 🔥 Wake up Render
+    // 🔥 Wake Render
     await fetch(BACKEND_URL);
 
-    const res = await fetch(`${BACKEND_URL}/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
+    const res = await fetch(`${BACKEND_URL}/register`,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json"
       },
-      body: JSON.stringify({
-        name,
-        email,
-        password
-        // 🔥 SIN agencyId → lo asigna backend o queda null
-      })
+      body: JSON.stringify({ name,email,password })
     });
 
     const data = await res.json();
 
     if(!res.ok){
-      error.innerText = data.error || "Error al registrarse";
-      return;
+      throw new Error(data.error || "Error al registrar");
     }
 
     success.innerText = "✅ Cuenta creada correctamente";
 
-    // 🚀 REDIRECCIÓN
-    setTimeout(() => {
-      window.location.href = "./login.html";
-    }, 1500);
+    setTimeout(()=>{
+      window.location.href="./login.html";
+    },1500);
 
   } catch(err){
 
-    console.error("❌ ERROR REGISTER:", err);
-    error.innerText = "❌ No se pudo conectar al servidor";
+    console.error(err);
+    error.innerText = err.message;
 
+  } finally {
+
+    btn.disabled = false;
+    btn.innerText = "Registrarme";
   }
 }
 

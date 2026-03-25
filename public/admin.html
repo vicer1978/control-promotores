@@ -6,7 +6,6 @@
 <title>Admin PRO - StorePulse</title>
 
 <style>
-
 body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
 
 .sidebar {
@@ -73,9 +72,7 @@ input, select {
   font-size:22px;
   font-weight:bold;
 }
-
 </style>
-
 </head>
 
 <body>
@@ -86,7 +83,12 @@ input, select {
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
-  <button onclick="loadAgencies()">🏢 Agencias</button>
+
+  <!-- SOLO SUPERADMIN -->
+  <div id="menuAgencies">
+    <button onclick="loadAgencies()">🏢 Agencias</button>
+  </div>
+
   <button onclick="logout()">🚪 Salir</button>
 </div>
 
@@ -100,6 +102,7 @@ const BACKEND_URL = "https://storepulse.onrender.com";
 
 const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
+const agencyId = localStorage.getItem("agencyId");
 
 let allUsers = [];
 let allAgencies = [];
@@ -109,19 +112,23 @@ if(!userId){
   window.location.href = "./login.html";
 }
 
-if(role !== "admin" && role !== "superadmin"){
-  alert("No autorizado");
-  window.location.href = "./login.html";
+// 🔥 CONTROL UI POR ROL
+if(role !== "superadmin"){
+  document.getElementById("menuAgencies").style.display = "none";
 }
 
 // ---------------- DASHBOARD ----------------
 
 async function loadDashboard(){
 
-  const res = await fetch(`${BACKEND_URL}/users`,{
-    headers:{ userId }
-  });
+  let url = `${BACKEND_URL}/users`;
 
+  // 🔥 ADMIN SOLO VE SU AGENCIA
+  if(role !== "superadmin"){
+    url = `${BACKEND_URL}/users/${agencyId}`;
+  }
+
+  const res = await fetch(url);
   const users = await res.json();
 
   document.getElementById("content").innerHTML = `
@@ -139,13 +146,20 @@ async function loadDashboard(){
 
 async function loadUsers(){
 
-  const [usersRes, agenciesRes] = await Promise.all([
-    fetch(`${BACKEND_URL}/users`,{ headers:{ userId } }),
-    fetch(`${BACKEND_URL}/agencies`,{ headers:{ userId } })
-  ]);
+  let usersUrl = `${BACKEND_URL}/users`;
 
+  if(role !== "superadmin"){
+    usersUrl = `${BACKEND_URL}/users/${agencyId}`;
+  }
+
+  const usersRes = await fetch(usersUrl);
   allUsers = await usersRes.json();
-  allAgencies = await agenciesRes.json();
+
+  // SOLO SUPERADMIN CARGA AGENCIAS
+  if(role === "superadmin"){
+    const agenciesRes = await fetch(`${BACKEND_URL}/agencies`);
+    allAgencies = await agenciesRes.json();
+  }
 
   renderUsers(allUsers);
 }
@@ -155,25 +169,31 @@ function renderUsers(users){
   let html = `
     <div class="card">
       <h3>Usuarios</h3>
-
       <input placeholder="Buscar..." oninput="filterUsers(this.value)">
-      
-      <select onchange="filterByRole(this.value)">
-        <option value="">Todos</option>
-        <option value="promotor">Promotor</option>
-        <option value="demostradora">Demostradora</option>
-        <option value="admin">Admin</option>
-      </select>
   `;
 
   users.forEach(u=>{
 
-    let agencyOptions = `<option value="">Sin agencia</option>`;
+    let agencySelect = "";
 
-    allAgencies.forEach(a=>{
-      const selected = (u.agencyId && (u.agencyId._id || u.agencyId) == a._id) ? "selected" : "";
-      agencyOptions += `<option value="${a._id}" ${selected}>${a.name}</option>`;
-    });
+    // 🔥 SOLO SUPERADMIN VE AGENCIA
+    if(role === "superadmin"){
+
+      let options = `<option value="">Sin agencia</option>`;
+
+      allAgencies.forEach(a=>{
+        const selected = (u.agencyId && (u.agencyId._id || u.agencyId) == a._id) ? "selected" : "";
+        options += `<option value="${a._id}" ${selected}>${a.name}</option>`;
+      });
+
+      agencySelect = `
+        <br>
+        <b>🏢 Agencia:</b>
+        <select onchange="changeAgency('${u._id}', this.value)">
+          ${options}
+        </select>
+      `;
+    }
 
     html += `
       <div class="user">
@@ -183,20 +203,12 @@ function renderUsers(users){
         <select onchange="changeRole('${u._id}', this.value)">
           <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
           <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
-          <option value="user" ${u.role==="user"?"selected":""}>User</option>
           <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
-          <option value="superadmin" ${u.role==="superadmin"?"selected":""}>Super Admin</option>
         </select>
 
-        <br><br>
-
-        <b>🏢 Agencia:</b>
-        <select onchange="changeAgency('${u._id}', this.value)">
-          ${agencyOptions}
-        </select>
+        ${agencySelect}
 
         <br>
-
         <button class="small" onclick="deleteUser('${u._id}')">Eliminar</button>
       </div>
     `;
@@ -206,32 +218,26 @@ function renderUsers(users){
   document.getElementById("content").innerHTML = html;
 }
 
-// FILTROS
-
-function filterUsers(text){
-  const filtered = allUsers.filter(u =>
-    u.name.toLowerCase().includes(text.toLowerCase()) ||
-    u.email.toLowerCase().includes(text.toLowerCase())
-  );
-  renderUsers(filtered);
-}
-
-function filterByRole(role){
-  if(!role) return renderUsers(allUsers);
-  renderUsers(allUsers.filter(u => u.role === role));
-}
-
 // ---------------- CREAR USUARIO ----------------
 
 async function loadCreateUser(){
 
-  const res = await fetch(`${BACKEND_URL}/agencies`,{ headers:{ userId } });
-  const agencies = await res.json();
+  let agencySelect = "";
 
-  let options = "";
-  agencies.forEach(a=>{
-    options += `<option value="${a._id}">${a.name}</option>`;
-  });
+  if(role === "superadmin"){
+    const res = await fetch(`${BACKEND_URL}/agencies`);
+    const agencies = await res.json();
+
+    let options = "";
+    agencies.forEach(a=>{
+      options += `<option value="${a._id}">${a.name}</option>`;
+    });
+
+    agencySelect = `
+      <label>Agencia</label>
+      <select id="agencyId">${options}</select>
+    `;
+  }
 
   document.getElementById("content").innerHTML = `
     <div class="card">
@@ -242,30 +248,17 @@ async function loadCreateUser(){
       <input id="password" placeholder="Password">
 
       <label>Rol</label>
-      <select id="role" onchange="toggleAgency()">
+      <select id="role">
         <option value="promotor">Promotor</option>
         <option value="demostradora">Demostradora</option>
-        <option value="user">User</option>
         <option value="admin">Admin</option>
       </select>
 
-      <div id="agencyContainer">
-        <label>Agencia</label>
-        <select id="agencyId">${options}</select>
-      </div>
+      ${agencySelect}
 
       <button onclick="createUser()">Crear</button>
     </div>
   `;
-
-  toggleAgency();
-}
-
-function toggleAgency(){
-  const role = document.getElementById("role").value;
-  const agencyDiv = document.getElementById("agencyContainer");
-
-  agencyDiv.style.display = (role === "admin") ? "none" : "block";
 }
 
 async function createUser(){
@@ -276,19 +269,15 @@ async function createUser(){
     name: document.getElementById("name").value,
     email: document.getElementById("email").value,
     password: document.getElementById("password").value,
-    role: roleSel
+    role: roleSel,
+    agencyId: role === "superadmin"
+      ? document.getElementById("agencyId")?.value
+      : agencyId
   };
-
-  if(roleSel !== "admin"){
-    body.agencyId = document.getElementById("agencyId").value;
-  }
 
   await fetch(`${BACKEND_URL}/admin/create-user`,{
     method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "userId": userId
-    },
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify(body)
   });
 
@@ -301,10 +290,7 @@ async function createUser(){
 async function changeRole(id, role){
   await fetch(`${BACKEND_URL}/users/${id}/role`,{
     method:"PUT",
-    headers:{
-      "Content-Type":"application/json",
-      "userId": userId
-    },
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ role })
   });
 }
@@ -312,14 +298,11 @@ async function changeRole(id, role){
 async function changeAgency(id, agencyId){
   await fetch(`${BACKEND_URL}/users/${id}/agency`,{
     method:"PUT",
-    headers:{
-      "Content-Type":"application/json",
-      "userId": userId
-    },
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({ agencyId })
   });
 
-  alert("🏢 Agencia actualizada");
+  alert("Agencia actualizada");
 }
 
 async function deleteUser(id){
@@ -327,8 +310,7 @@ async function deleteUser(id){
   if(!confirm("¿Eliminar usuario?")) return;
 
   await fetch(`${BACKEND_URL}/users/${id}`,{
-    method:"DELETE",
-    headers:{ userId }
+    method:"DELETE"
   });
 
   loadUsers();
@@ -338,10 +320,9 @@ async function deleteUser(id){
 
 async function loadAgencies(){
 
-  const res = await fetch(`${BACKEND_URL}/agencies`,{
-    headers:{ userId }
-  });
+  if(role !== "superadmin") return;
 
+  const res = await fetch(`${BACKEND_URL}/agencies`);
   const agencies = await res.json();
 
   let html = `<div class="card"><h3>Agencias</h3>`;
@@ -362,10 +343,7 @@ async function createAgency(){
 
   await fetch(`${BACKEND_URL}/agencies`,{
     method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "userId": userId
-    },
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
       name: document.getElementById("newAgency").value
     })

@@ -1,4 +1,4 @@
-// server.js – StorePulse PRO MAX SaaS FINAL 🔥
+// server.js – StorePulse PRO MAX SaaS SEGURO 🔐
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -10,7 +10,6 @@ const crypto = require("crypto");
 require("dotenv").config();
 
 // ------------------ MODELOS ------------------
-
 const User = require("./models/User");
 const Store = require("./models/Store");
 const Checkin = require("./models/Checkin");
@@ -19,7 +18,6 @@ const Agency = require("./models/Agency");
 const app = express();
 
 // ------------------ MIDDLEWARE ------------------
-
 app.use(cors({
   origin: "*",
   methods: ["GET","POST","PUT","DELETE"],
@@ -33,11 +31,9 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ------------------ PORT ------------------
-
 const PORT = process.env.PORT || 3000;
 
 // ------------------ HTML ------------------
-
 app.get("/", (req,res)=>{
   res.sendFile(path.join(__dirname,"public","login.html"));
 });
@@ -49,7 +45,6 @@ app.get("/", (req,res)=>{
 });
 
 // ------------------ DB ------------------
-
 mongoose.connect(process.env.MONGO_URI)
 .then(()=> console.log("✅ MongoDB conectado"))
 .catch(err=>{
@@ -57,46 +52,65 @@ mongoose.connect(process.env.MONGO_URI)
   process.exit(1);
 });
 
-// ------------------ MULTER ------------------
-
-const storage = multer.diskStorage({
-  destination: (req,file,cb)=> cb(null,"uploads/"),
-  filename: (req,file,cb)=> cb(null, Date.now()+"-"+file.originalname)
-});
-const upload = multer({ storage });
-
-// ------------------ EMAIL ------------------
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
 // =====================================================
-// 🏢 AGENCIAS (MULTI EMPRESA)
+// 🔐 MIDDLEWARE SEGURIDAD
 // =====================================================
 
-app.post("/agencies", async (req,res)=>{
+// 🔹 Obtener usuario desde header
+async function auth(req,res,next){
   try{
-    const { name } = req.body;
-    if(!name) return res.status(400).json({error:"Nombre requerido"});
+    const userId = req.headers.userid;
 
-    const agency = new Agency({ name });
+    if(!userId){
+      return res.status(401).json({error:"No autorizado"});
+    }
+
+    const user = await User.findById(userId);
+
+    if(!user){
+      return res.status(401).json({error:"Usuario inválido"});
+    }
+
+    req.user = user;
+    next();
+
+  }catch{
+    res.status(500).json({error:"Error auth"});
+  }
+}
+
+// 🔹 Solo admin o superadmin
+function onlyAdmin(req,res,next){
+  if(req.user.role !== "admin" && req.user.role !== "superadmin"){
+    return res.status(403).json({error:"Acceso denegado"});
+  }
+  next();
+}
+
+// 🔹 Solo superadmin
+function onlySuper(req,res,next){
+  if(req.user.role !== "superadmin"){
+    return res.status(403).json({error:"Solo superadmin"});
+  }
+  next();
+}
+
+// =====================================================
+// 🏢 AGENCIAS
+// =====================================================
+
+app.post("/agencies", auth, onlySuper, async (req,res)=>{
+  try{
+    const agency = new Agency({ name:req.body.name });
     await agency.save();
-
     res.json(agency);
-
-  }catch(err){
-    console.error(err);
+  }catch{
     res.status(500).json({error:"Error creando agencia"});
   }
 });
 
-app.get("/agencies", async (req,res)=>{
-  const agencies = await Agency.find().sort({createdAt:-1});
+app.get("/agencies", auth, async (req,res)=>{
+  const agencies = await Agency.find();
   res.json(agencies);
 });
 
@@ -104,33 +118,29 @@ app.get("/agencies", async (req,res)=>{
 // 👤 USUARIOS
 // =====================================================
 
-// 🔹 REGISTER
+// 🔹 REGISTER (libre)
 app.post("/register", async (req,res)=>{
   try{
-    let { name, email, password } = req.body;
+    let { name,email,password } = req.body;
 
     email = email.trim().toLowerCase();
-    password = password.trim();
 
     const exists = await User.findOne({ email });
-    if(exists){
-      return res.status(400).json({error:"Email ya registrado"});
-    }
+    if(exists) return res.status(400).json({error:"Email ya registrado"});
 
     const user = new User({
-      name: name.trim(),
+      name,
       email,
       password,
-      role: "promotor",
-      agencyId: null
+      role:"promotor",
+      agencyId:null
     });
 
     await user.save();
 
     res.json({message:"Usuario registrado"});
 
-  }catch(err){
-    console.error(err);
+  }catch{
     res.status(500).json({error:"Error registro"});
   }
 });
@@ -138,252 +148,157 @@ app.post("/register", async (req,res)=>{
 // 🔹 LOGIN
 app.post("/login", async (req,res)=>{
   try{
-    let { email, password } = req.body;
+    const { email,password } = req.body;
 
-    email = email.trim().toLowerCase();
-    password = password.trim();
-
-    const user = await User.findOne({ email, password });
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+      password: password.trim()
+    });
 
     if(!user){
       return res.status(404).json({message:"Usuario no encontrado"});
     }
 
     res.json({
-      userId: user._id,
-      role: user.role,
-      agencyId: user.agencyId || null
+      userId:user._id,
+      role:user.role,
+      agencyId:user.agencyId
     });
 
-  }catch(err){
-    console.error(err);
+  }catch{
     res.status(500).json({error:"Error login"});
   }
 });
 
-// 🔹 TODOS
-app.get("/users", async (req,res)=>{
-  const users = await User.find().populate("agencyId");
+// 🔹 GET USERS (SEGURIDAD CLAVE)
+app.get("/users", auth, async (req,res)=>{
+
+  // SUPERADMIN VE TODO
+  if(req.user.role === "superadmin"){
+    const users = await User.find().populate("agencyId");
+    return res.json(users);
+  }
+
+  // ADMIN SOLO SU AGENCIA
+  const users = await User.find({
+    agencyId:req.user.agencyId
+  }).populate("agencyId");
+
   res.json(users);
 });
 
-// 🔹 POR AGENCIA
-app.get("/users/:agencyId", async (req,res)=>{
-  const users = await User.find({ agencyId:req.params.agencyId });
-  res.json(users);
-});
+// 🔹 CREAR USUARIO
+app.post("/admin/create-user", auth, onlyAdmin, async (req,res)=>{
 
-// 🔹 CREAR (ADMIN)
-app.post("/admin/create-user", async (req,res)=>{
   try{
+
     let { name,email,password,role,agencyId } = req.body;
 
-    email = email.trim().toLowerCase();
-    password = password.trim();
-
     const exists = await User.findOne({ email });
-    if(exists){
-      return res.status(400).json({error:"Email ya existe"});
+    if(exists) return res.status(400).json({error:"Email ya existe"});
+
+    // 🔥 CLAVE: admin NO puede asignar otra agencia
+    if(req.user.role === "admin"){
+      agencyId = req.user.agencyId;
     }
 
     const user = new User({
-      name: name.trim(),
+      name,
       email,
       password,
       role,
-      agencyId: (role === "admin" || role === "superadmin") ? null : agencyId
+      agencyId: (role==="admin"||role==="superadmin") ? null : agencyId
     });
 
     await user.save();
 
     res.json({message:"Usuario creado"});
 
-  }catch(err){
-    console.error(err);
+  }catch{
     res.status(500).json({error:"Error creando usuario"});
   }
 });
 
 // 🔹 CAMBIAR ROL
-app.put("/users/:id/role", async (req,res)=>{
-  try{
-    const { role } = req.body;
+app.put("/users/:id/role", auth, onlyAdmin, async (req,res)=>{
 
-    const rolesValidos = ["promotor","demostradora","user","admin","superadmin"];
+  const userToEdit = await User.findById(req.params.id);
 
-    if(!rolesValidos.includes(role)){
-      return res.status(400).json({error:"Rol inválido"});
-    }
-
-    await User.findByIdAndUpdate(req.params.id,{ role });
-
-    res.json({message:"Rol actualizado"});
-
-  }catch(err){
-    console.error(err);
-    res.status(500).json({error:"Error rol"});
+  // 🔥 NO puedes modificar fuera de tu agencia
+  if(req.user.role !== "superadmin" &&
+     userToEdit.agencyId?.toString() !== req.user.agencyId?.toString()){
+    return res.status(403).json({error:"No permitido"});
   }
+
+  await User.findByIdAndUpdate(req.params.id,{
+    role:req.body.role
+  });
+
+  res.json({message:"Rol actualizado"});
 });
 
-// 🔥 🔥 🔥 AQUI ESTÁ LO QUE TE FALTABA 🔥 🔥 🔥
+// 🔹 CAMBIAR AGENCIA (SOLO SUPERADMIN)
+app.put("/users/:id/agency", auth, onlySuper, async (req,res)=>{
 
-// 🔹 CAMBIAR AGENCIA
-app.put("/users/:id/agency", async (req,res)=>{
-  try{
-    const { agencyId } = req.body;
+  await User.findByIdAndUpdate(req.params.id,{
+    agencyId:req.body.agencyId || null
+  });
 
-    await User.findByIdAndUpdate(req.params.id,{
-      agencyId: agencyId || null
-    });
-
-    res.json({message:"Agencia actualizada"});
-
-  }catch(err){
-    console.error(err);
-    res.status(500).json({error:"Error actualizando agencia"});
-  }
+  res.json({message:"Agencia actualizada"});
 });
 
 // 🔹 DELETE
-app.delete("/users/:id", async (req,res)=>{
+app.delete("/users/:id", auth, onlyAdmin, async (req,res)=>{
+
+  const userToDelete = await User.findById(req.params.id);
+
+  if(req.user.role !== "superadmin" &&
+     userToDelete.agencyId?.toString() !== req.user.agencyId?.toString()){
+    return res.status(403).json({error:"No permitido"});
+  }
+
   await User.findByIdAndDelete(req.params.id);
+
   res.json({message:"Usuario eliminado"});
 });
 
 // =====================================================
-// 🔐 RECUPERACIÓN
+// 📍 CHECKIN (SEGURO)
 // =====================================================
 
-app.post("/recover", async (req,res)=>{
-  try{
-    let { email } = req.body;
-
-    email = email.trim().toLowerCase();
-
-    const user = await User.findOne({ email });
-
-    if(!user){
-      return res.json({message:"Si existe el correo, recibirás instrucciones"});
-    }
-
-    const token = crypto.randomBytes(32).toString("hex");
-
-    user.resetToken = token;
-    user.resetTokenExpire = Date.now() + 3600000;
-
-    await user.save();
-
-    const link = `https://storepulse.onrender.com/reset.html?token=${token}`;
-
-    await transporter.sendMail({
-      to: email,
-      subject: "Recuperar contraseña",
-      html: `
-        <h3>Recuperación de contraseña</h3>
-        <a href="${link}">${link}</a>
-      `
-    });
-
-    res.json({message:"Correo enviado"});
-
-  }catch(err){
-    console.error(err);
-    res.status(500).json({error:"Error recuperación"});
-  }
+const storage = multer.diskStorage({
+  destination:(req,file,cb)=> cb(null,"uploads/"),
+  filename:(req,file,cb)=> cb(null,Date.now()+"-"+file.originalname)
 });
-
-app.post("/reset", async (req,res)=>{
-  try{
-    const { token,password } = req.body;
-
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpire: { $gt: Date.now() }
-    });
-
-    if(!user){
-      return res.status(400).json({error:"Token inválido"});
-    }
-
-    user.password = password.trim();
-    user.resetToken = undefined;
-    user.resetTokenExpire = undefined;
-
-    await user.save();
-
-    res.json({message:"Contraseña actualizada"});
-
-  }catch(err){
-    console.error(err);
-    res.status(500).json({error:"Error reset"});
-  }
-});
-
-// =====================================================
-// 🏪 STORES
-// =====================================================
-
-app.post("/stores", async (req,res)=>{
-  const { name,address,lat,lng,agencyId } = req.body;
-
-  if(!agencyId){
-    return res.status(400).json({error:"agencyId requerido"});
-  }
-
-  const store = new Store({ name,address,lat,lng,agencyId });
-  await store.save();
-
-  res.json({message:"Tienda creada"});
-});
-
-app.get("/stores/:agencyId", async (req,res)=>{
-  const stores = await Store.find({ agencyId:req.params.agencyId });
-  res.json(stores);
-});
-
-// =====================================================
-// 📍 CHECKIN
-// =====================================================
+const upload = multer({ storage });
 
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
-  try{
-    const { lat,lng,userId } = req.body;
 
-    const user = await User.findById(userId);
+  const { userId } = req.body;
 
-    if(!user){
-      return res.status(404).json({message:"Usuario no existe"});
-    }
+  const user = await User.findById(userId);
 
-    await User.findByIdAndUpdate(userId,{
-      lastLocation:{ lat,lng,date:new Date() }
-    });
+  if(!user) return res.status(404).json({error:"Usuario no existe"});
 
-    await Checkin.create({
-      userId,
-      agencyId:user.agencyId,
-      lat,lng,
-      photo:req.file?.filename,
-      date:new Date()
-    });
+  await Checkin.create({
+    userId,
+    agencyId:user.agencyId,
+    lat:req.body.lat,
+    lng:req.body.lng,
+    photo:req.file?.filename,
+    date:new Date()
+  });
 
-    res.json({message:"Check-in OK"});
-
-  }catch(err){
-    console.error(err);
-    res.status(500).json({error:"Error check-in"});
-  }
+  res.json({message:"Check-in OK"});
 });
 
 // ------------------ 404 ------------------
-
 app.use((req,res)=>{
   res.status(404).json({error:"Ruta no encontrada"});
 });
 
 // ------------------ START ------------------
-
 app.listen(PORT,"0.0.0.0", ()=>{
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log("🔥 STOREPULSE SAAS PRO MAX ACTIVO");
+  console.log(`🚀 Servidor en puerto ${PORT}`);
+  console.log("🔐 STOREPULSE SAAS SEGURO ACTIVO");
 });

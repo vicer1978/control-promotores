@@ -1,4 +1,4 @@
-// server.js – StorePulse PRO FINAL + RECOVERY + FIX HTML
+// server.js – StorePulse PRO MAX FINAL
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -33,30 +33,15 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ------------------ PORT ------------------
 const PORT = process.env.PORT || 3000;
 
-// ------------------ RUTA PRINCIPAL ------------------
+// ------------------ RUTAS HTML ------------------
 app.get("/", (req,res)=>{
   res.sendFile(path.join(__dirname,"public","login.html"));
 });
 
-// ------------------ FIX HTML RENDER ------------------
-app.get("/login.html", (req,res)=>{
-  res.sendFile(path.join(__dirname,"public","login.html"));
-});
-
-app.get("/register.html", (req,res)=>{
-  res.sendFile(path.join(__dirname,"public","register.html"));
-});
-
-app.get("/recover.html", (req,res)=>{
-  res.sendFile(path.join(__dirname,"public","recover.html"));
-});
-
-app.get("/app.html", (req,res)=>{
-  res.sendFile(path.join(__dirname,"public","app.html"));
-});
-
-app.get("/admin.html", (req,res)=>{
-  res.sendFile(path.join(__dirname,"public","admin.html"));
+["login","register","recover","reset","admin","app"].forEach(page=>{
+  app.get(`/${page}.html`, (req,res)=>{
+    res.sendFile(path.join(__dirname,"public",`${page}.html`));
+  });
 });
 
 // ------------------ MONGODB ------------------
@@ -74,7 +59,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ------------------ EMAIL CONFIG ------------------
+// ------------------ EMAIL ------------------
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -93,7 +78,8 @@ app.post("/agencies", async (req,res)=>{
     await agency.save();
 
     res.json(agency);
-  }catch(err){
+
+  }catch{
     res.status(500).json({error:"Error creando agencia"});
   }
 });
@@ -104,6 +90,8 @@ app.get("/agencies", async (req,res)=>{
 });
 
 // ------------------ USUARIOS ------------------
+
+// 🔹 REGISTRO SIMPLE
 app.post("/register", async (req,res)=>{
   try{
     const { name, email, password } = req.body;
@@ -121,12 +109,12 @@ app.post("/register", async (req,res)=>{
     await user.save();
     res.json({message:"Usuario registrado"});
 
-  }catch(err){
+  }catch{
     res.status(500).json({error:"Error registro"});
   }
 });
 
-// 🔐 LOGIN FIX
+// 🔹 LOGIN FIX REAL
 app.post("/login", async (req,res)=>{
   try{
     const { email, password } = req.body;
@@ -144,12 +132,71 @@ app.post("/login", async (req,res)=>{
       agencyId: user.agencyId
     });
 
-  }catch(err){
+  }catch{
     res.status(500).json({error:"Error login"});
   }
 });
 
-// 🔥 RECUPERACIÓN PASSWORD
+// 🔹 TODOS LOS USUARIOS (ADMIN)
+app.get("/users", async (req,res)=>{
+  const users = await User.find().populate("agencyId");
+  res.json(users);
+});
+
+// 🔹 USUARIOS POR AGENCIA
+app.get("/users/:agencyId", async (req,res)=>{
+  const users = await User.find({ agencyId:req.params.agencyId });
+  res.json(users);
+});
+
+// 🔹 CREAR USUARIO DESDE ADMIN
+app.post("/admin/create-user", async (req,res)=>{
+  try{
+
+    const { name,email,password,role,agencyId } = req.body;
+
+    const exists = await User.findOne({ email });
+    if(exists) return res.status(400).json({error:"Email ya existe"});
+
+    const user = new User({
+      name,
+      email,
+      password,
+      role,
+      agencyId
+    });
+
+    await user.save();
+    res.json({message:"Usuario creado"});
+
+  }catch{
+    res.status(500).json({error:"Error creando usuario"});
+  }
+});
+
+// 🔹 CAMBIAR ROL
+app.put("/users/:id/role", async (req,res)=>{
+  try{
+    const { role } = req.body;
+
+    await User.findByIdAndUpdate(req.params.id,{ role });
+
+    res.json({message:"Rol actualizado"});
+
+  }catch{
+    res.status(500).json({error:"Error rol"});
+  }
+});
+
+// 🔹 ELIMINAR USUARIO
+app.delete("/users/:id", async (req,res)=>{
+  await User.findByIdAndDelete(req.params.id);
+  res.json({message:"Usuario eliminado"});
+});
+
+// ------------------ RECUPERACIÓN PASSWORD ------------------
+
+// 🔹 SOLICITAR RECUPERACIÓN
 app.post("/recover", async (req,res)=>{
   try{
     const { email } = req.body;
@@ -160,7 +207,7 @@ app.post("/recover", async (req,res)=>{
     const token = crypto.randomBytes(32).toString("hex");
 
     user.resetToken = token;
-    user.resetTokenExpire = Date.now() + 3600000; // 1 hora
+    user.resetTokenExpire = Date.now() + 3600000;
     await user.save();
 
     const link = `https://storepulse.onrender.com/reset.html?token=${token}`;
@@ -168,9 +215,11 @@ app.post("/recover", async (req,res)=>{
     await transporter.sendMail({
       to: email,
       subject: "Recuperar contraseña",
-      html: `<h3>Recuperación</h3>
-             <p>Da clic:</p>
-             <a href="${link}">${link}</a>`
+      html: `
+        <h3>Recuperación de contraseña</h3>
+        <p>Haz clic en el siguiente enlace:</p>
+        <a href="${link}">${link}</a>
+      `
     });
 
     res.json({message:"Correo enviado"});
@@ -181,10 +230,10 @@ app.post("/recover", async (req,res)=>{
   }
 });
 
-// 🔐 RESET PASSWORD
+// 🔹 RESET PASSWORD
 app.post("/reset", async (req,res)=>{
   try{
-    const { token, password } = req.body;
+    const { token,password } = req.body;
 
     const user = await User.findOne({
       resetToken: token,
@@ -201,14 +250,14 @@ app.post("/reset", async (req,res)=>{
 
     res.json({message:"Contraseña actualizada"});
 
-  }catch(err){
+  }catch{
     res.status(500).json({error:"Error reset"});
   }
 });
 
 // ------------------ STORES ------------------
 app.post("/stores", async (req,res)=>{
-  const { name, address, lat, lng, agencyId } = req.body;
+  const { name,address,lat,lng,agencyId } = req.body;
 
   const store = new Store({ name,address,lat,lng,agencyId });
   await store.save();
@@ -244,7 +293,7 @@ app.post("/checkin", upload.single("photo"), async (req,res)=>{
 
     res.json({message:"Check-in OK"});
 
-  }catch(err){
+  }catch{
     res.status(500).json({error:"Error check-in"});
   }
 });
@@ -256,6 +305,6 @@ app.use((req,res)=>{
 
 // ------------------ START ------------------
 app.listen(PORT,"0.0.0.0", ()=>{
-  console.log(`🚀 Server corriendo ${PORT}`);
-  console.log("🔥 STOREPULSE PRO ACTIVO");
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log("🔥 STOREPULSE PRO MAX ACTIVO");
 });

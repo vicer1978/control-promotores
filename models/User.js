@@ -1,34 +1,44 @@
 // models/User.js
+
 const mongoose = require("mongoose");
+
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
+
   name: { type: String, required: true },
+
   email: { type: String, required: true, unique: true },
+
   password: { type: String, required: true },
 
-  // 🔥 Roles unificados con frontend
+  // 🔥 Roles
   role: { 
     type: String, 
-    enum: ["user", "admin", "superadmin"], // agregado superadmin
+    enum: ["user", "admin", "superadmin"],
     default: "user" 
   },
 
   // 🏪 Tiendas asignadas
   stores: [{ type: Schema.Types.ObjectId, ref: "Store" }],
 
-  // 📍 Ubicación para mapa en vivo
+  // 📍 Última ubicación
   lastLocation: {
     lat: Number,
     lng: Number,
     date: Date
   },
 
-  // 🏢 Agencia a la que pertenece
+  // 🏢 Agencia
   agencyId: { 
     type: Schema.Types.ObjectId, 
     ref: "Agency" 
-  }
+  },
+
+  // 🔐 RECUPERACIÓN DE PASSWORD (AQUÍ VA 🔥)
+  resetToken: String,
+  resetTokenExpire: Date
+
 });
 
 module.exports = mongoose.model("User", userSchema);

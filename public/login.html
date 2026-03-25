@@ -1,148 +1,108 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
 <meta charset="UTF-8">
 <title>Login - StorePulse</title>
 
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0B1F3A">
-
 <style>
 :root {
-  --primary: #0B1F3A;
-  --secondary: #D4AF37;
-  --bg: #F5F7FA;
+  --primary:#0B1F3A;
+  --secondary:#D4AF37;
+  --bg:#F5F7FA;
 }
 
-body {
-  margin: 0;
-  font-family: Arial;
-  background: var(--bg);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
+body{
+  margin:0;
+  font-family:Arial;
+  background:var(--bg);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
 
-.login-container {
-  width: 90%;
-  max-width: 360px;
-  background: white;
-  border-radius: 15px;
-  padding: 30px;
-  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+.container{
+  width:90%;
+  max-width:360px;
+  background:#fff;
+  padding:30px;
+  border-radius:15px;
+  box-shadow:0 6px 15px rgba(0,0,0,0.1);
 }
 
-.logo {
-  text-align: center;
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--primary);
-  margin-bottom: 20px;
+.logo{
+  text-align:center;
+  font-size:24px;
+  font-weight:bold;
+  color:var(--primary);
+  margin-bottom:20px;
 }
 
-.subtitle {
-  text-align: center;
-  font-size: 12px;
-  color: gray;
-  margin-bottom: 20px;
+input{
+  width:100%;
+  padding:12px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid #ccc;
 }
 
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+button{
+  width:100%;
+  padding:12px;
+  background:var(--secondary);
+  border:none;
+  border-radius:8px;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
 }
 
-.password-wrapper {
-  position: relative;
+.links{
+  text-align:center;
+  margin-top:10px;
 }
 
-.toggle-pass {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
+.links a{
+  display:block;
+  margin:5px 0;
+  color:var(--primary);
+  font-size:13px;
+  cursor:pointer;
 }
 
-.button {
-  width: 100%;
-  padding: 12px;
-  background: var(--secondary);
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  margin-top: 10px;
-  cursor: pointer;
-  color: #fff;
-}
-
-.error {
-  color: red;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 10px;
-}
-
-.footer {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 11px;
-  color: gray;
+.error{
+  color:red;
+  font-size:12px;
+  text-align:center;
+  margin-top:10px;
 }
 </style>
-
 </head>
 
 <body>
 
-<div class="login-container">
+<div class="container">
 
   <div class="logo">StorePulse</div>
-  <div class="subtitle">Control de promotores y demostradoras</div>
 
-  <input id="email" placeholder="Correo electrónico">
+  <input id="email" placeholder="Correo">
+  <input id="password" type="password" placeholder="Contraseña">
 
-  <div class="password-wrapper">
-    <input id="password" type="password" placeholder="Contraseña">
-    <button class="toggle-pass" onclick="togglePassword()">👁️</button>
+  <button onclick="login()">Ingresar</button>
+
+  <div class="links">
+    <a href="./forgot.html">¿Olvidaste tu contraseña?</a>
+    <a href="./register.html">¿No tienes cuenta? Regístrate</a>
   </div>
 
-  <label style="font-size:12px;">
-    <input type="checkbox" id="rememberMe"> Guardar usuario
-  </label>
-
-  <button class="button" onclick="login()">Ingresar</button>
-
   <div class="error" id="error"></div>
-  <div class="footer">Versión 1.0</div>
 
 </div>
 
 <script>
 
-// 🌐 BACKEND
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔹 Cargar usuario guardado
-window.onload = () => {
-  const savedEmail = localStorage.getItem("savedEmail");
-  if(savedEmail) document.getElementById("email").value = savedEmail;
-};
-
-// 👁️ Mostrar / ocultar contraseña
-function togglePassword(){
-  const pass = document.getElementById("password");
-  pass.type = pass.type === "password" ? "text" : "password";
-}
-
-// 🔐 LOGIN
 async function login(){
 
   const email = document.getElementById("email").value.trim();
@@ -152,61 +112,37 @@ async function login(){
   error.innerText = "";
 
   if(!email || !password){
-    error.innerText = "⚠️ Completa todos los campos";
+    error.innerText = "⚠️ Completa los campos";
     return;
   }
 
-  try {
+  try{
 
-    console.log("🔗 Despertando backend...");
-    await fetch(BACKEND_URL); // 🔥 evita sleep de Render
-
-    console.log("🔗 Enviando login a:", `${BACKEND_URL}/login`);
+    // 🔥 Wake up backend
+    await fetch(BACKEND_URL);
 
     const res = await fetch(`${BACKEND_URL}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ email, password })
     });
-
-    console.log("📡 Status:", res.status);
 
     const data = await res.json();
 
     if(!res.ok){
-      error.innerText = data.message || "⚠️ Credenciales incorrectas";
+      error.innerText = data.message;
       return;
     }
 
-    // ✅ Guardar sesión
     localStorage.setItem("userId", data.userId);
-    localStorage.setItem("role", data.role);
     localStorage.setItem("agencyId", data.agencyId);
+    localStorage.setItem("role", data.role);
 
-    // 💾 Recordar email
-    if(document.getElementById("rememberMe").checked){
-      localStorage.setItem("savedEmail", email);
-    } else {
-      localStorage.removeItem("savedEmail");
-    }
-
-    console.log("✅ Login exitoso");
-
-    // 🚀 Redirigir
     window.location.href = "./app.html";
 
-  } catch(err){
-
-    console.error("❌ ERROR REAL:", err);
-
-    if(err.message.includes("Failed to fetch")){
-      error.innerText = "❌ Error de conexión con el servidor";
-    } else {
-      error.innerText = "❌ Error inesperado";
-    }
-
+  }catch(err){
+    console.error(err);
+    error.innerText = "❌ Error de conexión";
   }
 }
 

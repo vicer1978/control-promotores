@@ -52,43 +52,41 @@ let allAgencies = [];
 let allStores = [];
 let currentUserStores = {};
 
-// Seguridad
 if(!userId) window.location.href = "./login.html";
 if(role !== "superadmin") document.getElementById("menuAgencies").style.display = "none";
 if(role !== "admin" && role !== "superadmin") document.getElementById("menuStores").style.display = "none";
 
-// ---------------- FETCH ----------------
 async function fetchWithAuth(url, options={}) {
-  options.headers = { ...(options.headers||{}), userId };
+  options.headers = { ...(options.headers||{}), "userId": userId };
   const res = await fetch(url, options);
-  if(!res.ok) throw new Error("Error al obtener datos");
+  if(!res.ok) throw new Error(await res.text());
   return await res.json();
 }
 
 // ---------------- DASHBOARD ----------------
 async function loadDashboard(){
-  let users;
-  try { users = await fetchWithAuth(`${BACKEND_URL}/users`); } 
-  catch(err){ alert("Error cargando usuarios"); return; }
-  document.getElementById("content").innerHTML = `
-    <h2>Dashboard</h2>
-    <div class="grid">
-      <div class="card"><div class="kpi">${users.length}</div>Total usuarios</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
-    </div>
-  `;
+  try{
+    const users = await fetchWithAuth(`${BACKEND_URL}/users`);
+    document.getElementById("content").innerHTML = `
+      <h2>Dashboard</h2>
+      <div class="grid">
+        <div class="card"><div class="kpi">${users.length}</div>Total usuarios</div>
+        <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
+        <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
+        <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
+      </div>
+    `;
+  }catch(err){ alert("Error cargando dashboard: "+err); }
 }
 
 // ---------------- USUARIOS ----------------
 async function loadUsers(){
-  try {
+  try{
     allUsers = await fetchWithAuth(`${BACKEND_URL}/users`);
     allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
     if(role==="superadmin") allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
     renderUsers(allUsers);
-  } catch(err){ alert("Error cargando usuarios"); }
+  }catch(err){ alert("Error cargando usuarios: "+err); }
 }
 
 function renderUsers(users){
@@ -108,7 +106,7 @@ function renderUsers(users){
     if(u.role==="promotor" || u.role==="demostradora"){
       currentUserStores[u._id] = {
         assigned: u.stores || [],
-        available: allStores.filter(s => !(u.stores||[]).some(as => (as._id||as) === (s._id||s)))
+        available: allStores.filter(s => !(u.stores||[]).some(as => as._id === s._id))
       };
       storesSection = renderStoreDragDrop(u._id);
     }
@@ -135,6 +133,7 @@ function renderUsers(users){
   // Drag & Drop
   Object.keys(currentUserStores).forEach(uid=>{
     const container = document.getElementById(`storeContainer_${uid}`);
+    if(!container) return;
     const cols = container.querySelectorAll(".store-list > div");
     cols.forEach((col,index)=>{
       col.ondragover = e=>e.preventDefault();
@@ -168,28 +167,28 @@ async function dropStore(ev, uid, target){
   if(!draggedStore) return;
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
-  const storeObj = allStores.find(s => (s._id||s.id) === storeId);
-  if(!storeObj){ alert("Error: tienda no encontrada"); return; }
-
+  const storeObj = allStores.find(s=>s._id===storeId);
   const userStores = currentUserStores[uid];
+
   if(target==="assigned"){
-    if(!userStores.assigned.some(s => (s._id||s.id)===storeId)) userStores.assigned.push(storeObj);
-    userStores.available = userStores.available.filter(s => (s._id||s.id)!==storeId);
+    if(!userStores.assigned.some(s=>s._id===storeId)) userStores.assigned.push(storeObj);
+    userStores.available = userStores.available.filter(s=>s._id!==storeId);
   } else {
-    if(!userStores.available.some(s => (s._id||s.id)===storeId)) userStores.available.push(storeObj);
-    userStores.assigned = userStores.assigned.filter(s => (s._id||s.id)!==storeId);
+    if(!userStores.available.some(s=>s._id===storeId)) userStores.available.push(storeObj);
+    userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
 
   try{
     await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
       method:"PUT",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ storeIds: userStores.assigned.map(s => s._id || s.id) })
+      body: JSON.stringify({ storeIds: userStores.assigned.map(s => s._id) })
     });
-  } catch(err){
+  }catch(err){
     console.error("Error actualizando tiendas:", err);
-    alert("Error actualizando tiendas: " + (err.message||err));
+    alert("Error actualizando tiendas: " + err.message);
   }
+
   renderUsers(allUsers);
 }
 
@@ -201,7 +200,6 @@ async function loadCreateUser(){
     let options = agencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("");
     agencySelect = `<label>Agencia</label><select id="agencyId">${options}</select>`;
   }
-
   document.getElementById("content").innerHTML = `
     <div class="card">
       <h3>Crear Usuario</h3>
@@ -230,9 +228,9 @@ async function createUser(){
   };
   try{
     await fetchWithAuth(`${BACKEND_URL}/admin/create-user`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
-    alert("Usuario creado");
+    alert("Usuario creado ✅");
     loadUsers();
-  } catch(err){ alert("Error creando usuario"); }
+  }catch(err){ alert("Error creando usuario: "+err.message); }
 }
 
 // ---------------- AGENCIAS ----------------
@@ -277,7 +275,6 @@ async function createStore(){
   const lng = parseFloat(document.getElementById("lngStore").value);
   const address = document.getElementById("addressStore").value;
   if(!name || isNaN(lat) || isNaN(lng) || !address) return alert("Completa todos los campos");
-  
   const newStore = await fetchWithAuth(`${BACKEND_URL}/stores`, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
@@ -289,11 +286,28 @@ async function createStore(){
 }
 
 // ---------------- FILTROS ----------------
-function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter(u=>u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)); }
+function filterUsers(term){ term=term.toLowerCase(); renderUsers(allUsers.filter(u=>u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))); }
+
+// ---------------- ROL & AGENCIA ----------------
+async function changeRole(uid,newRole){
+  try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/role`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ role:newRole }) }); loadUsers(); }
+  catch(err){ alert("Error cambiando rol: "+err.message); }
+}
+
+async function changeAgency(uid,aid){
+  try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/agency`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agencyId:aid }) }); loadUsers(); }
+  catch(err){ alert("Error cambiando agencia: "+err.message); }
+}
+
+// ---------------- DELETE ----------------
+async function deleteUser(uid){
+  if(!confirm("Eliminar usuario?")) return;
+  try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}`, { method:"DELETE" }); loadUsers(); }
+  catch(err){ alert("Error eliminando usuario: "+err.message); }
+}
 
 // ---------------- LOGOUT ----------------
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
 </script>
-
 </body>
 </html>

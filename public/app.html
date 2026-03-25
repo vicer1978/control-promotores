@@ -1,32 +1,44 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>StorePulse App</title>
 
 <style>
+
 :root {
   --primary: #0B1F3A;
   --secondary: #D4AF37;
   --bg: #F5F7FA;
-  --text: #1A1A1A;
 }
+
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   display: flex;
   min-height: 100vh;
 }
+
 /* SIDEBAR */
 .sidebar {
-  width: 220px;
+  width: 240px;
   background: var(--primary);
   color: white;
   padding: 20px;
 }
+
 .sidebar h2 {
   text-align: center;
 }
+
+.sidebar small {
+  display:block;
+  text-align:center;
+  margin-bottom:15px;
+  color:#ccc;
+}
+
 .sidebar button {
   width: 100%;
   margin: 8px 0;
@@ -38,16 +50,15 @@ body {
   font-weight: bold;
   cursor: pointer;
 }
-.sidebar button:active {
-  transform: scale(0.98);
-}
-/* CONTENIDO */
+
+/* MAIN */
 .main {
   flex: 1;
   background: var(--bg);
   padding: 20px;
-  overflow-y: auto;
 }
+
+/* CARD */
 .card {
   background: white;
   padding: 15px;
@@ -55,61 +66,44 @@ body {
   margin-bottom: 15px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
 }
+
 input, button {
   padding: 10px;
   margin: 8px 0;
   border-radius: 8px;
-  font-size: 14px;
-  box-sizing: border-box;
 }
+
 input {
   width: 100%;
   border: 1px solid #ccc;
 }
+
 button {
   width: 100%;
   background: var(--secondary);
   border: none;
   color: white;
   font-weight: bold;
-  cursor: pointer;
 }
-button:active {
-  transform: scale(0.98);
-}
-ul {
-  list-style: none;
-  padding: 0;
-  margin-top: 10px;
-}
-li {
-  background: white;
-  padding: 8px 10px;
-  margin: 5px 0;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-li button {
-  background: #FF4B4B;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-}
+
 </style>
 
 </head>
+
 <body>
 
 <div class="sidebar">
+
   <h2>StorePulse</h2>
-  <button onclick="loadView('dashboard')">📊 Dashboard</button>
-  <button onclick="loadView('checkin')">📍 Check-in</button>
-  <button onclick="loadView('history')">📋 Historial</button>
-  <button onclick="loadView('ranking')">🏆 Ranking</button>
-  <button onclick="loadView('report')">📄 Reportes</button>
+  <small id="userInfo"></small>
+
+  <button onclick="loadDashboard()">📊 Dashboard</button>
+  <button onclick="loadCheckin()">📍 Check-in</button>
+  <button onclick="loadHistory()">📋 Historial</button>
+  <button onclick="loadRanking()">🏆 Ranking</button>
+  <button onclick="loadReport()">📄 Reportes</button>
   <button onclick="logout()">🚪 Salir</button>
+
 </div>
 
 <div class="main" id="content">
@@ -117,137 +111,190 @@ li button {
 </div>
 
 <script>
-// 🔹 BACKEND FIJO
+
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔹 NAVEGACIÓN
-function loadView(view){
-  if(view === "dashboard") loadDashboard();
-  else if(view === "checkin") loadCheckin();
-  else if(view === "history") loadHistory();
-  else if(view === "ranking") loadRanking();
-  else if(view === "report") loadReport();
-}
+// 🔥 VALIDAR SESIÓN (SAAS PRO)
+(function(){
+  const userId = localStorage.getItem("userId");
+  const role = localStorage.getItem("role");
+
+  if(!userId){
+    window.location.href = "./login.html";
+  }
+
+  document.getElementById("userInfo").innerText =
+    "Rol: " + role;
+})();
 
 // ---------------- DASHBOARD ----------------
-async function loadDashboard() {
+
+async function loadDashboard(){
+
   const agencyId = localStorage.getItem("agencyId");
-  try {
+
+  if(!agencyId){
+    document.getElementById("content").innerHTML =
+      `<div class="card">⚠️ No tienes agencia asignada</div>`;
+    return;
+  }
+
+  try{
+
     const res = await fetch(`${BACKEND_URL}/dashboard/${agencyId}`);
-    if (!res.ok) throw new Error("Error al cargar dashboard");
     const data = await res.json();
+
     document.getElementById("content").innerHTML = `
       <div class="card">
-        <h3>Métricas</h3>
-        <p>Usuarios: ${data.totalUsers}</p>
-        <p>Tiendas: ${data.totalStores}</p>
-        <p>Check-ins: ${data.totalCheckins}</p>
-        <p>Activos: ${data.activeUsers}</p>
+        <h3>📊 Dashboard</h3>
+        <p>Total usuarios: ${data.totalUsers}</p>
+        <p>Total tiendas: ${data.totalStores}</p>
+        <p>Total check-ins: ${data.totalCheckins}</p>
+        <p>Usuarios activos: ${data.activeUsers}</p>
       </div>
     `;
-  } catch(err) {
-    console.error(err);
-    document.getElementById("content").innerHTML = `<div class="card" style="color:red;">❌ No se pudo cargar el dashboard</div>`;
+
+  }catch(err){
+    document.getElementById("content").innerHTML =
+      `<div class="card" style="color:red;">❌ Error cargando dashboard</div>`;
   }
 }
 
-// ---------------- CHECKIN ----------------
-function loadCheckin() {
+// ---------------- CHECK-IN ----------------
+
+function loadCheckin(){
+
   document.getElementById("content").innerHTML = `
     <div class="card">
-      <h3>Check-in</h3>
-      <input type="file" id="photo"><br><br>
+      <h3>📍 Check-in</h3>
+      <input type="file" id="photo">
       <button onclick="doCheckin()">Enviar</button>
       <p id="msg"></p>
     </div>
   `;
 }
 
-function doCheckin() {
+function doCheckin(){
+
   const photo = document.getElementById("photo").files[0];
-  if(!photo) { alert("Seleccione una foto"); return; }
+
+  if(!photo){
+    alert("Selecciona una foto");
+    return;
+  }
 
   navigator.geolocation.getCurrentPosition(async pos => {
-    try {
-      const formData = new FormData();
-      formData.append("photo", photo);
-      formData.append("lat", pos.coords.latitude);
-      formData.append("lng", pos.coords.longitude);
-      formData.append("userId", localStorage.getItem("userId"));
 
-      const res = await fetch(`${BACKEND_URL}/checkin`, { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Error en check-in");
+    const formData = new FormData();
+    formData.append("photo", photo);
+    formData.append("lat", pos.coords.latitude);
+    formData.append("lng", pos.coords.longitude);
+    formData.append("userId", localStorage.getItem("userId"));
+
+    try{
+
+      const res = await fetch(`${BACKEND_URL}/checkin`,{
+        method:"POST",
+        body: formData
+      });
+
       const data = await res.json();
       document.getElementById("msg").innerText = data.message;
-    } catch(err) {
-      console.error(err);
-      document.getElementById("msg").innerText = "❌ No se pudo realizar el check-in";
+
+    }catch(err){
+      document.getElementById("msg").innerText = "❌ Error en check-in";
     }
-  }, err => {
-    alert("❌ No se pudo obtener la ubicación");
-    console.error(err);
+
   });
 }
 
 // ---------------- HISTORIAL ----------------
-async function loadHistory() {
+
+async function loadHistory(){
+
   const agencyId = localStorage.getItem("agencyId");
-  try {
+
+  try{
+
     const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`);
-    if (!res.ok) throw new Error("Error al cargar historial");
     const data = await res.json();
-    let html = `<div class="card"><h3>Historial</h3><ul>`;
-    data.forEach(c => html += `<li>${c.userId?.name || 'N/A'} - ${new Date(c.date).toLocaleString()}</li>`);
-    html += `</ul></div>`;
+
+    let html = `<div class="card"><h3>Historial</h3>`;
+
+    data.forEach(c=>{
+      html += `<p>${new Date(c.date).toLocaleString()}</p>`;
+    });
+
+    html += `</div>`;
     document.getElementById("content").innerHTML = html;
-  } catch(err) {
-    console.error(err);
-    document.getElementById("content").innerHTML = `<div class="card" style="color:red;">❌ No se pudo cargar historial</div>`;
+
+  }catch(err){
+    document.getElementById("content").innerHTML =
+      `<div class="card">❌ Error cargando historial</div>`;
   }
 }
 
 // ---------------- RANKING ----------------
-async function loadRanking() {
+
+async function loadRanking(){
+
   const agencyId = localStorage.getItem("agencyId");
-  try {
+
+  try{
+
     const res = await fetch(`${BACKEND_URL}/stats/ranking/${agencyId}`);
-    if (!res.ok) throw new Error("Error al cargar ranking");
     const data = await res.json();
-    let html = `<div class="card"><h3>Ranking</h3><ul>`;
-    data.forEach((r,i) => html += `<li>${i+1}. ${r._id.name} - ${r.total}</li>`);
-    html += `</ul></div>`;
+
+    let html = `<div class="card"><h3>Ranking</h3>`;
+
+    data.forEach((r,i)=>{
+      html += `<p>${i+1}. ${r._id.name} - ${r.total}</p>`;
+    });
+
+    html += `</div>`;
     document.getElementById("content").innerHTML = html;
-  } catch(err) {
-    console.error(err);
-    document.getElementById("content").innerHTML = `<div class="card" style="color:red;">❌ No se pudo cargar ranking</div>`;
+
+  }catch(err){
+    document.getElementById("content").innerHTML =
+      `<div class="card">❌ Error cargando ranking</div>`;
   }
 }
 
 // ---------------- REPORTES ----------------
-function loadReport() {
+
+function loadReport(){
+
   document.getElementById("content").innerHTML = `
     <div class="card">
       <h3>Reporte</h3>
       <input type="date" id="start">
-      <input type="date" id="end"><br><br>
-      <button onclick="generateReport()">Generar PDF</button>
+      <input type="date" id="end">
+      <button onclick="generateReport()">Generar</button>
     </div>
   `;
 }
 
-function generateReport() {
+function generateReport(){
+
   const agencyId = localStorage.getItem("agencyId");
   const start = document.getElementById("start").value;
   const end = document.getElementById("end").value;
-  if(!start || !end) { alert("Seleccione rango de fechas"); return; }
+
+  if(!start || !end){
+    alert("Selecciona fechas");
+    return;
+  }
+
   window.open(`${BACKEND_URL}/report/${agencyId}?start=${start}&end=${end}`);
 }
 
 // ---------------- LOGOUT ----------------
-function logout() {
+
+function logout(){
   localStorage.clear();
   window.location.href = "./login.html";
 }
+
 </script>
 
 </body>

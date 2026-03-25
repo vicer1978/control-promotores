@@ -1,4 +1,4 @@
-// server.js – StorePulse PRO MAX FINAL
+// server.js – StorePulse PRO MAX SaaS FINAL
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -69,6 +69,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // ------------------ AGENCIAS ------------------
+
 app.post("/agencies", async (req,res)=>{
   try{
     const { name } = req.body;
@@ -79,7 +80,8 @@ app.post("/agencies", async (req,res)=>{
 
     res.json(agency);
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error creando agencia"});
   }
 });
@@ -91,53 +93,66 @@ app.get("/agencies", async (req,res)=>{
 
 // ------------------ USUARIOS ------------------
 
-// 🔹 REGISTRO SIMPLE
+// 🔹 REGISTRO SAAS
 app.post("/register", async (req,res)=>{
   try{
-    const { name, email, password } = req.body;
+
+    let { name, email, password } = req.body;
+
+    email = email.trim().toLowerCase();
+    password = password.trim();
 
     const exists = await User.findOne({ email });
-    if(exists) return res.status(400).json({error:"Email ya registrado"});
+    if(exists){
+      return res.status(400).json({error:"Email ya registrado"});
+    }
 
     const user = new User({
-      name,
+      name: name.trim(),
       email,
       password,
-      role:"user"
+      role: "promotor",
+      agencyId: null
     });
 
     await user.save();
+
     res.json({message:"Usuario registrado"});
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error registro"});
   }
 });
 
-// 🔹 LOGIN FIX REAL
+// 🔹 LOGIN
 app.post("/login", async (req,res)=>{
   try{
-    const { email, password } = req.body;
 
-    const user = await User.findOne({
-      email: email.trim(),
-      password: password.trim()
-    });
+    let { email, password } = req.body;
 
-    if(!user) return res.status(404).json({message:"Usuario no encontrado"});
+    email = email.trim().toLowerCase();
+    password = password.trim();
+
+    const user = await User.findOne({ email, password });
+
+    if(!user){
+      return res.status(404).json({message:"Usuario no encontrado"});
+    }
 
     res.json({
       userId: user._id,
       role: user.role,
-      agencyId: user.agencyId
+      agencyId: user.agencyId || null
     });
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error login"});
   }
 });
 
-// 🔹 TODOS LOS USUARIOS (ADMIN)
+// 🔹 TODOS LOS USUARIOS
 app.get("/users", async (req,res)=>{
   const users = await User.find().populate("agencyId");
   res.json(users);
@@ -149,27 +164,34 @@ app.get("/users/:agencyId", async (req,res)=>{
   res.json(users);
 });
 
-// 🔹 CREAR USUARIO DESDE ADMIN
+// 🔹 CREAR USUARIO ADMIN
 app.post("/admin/create-user", async (req,res)=>{
   try{
 
-    const { name,email,password,role,agencyId } = req.body;
+    let { name,email,password,role,agencyId } = req.body;
+
+    email = email.trim().toLowerCase();
+    password = password.trim();
 
     const exists = await User.findOne({ email });
-    if(exists) return res.status(400).json({error:"Email ya existe"});
+    if(exists){
+      return res.status(400).json({error:"Email ya existe"});
+    }
 
     const user = new User({
-      name,
+      name: name.trim(),
       email,
       password,
       role,
-      agencyId
+      agencyId: (role === "admin" || role === "superadmin") ? null : agencyId
     });
 
     await user.save();
+
     res.json({message:"Usuario creado"});
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error creando usuario"});
   }
 });
@@ -177,13 +199,21 @@ app.post("/admin/create-user", async (req,res)=>{
 // 🔹 CAMBIAR ROL
 app.put("/users/:id/role", async (req,res)=>{
   try{
+
     const { role } = req.body;
+
+    const rolesValidos = ["promotor","demostradora","admin","superadmin"];
+
+    if(!rolesValidos.includes(role)){
+      return res.status(400).json({error:"Rol inválido"});
+    }
 
     await User.findByIdAndUpdate(req.params.id,{ role });
 
     res.json({message:"Rol actualizado"});
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error rol"});
   }
 });
@@ -194,20 +224,26 @@ app.delete("/users/:id", async (req,res)=>{
   res.json({message:"Usuario eliminado"});
 });
 
-// ------------------ RECUPERACIÓN PASSWORD ------------------
+// ------------------ RECUPERACIÓN ------------------
 
-// 🔹 SOLICITAR RECUPERACIÓN
 app.post("/recover", async (req,res)=>{
   try{
-    const { email } = req.body;
+
+    let { email } = req.body;
+
+    email = email.trim().toLowerCase();
 
     const user = await User.findOne({ email });
-    if(!user) return res.json({message:"Si existe el correo, recibirás instrucciones"});
+
+    if(!user){
+      return res.json({message:"Si existe el correo, recibirás instrucciones"});
+    }
 
     const token = crypto.randomBytes(32).toString("hex");
 
     user.resetToken = token;
     user.resetTokenExpire = Date.now() + 3600000;
+
     await user.save();
 
     const link = `https://storepulse.onrender.com/reset.html?token=${token}`;
@@ -230,9 +266,10 @@ app.post("/recover", async (req,res)=>{
   }
 });
 
-// 🔹 RESET PASSWORD
+// 🔹 RESET
 app.post("/reset", async (req,res)=>{
   try{
+
     const { token,password } = req.body;
 
     const user = await User.findOne({
@@ -240,9 +277,11 @@ app.post("/reset", async (req,res)=>{
       resetTokenExpire: { $gt: Date.now() }
     });
 
-    if(!user) return res.status(400).json({error:"Token inválido"});
+    if(!user){
+      return res.status(400).json({error:"Token inválido"});
+    }
 
-    user.password = password;
+    user.password = password.trim();
     user.resetToken = undefined;
     user.resetTokenExpire = undefined;
 
@@ -250,14 +289,20 @@ app.post("/reset", async (req,res)=>{
 
     res.json({message:"Contraseña actualizada"});
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error reset"});
   }
 });
 
 // ------------------ STORES ------------------
+
 app.post("/stores", async (req,res)=>{
   const { name,address,lat,lng,agencyId } = req.body;
+
+  if(!agencyId){
+    return res.status(400).json({error:"agencyId requerido"});
+  }
 
   const store = new Store({ name,address,lat,lng,agencyId });
   await store.save();
@@ -271,13 +316,17 @@ app.get("/stores/:agencyId", async (req,res)=>{
 });
 
 // ------------------ CHECKIN ------------------
+
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
   try{
 
     const { lat,lng,userId } = req.body;
 
     const user = await User.findById(userId);
-    if(!user) return res.status(404).json({message:"Usuario no existe"});
+
+    if(!user){
+      return res.status(404).json({message:"Usuario no existe"});
+    }
 
     await User.findByIdAndUpdate(userId,{
       lastLocation:{ lat,lng,date:new Date() }
@@ -293,7 +342,8 @@ app.post("/checkin", upload.single("photo"), async (req,res)=>{
 
     res.json({message:"Check-in OK"});
 
-  }catch{
+  }catch(err){
+    console.error(err);
     res.status(500).json({error:"Error check-in"});
   }
 });
@@ -306,5 +356,5 @@ app.use((req,res)=>{
 // ------------------ START ------------------
 app.listen(PORT,"0.0.0.0", ()=>{
   console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log("🔥 STOREPULSE PRO MAX ACTIVO");
+  console.log("🔥 STOREPULSE SAAS PRO MAX ACTIVO");
 });

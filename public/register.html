@@ -6,6 +6,7 @@
 <title>Registro - StorePulse</title>
 
 <style>
+
 :root {
   --primary: #0B1F3A;
   --secondary: #D4AF37;
@@ -33,7 +34,7 @@ body {
 
 .logo {
   text-align: center;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: bold;
   color: var(--primary);
   margin-bottom: 10px;
@@ -54,6 +55,23 @@ input {
   border: 1px solid #ccc;
 }
 
+/* PASSWORD */
+.password-wrapper {
+  position: relative;
+}
+
+.toggle-pass {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+/* BUTTON */
 .button {
   width: 100%;
   padding: 12px;
@@ -66,10 +84,15 @@ input {
   color: #fff;
 }
 
+.button:hover {
+  opacity: 0.9;
+}
+
+/* LINKS */
 .links {
   text-align: center;
   font-size: 12px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .links a {
@@ -78,6 +101,7 @@ input {
   font-weight: bold;
 }
 
+/* MENSAJES */
 .error {
   color: red;
   font-size: 12px;
@@ -91,6 +115,14 @@ input {
   text-align: center;
   margin-top: 10px;
 }
+
+.footer {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 11px;
+  color: gray;
+}
+
 </style>
 
 </head>
@@ -104,7 +136,11 @@ input {
 
   <input id="name" placeholder="Nombre completo">
   <input id="email" placeholder="Correo electrónico">
-  <input id="password" type="password" placeholder="Contraseña">
+
+  <div class="password-wrapper">
+    <input id="password" type="password" placeholder="Contraseña">
+    <button class="toggle-pass" onclick="togglePassword()" id="eyeBtn">👁️</button>
+  </div>
 
   <button class="button" onclick="register()">Registrarme</button>
 
@@ -116,12 +152,29 @@ input {
   <div class="error" id="error"></div>
   <div class="success" id="success"></div>
 
+  <div class="footer">Versión 3.0 SaaS</div>
+
 </div>
 
 <script>
 
 const BACKEND_URL = "https://storepulse.onrender.com";
 
+// 👁️ Mostrar / ocultar contraseña
+function togglePassword(){
+  const pass = document.getElementById("password");
+  const btn = document.getElementById("eyeBtn");
+
+  if(pass.type === "password"){
+    pass.type = "text";
+    btn.innerText = "🙈";
+  } else {
+    pass.type = "password";
+    btn.innerText = "👁️";
+  }
+}
+
+// 🔐 REGISTRO PRO
 async function register(){
 
   const name = document.getElementById("name").value.trim();
@@ -134,14 +187,22 @@ async function register(){
   error.innerText = "";
   success.innerText = "";
 
+  // VALIDACIONES
   if(!name || !email || !password){
     error.innerText = "⚠️ Completa todos los campos";
     return;
   }
 
+  if(password.length < 4){
+    error.innerText = "⚠️ La contraseña debe tener al menos 4 caracteres";
+    return;
+  }
+
   try {
 
-    // 🔥 Wake-up backend
+    console.log("🔗 Conectando a backend...");
+
+    // 🔥 Wake up Render
     await fetch(BACKEND_URL);
 
     const res = await fetch(`${BACKEND_URL}/register`, {
@@ -153,6 +214,7 @@ async function register(){
         name,
         email,
         password
+        // 🔥 SIN agencyId → lo asigna backend o queda null
       })
     });
 
@@ -163,16 +225,16 @@ async function register(){
       return;
     }
 
-    success.innerText = "✅ Usuario registrado correctamente";
+    success.innerText = "✅ Cuenta creada correctamente";
 
-    // 🔥 Redirigir después de 1.5s
+    // 🚀 REDIRECCIÓN
     setTimeout(() => {
       window.location.href = "./login.html";
     }, 1500);
 
   } catch(err){
 
-    console.error(err);
+    console.error("❌ ERROR REGISTER:", err);
     error.innerText = "❌ No se pudo conectar al servidor";
 
   }
@@ -181,5 +243,4 @@ async function register(){
 </script>
 
 </body>
-
 </html>

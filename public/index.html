@@ -82,11 +82,6 @@ input {
   margin-top: 10px;
   cursor: pointer;
   color: #fff;
-  transition: 0.2s;
-}
-
-.button:hover {
-  opacity: 0.9;
 }
 
 .links {
@@ -99,7 +94,6 @@ input {
   color: var(--primary);
   text-decoration: none;
   font-weight: bold;
-  cursor: pointer;
 }
 
 .error {
@@ -145,22 +139,33 @@ input {
   </div>
 
   <div class="error" id="error"></div>
-  <div class="footer">Versión 2.0</div>
+  <div class="footer">Versión SaaS 3.0</div>
 
 </div>
 
 <script>
 
-// 🔥 BACKEND
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔹 Cargar email guardado
+// 🔥 AUTO LOGIN SI YA EXISTE SESIÓN
 window.onload = () => {
+
   const savedEmail = localStorage.getItem("savedEmail");
   if(savedEmail) document.getElementById("email").value = savedEmail;
+
+  const userId = localStorage.getItem("userId");
+  const role = localStorage.getItem("role");
+
+  if(userId && role){
+    if(role === "admin" || role === "superadmin"){
+      window.location.href = "./admin.html";
+    } else {
+      window.location.href = "./app.html";
+    }
+  }
 };
 
-// 👁️ Mostrar / ocultar contraseña (MEJORADO)
+// 👁️ TOGGLE PASSWORD
 function togglePassword(){
   const pass = document.getElementById("password");
   const btn = document.getElementById("eyeBtn");
@@ -174,10 +179,10 @@ function togglePassword(){
   }
 }
 
-// 🔐 LOGIN PRO
+// 🔐 LOGIN SAAS PRO
 async function login(){
 
-  const email = document.getElementById("email").value.trim();
+  const email = document.getElementById("email").value.trim().toLowerCase();
   const password = document.getElementById("password").value.trim();
   const error = document.getElementById("error");
 
@@ -190,9 +195,7 @@ async function login(){
 
   try {
 
-    console.log("🔗 Conectando a:", BACKEND_URL);
-
-    // 🔥 Despertar backend (Render sleep)
+    // 🔥 Wake up backend (Render)
     await fetch(BACKEND_URL);
 
     const res = await fetch(`${BACKEND_URL}/login`, {
@@ -203,8 +206,6 @@ async function login(){
       body: JSON.stringify({ email, password })
     });
 
-    console.log("📡 Status:", res.status);
-
     const data = await res.json();
 
     if(!res.ok){
@@ -212,19 +213,19 @@ async function login(){
       return;
     }
 
-    // 💾 Guardar sesión
+    // 🔥 GUARDAR SESIÓN (CLAVE SAAS)
     localStorage.setItem("userId", data.userId);
     localStorage.setItem("role", data.role);
     localStorage.setItem("agencyId", data.agencyId || "");
 
-    // 💾 Recordar email
+    // 💾 RECORDAR EMAIL
     if(document.getElementById("rememberMe").checked){
       localStorage.setItem("savedEmail", email);
     } else {
       localStorage.removeItem("savedEmail");
     }
 
-    // 🚀 Redirección inteligente
+    // 🚀 REDIRECCIÓN INTELIGENTE
     if(data.role === "admin" || data.role === "superadmin"){
       window.location.href = "./admin.html";
     } else {
@@ -233,7 +234,7 @@ async function login(){
 
   } catch(err){
 
-    console.error("❌ ERROR LOGIN:", err);
+    console.error("ERROR LOGIN:", err);
     error.innerText = "❌ No se pudo conectar al servidor";
 
   }

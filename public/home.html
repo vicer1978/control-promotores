@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Operación - StorePulse</title>
+
+<style>
+body { margin:0; font-family:Arial; background:#F5F7FA; }
+
+.header {
+  display:flex;
+  align-items:center;
+  padding:15px;
+  background:white;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.menu-btn { font-size:22px; cursor:pointer; margin-right:10px; }
+
+.title { font-weight:bold; }
+
+.container { padding:20px; }
+
+.card {
+  background:white;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.05);
+}
+
+input {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+
+button {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.btn-main {
+  background:#0B1F3A;
+  color:white;
+  width:100%;
+}
+
+.btn-danger {
+  background:red;
+  color:white;
+  width:100%;
+  margin-top:10px;
+}
+
+.drawer {
+  position:fixed;
+  top:0;
+  left:-250px;
+  width:250px;
+  height:100%;
+  background:#0B1F3A;
+  color:white;
+  padding:20px;
+  transition:0.3s;
+}
+
+.drawer.open { left:0; }
+
+.report {
+  border-bottom:1px solid #eee;
+  padding:10px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="drawer" id="drawer">
+  <h3 id="userName"></h3>
+  <p id="userRole"></p>
+  <button onclick="logout()">Cerrar sesión</button>
+</div>
+
+<div class="header">
+  <div class="menu-btn" onclick="toggleMenu()">☰</div>
+  <div class="title">Operación</div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <h3 id="storeName">Tienda</h3>
+    <button class="btn-danger" onclick="endOperation()">Finalizar operación</button>
+  </div>
+
+  <div class="card">
+    <h3>📊 Nuevo Reporte</h3>
+
+    <input id="producto" placeholder="Producto">
+    <input id="precio" placeholder="Precio">
+    <input id="ventas" placeholder="Ventas">
+
+    <button class="btn-main" onclick="sendReport()">Enviar Reporte</button>
+  </div>
+
+  <div class="card">
+    <h3>📸 Subir Evidencia</h3>
+    <input type="file" id="photo">
+    <button class="btn-main" onclick="uploadPhoto()">Subir Foto</button>
+  </div>
+
+  <div class="card">
+    <h3>📄 Historial</h3>
+    <div id="history"></div>
+  </div>
+
+</div>
+
+<script>
+
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+const userId = localStorage.getItem("userId");
+const name = localStorage.getItem("name");
+const role = localStorage.getItem("role");
+const storeId = localStorage.getItem("activeStore");
+
+if(!userId || !storeId) window.location.href="./login.html";
+
+document.getElementById("userName").innerText = name;
+document.getElementById("userRole").innerText = role;
+
+// ---------------- MENU
+function toggleMenu(){
+  document.getElementById("drawer").classList.toggle("open");
+}
+
+// ---------------- LOAD STORE
+async function loadStore(){
+
+  const res = await fetch(`${BACKEND_URL}/stores/${storeId}`,{
+    headers:{ userId }
+  });
+
+  const store = await res.json();
+
+  document.getElementById("storeName").innerText = store.name;
+}
+
+// ---------------- SEND REPORT
+async function sendReport(){
+
+  const producto = document.getElementById("producto").value;
+  const precio = document.getElementById("precio").value;
+  const ventas = document.getElementById("ventas").value;
+
+  await fetch(`${BACKEND_URL}/reports`,{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      userId
+    },
+    body: JSON.stringify({
+      userId,
+      storeId,
+      type:"ventas",
+      data:{ producto, precio, ventas }
+    })
+  });
+
+  alert("Reporte enviado ✅");
+
+  loadHistory();
+}
+
+// ---------------- PHOTO
+async function uploadPhoto(){
+
+  const file = document.getElementById("photo").files[0];
+
+  if(!file) return alert("Selecciona una foto");
+
+  const formData = new FormData();
+  formData.append("photo", file);
+  formData.append("userId", userId);
+  formData.append("storeId", storeId);
+
+  await fetch(`${BACKEND_URL}/checkin`,{
+    method:"POST",
+    body: formData
+  });
+
+  alert("Foto subida 📸");
+}
+
+// ---------------- HISTORY
+async function loadHistory(){
+
+  const res = await fetch(`${BACKEND_URL}/reports/${localStorage.getItem("agencyId")}`,{
+    headers:{ userId }
+  });
+
+  const reports = await res.json();
+
+  let html = "";
+
+  reports
+    .filter(r=>r.userId?._id===userId)
+    .forEach(r=>{
+      html += `
+        <div class="report">
+          <b>${r.data?.producto}</b><br>
+          Ventas: ${r.data?.ventas}<br>
+          $${r.data?.precio}
+        </div>
+      `;
+    });
+
+  document.getElementById("history").innerHTML = html;
+}
+
+// ---------------- END
+function endOperation(){
+
+  localStorage.removeItem("activeStore");
+
+  window.location.href="./dashboard.html";
+}
+
+// ---------------- LOGOUT
+function logout(){
+  localStorage.clear();
+  window.location.href="./login.html";
+}
+
+loadStore();
+loadHistory();
+
+</script>
+
+</body>
+</html>

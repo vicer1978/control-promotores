@@ -2,89 +2,131 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard - StorePulse</title>
+<title>StorePulse - Inicio</title>
 
 <style>
-:root { 
-  --primary:#0B1F3A; 
-  --secondary:#D4AF37; 
-  --bg:#F5F7FA; 
-  --text:#1A1A1A; 
+body { margin:0; font-family:Arial; background:#F5F7FA; }
+
+.header {
+  display:flex;
+  align-items:center;
+  padding:15px;
+  background:white;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
 }
 
-body { 
-  margin:0; 
-  font-family:Arial, sans-serif; 
-  display:flex; 
-  min-height:100vh; 
-  background:var(--bg); 
+.menu-btn {
+  font-size:22px;
+  cursor:pointer;
+  margin-right:10px;
 }
 
-#sidebar { 
-  width:240px; 
-  background:var(--primary); 
-  color:white; 
-  padding:15px; 
-  display:flex; 
-  flex-direction:column; 
+.title { font-weight:bold; font-size:18px; }
+
+.container { padding:20px; }
+
+.store {
+  background:white;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:10px;
+  cursor:pointer;
+  box-shadow:0 3px 8px rgba(0,0,0,0.05);
 }
 
-#sidebar p { font-weight:bold; margin:5px 0; }
+.drawer {
+  position:fixed;
+  top:0;
+  left:-250px;
+  width:250px;
+  height:100%;
+  background:#0B1F3A;
+  color:white;
+  padding:20px;
+  transition:0.3s;
+}
 
-#menu { list-style:none; padding:0; margin-top:15px; flex:1; }
+.drawer.open { left:0; }
 
-#menu li { margin-bottom:10px; }
+.drawer button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  background:#D4AF37;
+  border:none;
+  border-radius:6px;
+  color:white;
+}
 
-#menu li a { color:white; text-decoration:none; }
+/* MODAL */
+.modal {
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.5);
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
 
-#content { flex:1; padding:20px; overflow-y:auto; }
+.modal-content {
+  background:white;
+  padding:20px;
+  border-radius:12px;
+  text-align:center;
+  width:90%;
+}
 
-.back { background:none; border:none; color:white; font-size:16px; cursor:pointer; margin-bottom:10px; }
+.btn-green {
+  background:#22c55e;
+  color:white;
+  padding:12px;
+  border:none;
+  border-radius:8px;
+  width:100%;
+  margin-top:10px;
+}
 
-.card { background:white; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 3px 8px rgba(0,0,0,0.1); }
+.btn-gray {
+  background:#ccc;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  width:100%;
+  margin-top:10px;
+}
 
-.store { background:#1e293b; padding:8px; border-radius:6px; margin:5px 0; font-size:13px; }
-
-button.logout { background:var(--secondary); border:none; padding:10px; color:white; border-radius:8px; cursor:pointer; margin-top:10px; }
 </style>
-
 </head>
 
 <body>
 
-<div id="sidebar">
-
-  <button class="back" onclick="goBack()">⬅</button>
-
-  <p id="welcome"></p>
-  <p id="roleInfo"></p>
-
-  <h4>🏬 Tiendas asignadas</h4>
-  <div id="storesList"></div>
-
-  <ul id="menu"></ul>
-
-  <button class="logout" onclick="logout()">Cerrar sesión</button>
-
+<div class="drawer" id="drawer">
+  <h3 id="userName"></h3>
+  <p id="userRole"></p>
+  <button onclick="logout()">Cerrar sesión</button>
 </div>
 
-<div id="content">
+<div class="header">
+  <div class="menu-btn" onclick="toggleMenu()">☰</div>
+  <div class="title">StorePulse</div>
+</div>
 
-  <h1>Bienvenido a StorePulse</h1>
+<div class="container" id="storesContainer">
+  <h2>Selecciona tu tienda</h2>
+</div>
 
-  <div class="card">
-    <h2>Métricas Generales</h2>
-    <p>Total Usuarios: <span id="totalUsers">-</span></p>
-    <p>Total Tiendas: <span id="totalStores">-</span></p>
-    <p>Total Check-ins: <span id="totalCheckins">-</span></p>
-    <p>Usuarios Activos: <span id="activeUsers">-</span></p>
+<!-- MODAL -->
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <h3 id="storeName"></h3>
+    <p>Si inicias operación comenzará el monitoreo</p>
+
+    <button class="btn-green" onclick="startCheckin()">INICIAR OPERACIÓN</button>
+    <button class="btn-gray" onclick="closeModal()">Cancelar</button>
   </div>
-
-  <div class="card">
-    <h2>Últimos Check-ins</h2>
-    <ul id="recentCheckins"></ul>
-  </div>
-
 </div>
 
 <script>
@@ -92,111 +134,102 @@ button.logout { background:var(--secondary); border:none; padding:10px; color:wh
 const BACKEND_URL = "https://storepulse.onrender.com";
 
 const userId = localStorage.getItem("userId");
+const name = localStorage.getItem("name");
 const role = localStorage.getItem("role");
 
-// 🔥 DATOS USUARIO
-const userName = localStorage.getItem("userName") || "Usuario";
+let selectedStore = null;
 
-document.getElementById("welcome").innerText = `👋 Bienvenido ${userName}`;
-document.getElementById("roleInfo").innerText = `Rol: ${role}`;
+if(!userId) window.location.href="./login.html";
 
-// 🔥 MENÚ DINÁMICO MEJORADO
-const menu = document.getElementById("menu");
+document.getElementById("userName").innerText = name;
+document.getElementById("userRole").innerText = role;
 
-if(role === "promotor") {
-
-  menu.innerHTML = `
-    <li><a href="ventas.html">Ventas</a></li>
-    <li><a href="precios_marca.html">Precios</a></li>
-    <li><a href="agotados.html">Agotados</a></li>
-    <li><a href="preagotados.html">Preagotados</a></li>
-    <li><a href="inventario.html">Inventarios</a></li>
-    <li><a href="exhibiciones.html">Exhibiciones adicionales</a></li>
-    <li><a href="precios_competencia.html">Precios competencia</a></li>
-    <li><a href="upload.html">Fotos anaquel</a></li>
-  `;
-
-} else if(role === "demostradora") {
-
-  menu.innerHTML = `
-    <li><a href="report.html">Reporte</a></li>
-    <li><a href="ventas.html">Ventas</a></li>
-    <li><a href="precios_competencia.html">Precios competencia</a></li>
-  `;
-
-} else if(role === "admin") {
-
-  menu.innerHTML = `
-    <li><a href="users.html">Usuarios</a></li>
-    <li><a href="agencies.html">Agencias</a></li>
-    <li><a href="stores.html">Tiendas</a></li>
-    <li><a href="dashboard.html">Dashboard</a></li>
-  `;
+// ---------------- MENU
+function toggleMenu(){
+  document.getElementById("drawer").classList.toggle("open");
 }
 
-// 🔥 TIENDAS ASIGNADAS
+// ---------------- LOAD STORES
 async function loadStores(){
 
-  try{
+  const res = await fetch(`${BACKEND_URL}/users/${userId}/stores`,{
+    headers:{ userId }
+  });
 
-    const res = await fetch(`${BACKEND_URL}/users/${userId}`);
-    const user = await res.json();
+  const stores = await res.json();
 
-    const storesContainer = document.getElementById("storesList");
-    storesContainer.innerHTML = "";
+  let html = "<h2>Selecciona tu tienda</h2>";
 
-    (user.stores || []).forEach(s=>{
-      const div = document.createElement("div");
-      div.className = "store";
-      div.innerText = s.name;
-      storesContainer.appendChild(div);
-    });
+  stores.forEach(s=>{
+    html += `
+      <div class="store" onclick='openModal(${JSON.stringify(s)})'>
+        <b>${s.name}</b><br>
+        ${s.address || ""}
+      </div>
+    `;
+  });
 
-  }catch{
-    document.getElementById("storesList").innerHTML = "Error cargando tiendas";
-  }
-
+  document.getElementById("storesContainer").innerHTML = html;
 }
 
-// 🔙
-function goBack(){ window.history.back(); }
+// ---------------- MODAL
+function openModal(store){
+  selectedStore = store;
+  document.getElementById("storeName").innerText = store.name;
+  document.getElementById("modal").style.display = "flex";
+}
 
-// 🔒
-function logout(){ localStorage.clear(); window.location.href="./login.html"; }
+function closeModal(){
+  document.getElementById("modal").style.display = "none";
+}
 
-// 📊 DASHBOARD
-async function loadDashboard() {
+// ---------------- CHECKIN
+function startCheckin(){
 
-  const agencyId = localStorage.getItem("agencyId");
-  if(!agencyId) return;
+  if(!navigator.geolocation){
+    return alert("GPS no disponible");
+  }
 
-  try {
+  navigator.geolocation.getCurrentPosition(async pos=>{
 
-    const res = await fetch(`${BACKEND_URL}/dashboard/${agencyId}`);
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("storeId", selectedStore._id);
+    formData.append("lat", lat);
+    formData.append("lng", lng);
+
+    const res = await fetch(`${BACKEND_URL}/checkin`,{
+      method:"POST",
+      body: formData
+    });
+
     const data = await res.json();
 
-    document.getElementById("totalUsers").innerText = data.totalUsers || 0;
-    document.getElementById("totalStores").innerText = data.totalStores || 0;
-    document.getElementById("totalCheckins").innerText = data.totalCheckins || 0;
-    document.getElementById("activeUsers").innerText = data.activeUsers || 0;
+    if(data.error){
+      alert(data.error + " ("+data.distancia+")");
+      return;
+    }
 
-    const list = document.getElementById("recentCheckins");
-    list.innerHTML = "";
+    alert("✅ Check-in exitoso");
 
-    (data.recentCheckins || []).forEach(c => {
-      const li = document.createElement("li");
-      li.innerText = `${c.userId?.name || "-"} - ${new Date(c.date).toLocaleString()}`;
-      list.appendChild(li);
-    });
+    localStorage.setItem("activeStore", selectedStore._id);
 
-  } catch(err){
-    console.error(err);
-  }
+    // 👉 aquí ya entras a la app real
+    window.location.href = "./home.html";
+
+  });
 
 }
 
-// INIT
-loadDashboard();
+// ---------------- LOGOUT
+function logout(){
+  localStorage.clear();
+  window.location.href="./login.html";
+}
+
 loadStores();
 
 </script>

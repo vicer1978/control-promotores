@@ -1,123 +1,163 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Admin PRO - StorePulse</title>
-
-<style>
-body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
+<!DOCTYPE html>  <html lang="es">  <head>  <meta charset="UTF-8">  <title>Admin PRO - StorePulse</title>  <style>    body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
 
 .sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; display:flex; flex-direction:column; }
 
 .sidebar h2 { margin-bottom:20px; }
 
 .sidebar button {
-  width:100%;
-  margin:8px 0;
-  padding:12px;
-  background:#D4AF37;
-  border:none;
-  border-radius:8px;
-  color:white;
-  cursor:pointer;
-  font-weight:bold;
+
+  width:100%;
+
+  margin:8px 0;
+
+  padding:12px;
+
+  background:#D4AF37;
+
+  border:none;
+
+  border-radius:8px;
+
+  color:white;
+
+  cursor:pointer;
+
+  font-weight:bold;
+
 }
 
 .main { flex:1; padding:20px; overflow-y:auto; }
 
 .card {
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.05);
+
+  background:white;
+
+  padding:15px;
+
+  border-radius:12px;
+
+  margin-bottom:15px;
+
+  box-shadow:0 4px 10px rgba(0,0,0,0.05);
+
 }
 
 .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:10px; }
 
 input, select {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  border-radius:8px;
-  border:1px solid #ccc;
+
+  width:100%;
+
+  padding:10px;
+
+  margin:5px 0;
+
+  border-radius:8px;
+
+  border:1px solid #ccc;
+
 }
 
 .user { border-bottom:1px solid #eee; padding:10px 0; }
 
 .small {
-  padding:5px 10px;
-  margin-top:5px;
-  background:red;
-  color:white;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
+
+  padding:5px 10px;
+
+  margin-top:5px;
+
+  background:red;
+
+  color:white;
+
+  border:none;
+
+  border-radius:6px;
+
+  cursor:pointer;
+
 }
 
 .kpi { font-size:22px; font-weight:bold; }
 
 /* STORE UI */
+
 .store-list { display:flex; gap:15px; margin-top:10px; }
 
 .store-column {
-  flex:1;
-  min-height:140px;
-  padding:12px;
-  border-radius:10px;
-  background:#16a34a;
-  color:white;
+
+  flex:1;
+
+  min-height:140px;
+
+  padding:12px;
+
+  border-radius:10px;
+
+  background:#16a34a;
+
+  color:white;
+
 }
 
 .store-column#assignedStores { background:#3b82f6; }
 
 .store-item {
-  background:#fcd34d;
-  color:#0B1F3A;
-  padding:8px;
-  margin:5px 0;
-  border-radius:6px;
-  cursor:grab;
-  font-weight:bold;
+
+  background:#fcd34d;
+
+  color:#0B1F3A;
+
+  padding:8px;
+
+  margin:5px 0;
+
+  border-radius:6px;
+
+  cursor:grab;
+
+  font-weight:bold;
+
 }
 
 .store-item.dragging { opacity:0.5; }
 
 .store-column.drag-over {
-  border:2px dashed white;
+
+  border:2px dashed white;
+
 }
-</style>
 
-</head>
+</style>  </head>  <body>  <div class="sidebar">    <h2>⚡ Admin PRO</h2>
 
-<body>
+  <button onclick="loadDashboard()">📊 Dashboard</button>
 
-<div class="sidebar">
-  <h2>⚡ Admin PRO</h2>
+  <button onclick="loadAgencySummary()">📊 Resumen Agencias</button>
 
-  <button onclick="loadDashboard()">📊 Dashboard</button>
-  <button onclick="loadAgencySummary()">📊 Resumen Agencias</button>
-  <button onclick="loadUsers()">👤 Usuarios</button>
-  <button onclick="loadCreateUser()">➕ Crear Usuario</button>
+  <button onclick="loadUsers()">👤 Usuarios</button>
 
-  <div id="menuAgencies">
-    <button onclick="loadAgencies()">🏢 Agencias</button>
-  </div>
+  <button onclick="loadCreateUser()">➕ Crear Usuario</button>
 
-  <div id="menuStores">
-    <button onclick="loadStores()">🏬 Tiendas</button>
-  </div>
+  <div id="menuAgencies">
 
-  <button onclick="logout()">🚪 Salir</button>
-</div>
+    <button onclick="loadAgencies()">🏢 Agencias</button>
 
-<div class="main" id="content"><h2>Bienvenido</h2></div>
+  </div>
 
-<script>
+  <div id="menuStores">
 
-const BACKEND_URL = "https://storepulse.onrender.com";
+    <button onclick="loadStores()">🏬 Tiendas</button>
+
+  </div>
+
+  <button onclick="logout()">🚪 Salir</button>
+
+</div>  <div class="main" id="content"><h2>Bienvenido</h2></div>  <script>    const BACKEND_URL = "https://storepulse.onrender.com";
+
 const userId = localStorage.getItem("userId");
+
 const role = localStorage.getItem("role");
+
 const agencyId = localStorage.getItem("agencyId");
 
 let allUsers=[], allStores=[], allAgencies=[], currentUserStores={};
@@ -134,59 +174,446 @@ if(role !== "superadmin"){
   if(btnResumen) btnResumen.style.display = "none";
 }
 
-/* 🔥 ESTE ES EL FIX */
-if(role !== "superadmin") {
-  const btn = document.querySelector('button[onclick="loadAgencySummary()"]');
-  if(btn) btn.style.display = "none";
-}
-
 async function fetchWithAuth(url, options={}){
-  options.headers = { ...(options.headers||{}), userId };
-  const res = await fetch(url, options);
-  return await res.json();
+
+  options.headers = { ...(options.headers||{}), userId };
+
+  const res = await fetch(url, options);
+
+  return await res.json();
+
 }
 
 // ---------------- DASHBOARD
+
 async function loadDashboard(){
-  const users = await fetchWithAuth(`${BACKEND_URL}/users`);
-  document.getElementById("content").innerHTML=`
-    <h2>Dashboard</h2>
-    <div class="grid">
-      <div class="card"><div class="kpi">${users.length}</div>Total</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
-      <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
-    </div>
-  `;
+
+  const users = await fetchWithAuth(${BACKEND_URL}/users);
+
+  document.getElementById("content").innerHTML=`
+
+    <h2>Dashboard</h2>
+
+    <div class="grid">
+
+      <div class="card"><div class="kpi">${users.length}</div>Total</div>
+
+      <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
+
+      <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
+
+      <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
+
+    </div>
+
+  `;
+
 }
 
 // ---------------- RESUMEN
+
 async function loadAgencySummary(){
-  const agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
-  const users = await fetchWithAuth(`${BACKEND_URL}/users`);
 
-  let html=`<h2>Resumen de Agencias</h2><div class="card">`;
+  const agencies = await fetchWithAuth(${BACKEND_URL}/agencies);
 
-  agencies.forEach(a=>{
-    const agencyUsers = users.filter(u=>u.agencyId && ((u.agencyId._id||u.agencyId)===a._id));
-    html+=`
-      <div class="user">
-        <b>${a.name}</b><br>
-        Total: ${agencyUsers.length} |
-        Promotores: ${agencyUsers.filter(u=>u.role==="promotor").length} |
-        Demostradoras: ${agencyUsers.filter(u=>u.role==="demostradora").length} |
-        Admins: ${agencyUsers.filter(u=>u.role==="admin").length}
-      </div>
-    `;
-  });
+  const users = await fetchWithAuth(${BACKEND_URL}/users);
 
-  html+="</div>";
-  document.getElementById("content").innerHTML=html;
+  let html=<h2>Resumen de Agencias</h2><div class="card">;
+
+  agencies.forEach(a=>{
+
+    const agencyUsers = users.filter(u=>u.agencyId && ((u.agencyId._id||u.agencyId)===a._id));
+
+    html+=`
+
+      <div class="user">
+
+        <b>${a.name}</b><br>
+
+        Total: ${agencyUsers.length} |
+
+        Promotores: ${agencyUsers.filter(u=>u.role==="promotor").length} |
+
+        Demostradoras: ${agencyUsers.filter(u=>u.role==="demostradora").length} |
+
+        Admins: ${agencyUsers.filter(u=>u.role==="admin").length}
+
+      </div>
+
+    `;
+
+  });
+
+  html+="</div>";
+
+  document.getElementById("content").innerHTML=html;
+
 }
 
-// TODO LO DEMÁS SE QUEDA EXACTAMENTE IGUAL (no lo toqué)
+// ---------------- USERS
 
-</script>
+async function loadUsers(){
 
-</body>
-</html>
+  allUsers = await fetchWithAuth(${BACKEND_URL}/users);
+
+  allStores = await fetchWithAuth(${BACKEND_URL}/stores);
+
+  if(role==="superadmin") allAgencies = await fetchWithAuth(${BACKEND_URL}/agencies);
+
+  renderUsers(allUsers);
+
+}
+
+function renderUsers(users){
+
+  let html=<div class="card"><h3>Usuarios</h3>;
+
+  users.forEach(u=>{
+
+    const assigned=(u.stores||[]).map(id=>allStores.find(s=>s._id===id)).filter(Boolean);
+
+    const available=allStores.filter(s=>!assigned.some(a=>a._id===s._id));
+
+    currentUserStores[u._id]={assigned,available};
+
+    html+=`
+
+    <div class="user">
+
+      <b>${u.name}</b> (${u.email})<br>
+
+      <label>Rol</label>
+
+      <select onchange="changeRole('${u._id}', this.value)">
+
+        <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
+
+        <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
+
+        <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
+
+      </select>
+
+      ${role==="superadmin" ? `
+
+        <label>Agencia</label>
+
+        <select onchange="changeAgency('${u._id}', this.value)">
+
+          ${allAgencies.map(a=>`
+
+            <option value="${a._id}" ${(u.agencyId && (u.agencyId._id||u.agencyId)===a._id)?"selected":""}>
+
+              ${a.name}
+
+            </option>
+
+          `).join("")}
+
+        </select>
+
+      ` : ""}
+
+      <div class="store-list">
+
+        <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
+
+          ${available.map(s=><div class="store-item" draggable="true" ondragstart="dragStart(event,'${s._id}')">${s.name}</div>).join("")}
+
+        </div>
+
+        <div class="store-column" id="assignedStores" ondrop="dropStore(event,'${u._id}','assigned')" ondragover="allowDrop(event)">
+
+          ${assigned.map(s=><div class="store-item" draggable="true" ondragstart="dragStart(event,'${s._id}')">${s.name}</div>).join("")}
+
+        </div>
+
+      </div>
+
+    </div>`;
+
+  });
+
+  html+="</div>";
+
+  document.getElementById("content").innerHTML=html;
+
+}
+
+// ---------------- DRAG
+
+let draggedId=null;
+
+function dragStart(e,id){ draggedId=id; }
+
+function allowDrop(e){ e.preventDefault(); }
+
+async function dropStore(e,uid,target){
+
+  e.preventDefault();
+
+  const userStores=currentUserStores[uid];
+
+  const storeObj=allStores.find(s=>s._id===draggedId);
+
+  if(target==="assigned"){
+
+    userStores.assigned.push(storeObj);
+
+    userStores.available=userStores.available.filter(s=>s._id!==draggedId);
+
+  }else{
+
+    userStores.available.push(storeObj);
+
+    userStores.assigned=userStores.assigned.filter(s=>s._id!==draggedId);
+
+  }
+
+  await fetchWithAuth(${BACKEND_URL}/users/${uid}/stores,{
+
+    method:"PUT",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body:JSON.stringify({ storeIds:userStores.assigned.map(s=>s._id) })
+
+  });
+
+  renderUsers(allUsers);
+
+}
+
+// ---------------- CREATE USER
+
+async function loadCreateUser(){
+
+  let agencySelect="";
+
+  if(role==="superadmin"){
+
+    allAgencies = await fetchWithAuth(${BACKEND_URL}/agencies);
+
+    agencySelect=`
+
+      <label>Agencia</label>
+
+      <select id="agencyId">
+
+        ${allAgencies.map(a=><option value="${a._id}">${a.name}</option>).join("")}
+
+      </select>
+
+    `;
+
+  }
+
+  document.getElementById("content").innerHTML=`
+
+    <div class="card">
+
+      <h3>Crear Usuario</h3>
+
+      <input id="name" placeholder="Nombre">
+
+      <input id="email" placeholder="Email">
+
+      <input id="pass" placeholder="Password">
+
+      <label>Rol</label>
+
+      <select id="roleUser">
+
+        <option value="promotor">Promotor</option>
+
+        <option value="demostradora">Demostradora</option>
+
+        <option value="admin">Admin</option>
+
+      </select>
+
+      ${agencySelect}
+
+      <button onclick="createUser()">Crear</button>
+
+    </div>
+
+  `;
+
+}
+
+async function createUser(){
+
+  const body={
+
+    name:document.getElementById("name").value,
+
+    email:document.getElementById("email").value,
+
+    password:document.getElementById("pass").value,
+
+    role:document.getElementById("roleUser").value,
+
+    agencyId: role==="superadmin"
+
+      ? document.getElementById("agencyId")?.value
+
+      : agencyId
+
+  };
+
+  await fetchWithAuth(${BACKEND_URL}/admin/create-user,{
+
+    method:"POST",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body:JSON.stringify(body)
+
+  });
+
+  alert("Usuario creado ✅");
+
+  loadUsers();
+
+}
+
+// ---------------- AGENCIAS
+
+async function loadAgencies(){
+
+  const agencies = await fetchWithAuth(${BACKEND_URL}/agencies);
+
+  let html = <div class="card"><h3>Agencias</h3>;
+
+  agencies.forEach(a=>{
+
+    html += <div class="user">${a.name}</div>;
+
+  });
+
+  html += `
+
+    <input id="newAgency" placeholder="Nueva agencia">
+
+    <button onclick="createAgency()">Crear Agencia</button>
+
+  </div>
+
+  `;
+
+  document.getElementById("content").innerHTML = html;
+
+}
+
+async function createAgency(){
+
+  const name = document.getElementById("newAgency").value;
+
+  if(!name) return alert("Ingresa nombre");
+
+  await fetchWithAuth(${BACKEND_URL}/agencies,{
+
+    method:"POST",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body: JSON.stringify({ name })
+
+  });
+
+  alert("Agencia creada ✅");
+
+  loadAgencies();
+
+}
+
+// ---------------- STORES
+
+async function loadStores(){
+
+  document.getElementById("content").innerHTML=`
+
+  <div class="card">
+
+    <input id="name" placeholder="Nombre">
+
+    <input id="lat" placeholder="Lat">
+
+    <input id="lng" placeholder="Lng">
+
+    <input id="addr" placeholder="Dirección">
+
+    <button onclick="createStore()">Crear</button>
+
+  </div>`;
+
+}
+
+async function createStore(){
+
+  await fetchWithAuth(${BACKEND_URL}/stores,{
+
+    method:"POST",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body:JSON.stringify({
+
+      name:document.getElementById("name").value,
+
+      lat:document.getElementById("lat").value,
+
+      lng:document.getElementById("lng").value,
+
+      address:document.getElementById("addr").value
+
+    })
+
+  });
+
+  alert("Tienda creada");
+
+}
+
+// ---------------- ROLE & AGENCY
+
+async function changeRole(uid, newRole){
+
+  await fetchWithAuth(${BACKEND_URL}/users/${uid}/role,{
+
+    method:"PUT",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body: JSON.stringify({ role:newRole })
+
+  });
+
+}
+
+async function changeAgency(uid, aid){
+
+  await fetchWithAuth(${BACKEND_URL}/users/${uid}/agency,{
+
+    method:"PUT",
+
+    headers:{ "Content-Type":"application/json" },
+
+    body: JSON.stringify({ agencyId:aid })
+
+  });
+
+}
+
+// ---------------- LOGOUT
+
+function logout(){
+
+  localStorage.clear();
+
+  window.location.href="./login.html";
+
+}
+
+</script>  </body>  </html>

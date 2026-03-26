@@ -17,7 +17,7 @@ const app = express();
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], allowedHeaders: ["Content-Type", "userId"] }));
 app.use(express.json());
 
-// 1. Servir archivos estáticos (IMPORTANTE: primero los archivos reales)
+// Servir archivos estáticos
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -27,12 +27,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ MongoDB conectado"));
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ MongoDB conectado"))
+    .catch(err => console.error("❌ Error DB:", err));
 
 // Middleware de Auth
 async function auth(req, res, next) {
     try {
-        const userId = req.headers.userid; // El navegador lo envía en minúsculas a veces
+        const userId = req.headers.userid || req.headers.userId; 
         if (!userId) return res.status(401).json({ error: "No autorizado" });
         const user = await User.findById(userId);
         if (!user) return res.status(401).json({ error: "Usuario inválido" });
@@ -65,7 +67,7 @@ app.delete("/agencies/:id", auth, async (req, res) => {
     await Store.deleteMany({ agencyId });
     await Checkin.deleteMany({ agencyId });
     await Agency.findByIdAndDelete(agencyId);
-    res.json({ message: "Agencia eliminada en cascada." });
+    res.json({ message: "Agencia eliminada." });
 });
 
 app.get("/users", auth, async (req, res) => {
@@ -84,19 +86,18 @@ app.delete("/users/:id", auth, async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
-    if(!email || !password) return res.status(400).json({message: "Faltan datos"});
-    const user = await User.findOne({ email: email.trim().toLowerCase(), password: password.trim() });
-    if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
-    res.json({ userId: user._id, role: user.role, agencyId: user.agencyId, name: user.name });
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email: email.trim().toLowerCase(), password: password.trim() });
+        if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
+        res.json({ userId: user._id, role: user.role, agencyId: user.agencyId, name: user.name });
+    } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- REDIRECCIÓN FINAL ---
-// Este bloque captura cualquier ruta (como /admin.html que fallaba antes) 
-// y sirve el login.html como respaldo.
+// --- REDIRECCIÓN FINAL (Cualquier ruta no encontrada va al Login) ---
 app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Puerto ${PORT}`));

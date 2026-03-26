@@ -1,104 +1,42 @@
-<script>
-const BACKEND_URL = "https://storepulse.onrender.com";
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - StorePulse</title>
+    <style>
+        body { background: white; color: black; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { border: 2px solid #000; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>StorePulse</h1>
+        <input type="email" id="email" placeholder="Email"><br><br>
+        <input type="password" id="password" placeholder="Password"><br><br>
+        <button onclick="login()">ENTRAR</button>
+        <p id="msg" style="color:red"></p>
+    </div>
 
-// 🔥 AUTO LOGIN & LIMPIEZA DE CACHÉ
-window.onload = () => {
-    const savedEmail = localStorage.getItem("savedEmail");
-    if(savedEmail) document.getElementById("email").value = savedEmail;
-
-    const userId = localStorage.getItem("userId");
-    const role = localStorage.getItem("role");
-
-    if(userId && role){
-        redirectByRole(role);
-    }
-};
-
-// 👁️ PASSWORD
-function togglePassword(){
-    const pass = document.getElementById("password");
-    const btn = document.getElementById("eyeBtn");
-    if(pass.type === "password"){
-        pass.type = "text";
-        btn.innerText = "🙈";
-    } else {
-        pass.type = "password";
-        btn.innerText = "👁️";
-    }
-}
-
-// 🔁 REDIRECCIÓN CORREGIDA (Rutas con carpeta Admin)
-function redirectByRole(role){
-    // Añadimos un "timestamp" (?v=...) para obligar al navegador a cargar la versión nueva
-    const version = Date.now(); 
-
-    if(role === "superadmin"){
-        window.location.href = `./Admin/super-admin.html?v=${version}`;
-    } else if(role === "admin"){
-        window.location.href = `./Admin/admin.html?v=${version}`;
-    } else {
-        // Promotores y Demostradoras van al Dashboard
-        window.location.href = `./dashboard.html?v=${version}`;
-    }
-}
-
-// 🔐 LOGIN PRO SAAS
-async function login(){
-    const email = document.getElementById("email").value.trim().toLowerCase();
-    const password = document.getElementById("password").value.trim();
-    const error = document.getElementById("error");
-    const loader = document.getElementById("loader");
-    const btn = document.getElementById("loginBtn");
-
-    error.innerText = "";
-
-    if(!email || !password){
-        error.innerText = "⚠️ Completa todos los campos";
-        return;
-    }
-
-    try {
-        loader.style.display = "block";
-        btn.disabled = true;
-
-        const res = await fetch(`${BACKEND_URL}/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password })
-        });
-
-        const data = await res.json();
-
-        if(!res.ok){
-            throw new Error(data.message || "Credenciales incorrectas");
+    <script>
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            try {
+                const res = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('userId', data.userId);
+                    localStorage.setItem('role', data.role);
+                    window.location.href = data.role === 'superadmin' ? 'Admin/super-admin.html' : 'dashboard.html';
+                } else {
+                    alert(data.message);
+                }
+            } catch (err) { alert("Error de conexión"); }
         }
-
-        // 🔥 VALIDACIÓN SAAS
-        if(data.role !== "superadmin" && !data.agencyId){
-            throw new Error("Usuario sin agencia asignada.");
-        }
-
-        // 💾 SESIÓN COMPLETA
-        localStorage.setItem("userId", data.userId);
-        localStorage.setItem("role", data.role);
-        localStorage.setItem("agencyId", data.agencyId || "");
-        localStorage.setItem("userName", data.name || ""); // Guardamos el nombre para el Home
-
-        // 💾 RECORDAR EMAIL
-        if(document.getElementById("rememberMe").checked){
-            localStorage.setItem("savedEmail", email);
-        } else {
-            localStorage.removeItem("savedEmail");
-        }
-
-        redirectByRole(data.role);
-
-    } catch(err){
-        console.error(err);
-        error.innerText = "❌ " + err.message;
-    } finally {
-        loader.style.display = "none";
-        btn.disabled = false;
-    }
-}
-</script>
+    </script>
+</body>
+</html>

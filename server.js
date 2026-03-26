@@ -13,8 +13,11 @@ const Checkin = require("./models/Checkin");
 
 const app = express();
 
+// Middleware Global
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], allowedHeaders: ["Content-Type", "userId"] }));
 app.use(express.json());
+
+// 1. Servir archivos estáticos (IMPORTANTE: primero los archivos reales)
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -29,7 +32,7 @@ mongoose.connect(process.env.MONGO_URI).then(() => console.log("✅ MongoDB cone
 // Middleware de Auth
 async function auth(req, res, next) {
     try {
-        const userId = req.headers.userid;
+        const userId = req.headers.userid; // El navegador lo envía en minúsculas a veces
         if (!userId) return res.status(401).json({ error: "No autorizado" });
         const user = await User.findById(userId);
         if (!user) return res.status(401).json({ error: "Usuario inválido" });
@@ -38,10 +41,7 @@ async function auth(req, res, next) {
     } catch (err) { res.status(500).json({ error: "Error auth" }); }
 }
 
-// =====================================================
-// 🔹 RUTAS DE SUPER ADMIN (GESTIÓN GLOBAL)
-// =====================================================
-
+// --- RUTAS DE API ---
 app.get("/agencies", auth, async (req, res) => {
     const agencies = await Agency.find();
     res.json(agencies);
@@ -65,7 +65,7 @@ app.delete("/agencies/:id", auth, async (req, res) => {
     await Store.deleteMany({ agencyId });
     await Checkin.deleteMany({ agencyId });
     await Agency.findByIdAndDelete(agencyId);
-    res.json({ message: "Agencia y todos sus datos eliminados." });
+    res.json({ message: "Agencia eliminada en cascada." });
 });
 
 app.get("/users", auth, async (req, res) => {
@@ -83,34 +83,20 @@ app.delete("/users/:id", auth, async (req, res) => {
     res.json({ message: "Usuario eliminado" });
 });
 
-// =====================================================
-// 🔹 RUTAS EXISTENTES
-// =====================================================
-
 app.post("/login", async (req, res) => {
     const { email, password } = req.body;
+    if(!email || !password) return res.status(400).json({message: "Faltan datos"});
     const user = await User.findOne({ email: email.trim().toLowerCase(), password: password.trim() });
     if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
     res.json({ userId: user._id, role: user.role, agencyId: user.agencyId, name: user.name });
 });
 
-app.post("/reports", auth, upload.single("photo"), async (req, res) => {
-    const report = new Report({ ...req.body, userId: req.user._id, agencyId: req.user.agencyId, date: new Date(), data: { ...req.body, foto_url: req.file ? req.file.filename : null } });
-    await report.save();
-    res.json({ message: "Reporte guardado" });
-});
-
-app.get("/reports/agency/:agencyId", auth, async (req, res) => {
-    const reports = await Report.find({ agencyId: req.params.agencyId }).populate("userId", "name").populate("storeId", "name").sort({ date: -1 });
-    res.json(reports);
-});
-
-// =====================================================
-// 🔹 REDIRECCIÓN AUTOMÁTICA (SOLUCIÓN ERROR 404)
-// =====================================================
-app.use((req, res) => {
-    res.sendFile(path.join(__dirname, "public", "login.html"));
+// --- REDIRECCIÓN FINAL ---
+// Este bloque captura cualquier ruta (como /admin.html que fallaba antes) 
+// y sirve el login.html como respaldo.
+app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Puerto ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));

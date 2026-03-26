@@ -182,15 +182,35 @@ function renderUsers(users){
   let html=`<div class="card"><h3>Usuarios</h3>`;
 
   users.forEach(u=>{
+
     const assigned=(u.stores||[]).map(id=>allStores.find(s=>s._id===id)).filter(Boolean);
     const available=allStores.filter(s=>!assigned.some(a=>a._id===s._id));
     currentUserStores[u._id]={assigned,available};
 
     html+=`
     <div class="user">
-      <b>${u.name}</b><br>
 
-      <div class="store-list" id="store_${u._id}">
+      <b>${u.name}</b> (${u.email})<br>
+
+      <label>Rol</label>
+      <select onchange="changeRole('${u._id}', this.value)">
+        <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
+        <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
+        <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
+      </select>
+
+      ${role==="superadmin" ? `
+        <label>Agencia</label>
+        <select onchange="changeAgency('${u._id}', this.value)">
+          ${allAgencies.map(a=>`
+            <option value="${a._id}" ${(u.agencyId && (u.agencyId._id||u.agencyId)===a._id)?"selected":""}>
+              ${a.name}
+            </option>
+          `).join("")}
+        </select>
+      ` : ""}
+
+      <div class="store-list">
         <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
           ${available.map(s=>`<div class="store-item" draggable="true" ondragstart="dragStart(event,'${s._id}')">${s.name}</div>`).join("")}
         </div>
@@ -199,6 +219,7 @@ function renderUsers(users){
           ${assigned.map(s=>`<div class="store-item" draggable="true" ondragstart="dragStart(event,'${s._id}')">${s.name}</div>`).join("")}
         </div>
       </div>
+
     </div>`;
   });
 
@@ -210,7 +231,6 @@ function renderUsers(users){
 let draggedId=null;
 
 function dragStart(e,id){ draggedId=id; }
-
 function allowDrop(e){ e.preventDefault(); }
 
 async function dropStore(e,uid,target){
@@ -234,6 +254,100 @@ async function dropStore(e,uid,target){
   });
 
   renderUsers(allUsers);
+}
+
+// ---------------- CREATE USER
+async function loadCreateUser(){
+
+  let agencySelect="";
+
+  if(role==="superadmin"){
+    allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
+    agencySelect=`
+      <label>Agencia</label>
+      <select id="agencyId">
+        ${allAgencies.map(a=>`<option value="${a._id}">${a.name}</option>`).join("")}
+      </select>
+    `;
+  }
+
+  document.getElementById("content").innerHTML=`
+    <div class="card">
+      <h3>Crear Usuario</h3>
+      <input id="name" placeholder="Nombre">
+      <input id="email" placeholder="Email">
+      <input id="pass" placeholder="Password">
+
+      <label>Rol</label>
+      <select id="roleUser">
+        <option value="promotor">Promotor</option>
+        <option value="demostradora">Demostradora</option>
+        <option value="admin">Admin</option>
+      </select>
+
+      ${agencySelect}
+
+      <button onclick="createUser()">Crear</button>
+    </div>
+  `;
+}
+
+async function createUser(){
+
+  const body={
+    name:document.getElementById("name").value,
+    email:document.getElementById("email").value,
+    password:document.getElementById("pass").value,
+    role:document.getElementById("roleUser").value,
+    agencyId: role==="superadmin"
+      ? document.getElementById("agencyId")?.value
+      : agencyId
+  };
+
+  await fetchWithAuth(`${BACKEND_URL}/admin/create-user`,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify(body)
+  });
+
+  alert("Usuario creado ✅");
+  loadUsers();
+}
+
+// ---------------- AGENCIAS
+async function loadAgencies(){
+
+  const agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
+
+  let html = `<div class="card"><h3>Agencias</h3>`;
+
+  agencies.forEach(a=>{
+    html += `<div class="user">${a.name}</div>`;
+  });
+
+  html += `
+    <input id="newAgency" placeholder="Nueva agencia">
+    <button onclick="createAgency()">Crear Agencia</button>
+  </div>
+  `;
+
+  document.getElementById("content").innerHTML = html;
+}
+
+async function createAgency(){
+
+  const name = document.getElementById("newAgency").value;
+
+  if(!name) return alert("Ingresa nombre");
+
+  await fetchWithAuth(`${BACKEND_URL}/agencies`,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ name })
+  });
+
+  alert("Agencia creada ✅");
+  loadAgencies();
 }
 
 // ---------------- STORES
@@ -262,36 +376,21 @@ async function createStore(){
   alert("Tienda creada");
 }
 
-// ---------------- AGENCIAS
-async function loadAgencies(){
-  const agencies=await fetchWithAuth(`${BACKEND_URL}/agencies`);
-  document.getElementById("content").innerHTML=
-    agencies.map(a=>`<div class="card">${a.name}</div>`).join("");
-}
-
-// ---------------- CREATE USER
-function loadCreateUser(){
-  document.getElementById("content").innerHTML=`
-    <div class="card">
-      <input id="name" placeholder="Nombre">
-      <input id="email" placeholder="Email">
-      <input id="pass" placeholder="Password">
-      <button onclick="createUser()">Crear</button>
-    </div>`;
-}
-
-async function createUser(){
-  await fetchWithAuth(`${BACKEND_URL}/admin/create-user`,{
-    method:"POST",
+// ---------------- ROLE & AGENCY
+async function changeRole(uid, newRole){
+  await fetchWithAuth(`${BACKEND_URL}/users/${uid}/role`,{
+    method:"PUT",
     headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      name:name.value,
-      email:email.value,
-      password:pass.value,
-      role:"promotor"
-    })
+    body: JSON.stringify({ role:newRole })
   });
-  alert("Creado");
+}
+
+async function changeAgency(uid, aid){
+  await fetchWithAuth(`${BACKEND_URL}/users/${uid}/agency`,{
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ agencyId:aid })
+  });
 }
 
 // ---------------- LOGOUT

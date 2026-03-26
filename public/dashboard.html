@@ -1,237 +1,258 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>StorePulse - Inicio</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StorePulse - Inicio</title>
+    <style>
+        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background:#F5F7FA; color: #333; }
 
-<style>
-body { margin:0; font-family:Arial; background:#F5F7FA; }
+        /* HEADER */
+        .header {
+            display:flex;
+            align-items:center;
+            padding:15px;
+            background:white;
+            box-shadow:0 2px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .menu-btn { font-size:24px; cursor:pointer; margin-right:15px; color: #0B1F3A; }
+        .title { font-weight:bold; font-size:20px; color: #0B1F3A; }
 
-.header {
-  display:flex;
-  align-items:center;
-  padding:15px;
-  background:white;
-  box-shadow:0 2px 6px rgba(0,0,0,0.1);
-}
+        /* CONTAINER & STORES */
+        .container { padding:20px; max-width: 600px; margin: auto; }
+        h2 { font-size: 1.2rem; color: #666; margin-bottom: 20px; }
+        
+        .store {
+            background:white;
+            padding:18px;
+            border-radius:12px;
+            margin-bottom:12px;
+            cursor:pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border-left: 5px solid #D4AF37;
+        }
+        .store:active { transform: scale(0.98); }
+        .store b { font-size: 1.1rem; display: block; margin-bottom: 5px; }
+        .store small { color: #888; }
 
-.menu-btn {
-  font-size:22px;
-  cursor:pointer;
-  margin-right:10px;
-}
+        /* DRAWER (MENU LATERAL) */
+        .drawer {
+            position:fixed;
+            top:0;
+            left:-280px;
+            width:260px;
+            height:100%;
+            background:#0B1F3A;
+            color:white;
+            padding:30px 20px;
+            transition:0.3s;
+            z-index: 100;
+            box-sizing: border-box;
+        }
+        .drawer.open { left:0; }
+        .drawer h3 { margin-top: 0; color: #D4AF37; }
+        .drawer p { font-size: 0.9rem; opacity: 0.8; margin-bottom: 30px; }
+        .drawer button {
+            width:100%;
+            padding:12px;
+            background: #e74c3c;
+            border:none;
+            border-radius:8px;
+            color:white;
+            font-weight: bold;
+            cursor: pointer;
+        }
 
-.title { font-weight:bold; font-size:18px; }
+        /* MODAL */
+        .modal {
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:rgba(0,0,0,0.6);
+            display:none;
+            justify-content:center;
+            align-items:center;
+            z-index: 200;
+        }
+        .modal-content {
+            background:white;
+            padding:25px;
+            border-radius:15px;
+            text-align:center;
+            width:85%;
+            max-width: 400px;
+        }
+        .btn-green { background:#22c55e; color:white; padding:15px; border:none; border-radius:10px; width:100%; margin-top:15px; font-weight:bold; font-size:1rem; cursor:pointer; }
+        .btn-gray { background:#eee; color: #666; padding:12px; border:none; border-radius:10px; width:100%; margin-top:10px; cursor:pointer; }
 
-.container { padding:20px; }
-
-.store {
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:10px;
-  cursor:pointer;
-  box-shadow:0 3px 8px rgba(0,0,0,0.05);
-}
-
-.drawer {
-  position:fixed;
-  top:0;
-  left:-250px;
-  width:250px;
-  height:100%;
-  background:#0B1F3A;
-  color:white;
-  padding:20px;
-  transition:0.3s;
-}
-
-.drawer.open { left:0; }
-
-.drawer button {
-  width:100%;
-  padding:10px;
-  margin-top:10px;
-  background:#D4AF37;
-  border:none;
-  border-radius:6px;
-  color:white;
-}
-
-/* MODAL */
-.modal {
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background:rgba(0,0,0,0.5);
-  display:none;
-  justify-content:center;
-  align-items:center;
-}
-
-.modal-content {
-  background:white;
-  padding:20px;
-  border-radius:12px;
-  text-align:center;
-  width:90%;
-}
-
-.btn-green {
-  background:#22c55e;
-  color:white;
-  padding:12px;
-  border:none;
-  border-radius:8px;
-  width:100%;
-  margin-top:10px;
-}
-
-.btn-gray {
-  background:#ccc;
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  width:100%;
-  margin-top:10px;
-}
-
-</style>
+        /* LOADING SPINNER */
+        .loader { text-align: center; padding: 40px; color: #999; }
+    </style>
 </head>
-
 <body>
 
 <div class="drawer" id="drawer">
-  <h3 id="userName"></h3>
-  <p id="userRole"></p>
-  <button onclick="logout()">Cerrar sesión</button>
+    <h3 id="userName">Cargando...</h3>
+    <p id="userRole">Rol</p>
+    <hr style="opacity: 0.1; margin-bottom: 20px;">
+    <button onclick="logout()">Cerrar sesión</button>
 </div>
 
 <div class="header">
-  <div class="menu-btn" onclick="toggleMenu()">☰</div>
-  <div class="title">StorePulse</div>
+    <div class="menu-btn" onclick="toggleMenu()">☰</div>
+    <div class="title">StorePulse</div>
 </div>
 
 <div class="container" id="storesContainer">
-  <h2>Selecciona tu tienda</h2>
+    <div class="loader">Buscando tiendas asignadas...</div>
 </div>
 
-<!-- MODAL -->
 <div class="modal" id="modal">
-  <div class="modal-content">
-    <h3 id="storeName"></h3>
-    <p>Si inicias operación comenzará el monitoreo</p>
-
-    <button class="btn-green" onclick="startCheckin()">INICIAR OPERACIÓN</button>
-    <button class="btn-gray" onclick="closeModal()">Cancelar</button>
-  </div>
+    <div class="modal-content">
+        <h3 id="storeName">Tienda Seleccionada</h3>
+        <p>¿Deseas iniciar operación en esta sucursal? Se registrará tu ubicación actual.</p>
+        <button class="btn-green" onclick="startCheckin()">INICIAR OPERACIÓN</button>
+        <button class="btn-gray" onclick="closeModal()">Cancelar</button>
+    </div>
 </div>
 
 <script>
+    const BACKEND_URL = "https://storepulse.onrender.com";
 
-const BACKEND_URL = "https://storepulse.onrender.com";
+    // Recuperar datos de sesión
+    const userId = localStorage.getItem("userId");
+    const name = localStorage.getItem("name") || "Usuario";
+    const role = localStorage.getItem("role") || "Demostradora";
 
-const userId = localStorage.getItem("userId");
-const name = localStorage.getItem("name");
-const role = localStorage.getItem("role");
+    let selectedStore = null;
 
-let selectedStore = null;
-
-if(!userId) window.location.href="./login.html";
-
-document.getElementById("userName").innerText = name;
-document.getElementById("userRole").innerText = role;
-
-// ---------------- MENU
-function toggleMenu(){
-  document.getElementById("drawer").classList.toggle("open");
-}
-
-// ---------------- LOAD STORES
-async function loadStores(){
-
-  const res = await fetch(`${BACKEND_URL}/users/${userId}/stores`,{
-    headers:{ userId }
-  });
-
-  const stores = await res.json();
-
-  let html = "<h2>Selecciona tu tienda</h2>";
-
-  stores.forEach(s=>{
-    html += `
-      <div class="store" onclick='openModal(${JSON.stringify(s)})'>
-        <b>${s.name}</b><br>
-        ${s.address || ""}
-      </div>
-    `;
-  });
-
-  document.getElementById("storesContainer").innerHTML = html;
-}
-
-// ---------------- MODAL
-function openModal(store){
-  selectedStore = store;
-  document.getElementById("storeName").innerText = store.name;
-  document.getElementById("modal").style.display = "flex";
-}
-
-function closeModal(){
-  document.getElementById("modal").style.display = "none";
-}
-
-// ---------------- CHECKIN
-function startCheckin(){
-
-  if(!navigator.geolocation){
-    return alert("GPS no disponible");
-  }
-
-  navigator.geolocation.getCurrentPosition(async pos=>{
-
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-
-    const formData = new FormData();
-    formData.append("userId", userId);
-    formData.append("storeId", selectedStore._id);
-    formData.append("lat", lat);
-    formData.append("lng", lng);
-
-    const res = await fetch(`${BACKEND_URL}/checkin`,{
-      method:"POST",
-      body: formData
-    });
-
-    const data = await res.json();
-
-    if(data.error){
-      alert(data.error + " ("+data.distancia+")");
-      return;
+    // Protección de ruta
+    if(!userId) {
+        window.location.href="./login.html";
     }
 
-    alert("✅ Check-in exitoso");
+    // Mostrar datos de perfil
+    document.getElementById("userName").innerText = name;
+    document.getElementById("userRole").innerText = role.toUpperCase();
 
-    localStorage.setItem("activeStore", selectedStore._id);
+    function toggleMenu(){
+        document.getElementById("drawer").classList.toggle("open");
+    }
 
-    // 👉 aquí ya entras a la app real
-    window.location.href = "./home.html";
+    // CARGAR TIENDAS DESDE EL SERVER
+    async function loadStores(){
+        const container = document.getElementById("storesContainer");
+        
+        try {
+            const res = await fetch(`${BACKEND_URL}/users/${userId}/stores`, {
+                method: 'GET',
+                headers: { 
+                    "userId": userId,
+                    "Content-Type": "application/json"
+                }
+            });
 
-  });
+            if(!res.ok) throw new Error("No se pudieron cargar las tiendas");
 
-}
+            const stores = await res.json();
 
-// ---------------- LOGOUT
-function logout(){
-  localStorage.clear();
-  window.location.href="./login.html";
-}
+            if (stores.length === 0) {
+                container.innerHTML = "<h2>No tienes tiendas asignadas</h2><p>Contacta a tu supervisor.</p>";
+                return;
+            }
 
-loadStores();
+            let html = "<h2>Selecciona tu tienda</h2>";
+            stores.forEach(s => {
+                html += `
+                    <div class="store" onclick='openModal(${JSON.stringify(s)})'>
+                        <b>${s.name}</b>
+                        <small>${s.address || "Dirección no disponible"}</small>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
 
+        } catch (err) {
+            console.error(err);
+            container.innerHTML = "<h2>Error de conexión</h2><p>Intenta recargar la página.</p>";
+        }
+    }
+
+    function openModal(store){
+        selectedStore = store;
+        document.getElementById("storeName").innerText = store.name;
+        document.getElementById("modal").style.display = "flex";
+    }
+
+    function closeModal(){
+        document.getElementById("modal").style.display = "none";
+    }
+
+    // PROCESO DE CHECK-IN
+    function startCheckin(){
+        if(!navigator.geolocation){
+            return alert("Tu dispositivo no soporta o tiene desactivado el GPS.");
+        }
+
+        const btn = document.querySelector(".btn-green");
+        btn.innerText = "PROCESANDO...";
+        btn.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(async pos => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+
+            try {
+                const res = await fetch(`${BACKEND_URL}/checkin`, {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "userId": userId 
+                    },
+                    body: JSON.stringify({
+                        storeId: selectedStore._id,
+                        lat: lat,
+                        lng: lng
+                    })
+                });
+
+                const data = await res.json();
+
+                if(res.ok){
+                    alert("✅ Registro exitoso. ¡Buen turno!");
+                    localStorage.setItem("activeStoreId", selectedStore._id);
+                    localStorage.setItem("activeStoreName", selectedStore.name);
+                    window.location.href = "./home.html"; // Redirigir al área de trabajo
+                } else {
+                    alert("Error: " + (data.error || "No se pudo registrar"));
+                    btn.innerText = "INICIAR OPERACIÓN";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert("Error de conexión con el servidor.");
+                btn.innerText = "INICIAR OPERACIÓN";
+                btn.disabled = false;
+            }
+        }, error => {
+            alert("Debes permitir el acceso a tu ubicación para trabajar.");
+            btn.innerText = "INICIAR OPERACIÓN";
+            btn.disabled = false;
+        });
+    }
+
+    function logout(){
+        localStorage.clear();
+        window.location.href="./login.html";
+    }
+
+    // Iniciar carga al abrir
+    loadStores();
 </script>
 
 </body>

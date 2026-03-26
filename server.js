@@ -13,11 +13,10 @@ const Checkin = require("./models/Checkin");
 
 const app = express();
 
-// Middleware Global
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], allowedHeaders: ["Content-Type", "userId"] }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Para procesar formularios si es necesario
 
-// Servir archivos estáticos
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -31,7 +30,6 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// Middleware de Auth
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
@@ -43,46 +41,42 @@ async function auth(req, res, next) {
     } catch (err) { res.status(500).json({ error: "Error auth" }); }
 }
 
-// --- RUTAS DE API ---
+// --- NUEVA RUTA: OBTENER TIENDAS DEL USUARIO (O AGENCIA) ---
+app.get("/users/:userId/stores", auth, async (req, res) => {
+    try {
+        // Buscamos las tiendas que pertenecen a la misma agencia que el usuario
+        const stores = await Store.find({ agencyId: req.user.agencyId });
+        res.json(stores);
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener tiendas" });
+    }
+});
+
+// --- NUEVA RUTA: PROCESAR CHECK-IN ---
+app.post("/checkin", auth, upload.none(), async (req, res) => {
+    try {
+        const { storeId, lat, lng } = req.body;
+        
+        // Aquí podrías añadir lógica de validación de distancia (geofencing)
+        const newCheckin = new Checkin({
+            userId: req.user._id,
+            agencyId: req.user.agencyId,
+            storeId,
+            location: { lat, lng },
+            date: new Date()
+        });
+
+        await newCheckin.save();
+        res.json({ message: "Check-in exitoso" });
+    } catch (err) {
+        res.status(500).json({ error: "Error en el servidor durante check-in" });
+    }
+});
+
+// --- RUTAS DE ADMINISTRACIÓN ---
 app.get("/agencies", auth, async (req, res) => {
     const agencies = await Agency.find();
     res.json(agencies);
-});
-
-app.post("/agencies", auth, async (req, res) => {
-    const agency = new Agency(req.body);
-    await agency.save();
-    res.json(agency);
-});
-
-app.patch("/agencies/:id", auth, async (req, res) => {
-    const agency = await Agency.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(agency);
-});
-
-app.delete("/agencies/:id", auth, async (req, res) => {
-    const agencyId = req.params.id;
-    await Report.deleteMany({ agencyId });
-    await User.deleteMany({ agencyId });
-    await Store.deleteMany({ agencyId });
-    await Checkin.deleteMany({ agencyId });
-    await Agency.findByIdAndDelete(agencyId);
-    res.json({ message: "Agencia eliminada." });
-});
-
-app.get("/users", auth, async (req, res) => {
-    const users = await User.find().populate("agencyId", "name");
-    res.json(users);
-});
-
-app.get("/users/count", auth, async (req, res) => {
-    const count = await User.countDocuments();
-    res.json({ count });
-});
-
-app.delete("/users/:id", auth, async (req, res) => {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: "Usuario eliminado" });
 });
 
 app.post("/login", async (req, res) => {
@@ -94,7 +88,7 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- REDIRECCIÓN FINAL (Cualquier ruta no encontrada va al Login) ---
+// Comodín para SPA (Dejar al final)
 app.get(/(.*)/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

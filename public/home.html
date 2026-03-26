@@ -4,24 +4,85 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Trabajo - StorePulse</title>
-    <link rel="stylesheet" href="styles.css">
     <style>
-        body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #F5F7FA; }
-        .store-info { background: #0B1F3A; color: white; padding: 25px 20px; text-align: center; border-radius: 0 0 20px 20px; }
-        .store-info h2 { margin: 0; font-size: 1.4rem; }
-        .role-badge { display: inline-block; background: #D4AF37; color: #0B1F3A; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-top: 10px; text-transform: uppercase; }
+        body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: #F5F7FA; color: #1a202c; }
         
-        .task-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px; }
-        .task-card { 
-            background: white; padding: 18px 10px; border-radius: 15px; text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; border: 1px solid #edf2f7;
-            transition: transform 0.2s;
+        /* BANNER SUPERIOR */
+        .store-info { 
+            background: #0B1F3A; 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+            border-radius: 0 0 25px 25px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .task-card:active { transform: scale(0.95); background: #f8f9fa; }
-        .task-card .icon { font-size: 28px; display: block; margin-bottom: 8px; }
-        .task-card span { font-size: 0.9rem; font-weight: 600; color: #334155; display: block; }
+        .store-info h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
         
-        .btn-finish { width: 90%; margin: 10px 5% 30px; padding: 16px; background: #e11d48; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .role-badge { 
+            display: inline-block; 
+            background: #D4AF37; 
+            color: #0B1F3A; 
+            padding: 5px 15px; 
+            border-radius: 20px; 
+            font-size: 0.75rem; 
+            font-weight: 800; 
+            margin-top: 12px; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* GRID DE TAREAS */
+        .task-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            padding: 25px 20px; 
+            max-width: 500px;
+            margin: auto;
+        }
+        
+        .task-card { 
+            background: white; 
+            padding: 22px 10px; 
+            border-radius: 18px; 
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04); 
+            cursor: pointer; 
+            border: 1px solid #edf2f7;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .task-card:active { 
+            transform: scale(0.92); 
+            background: #fdfdfd; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .task-card .icon { font-size: 32px; margin-bottom: 10px; }
+        .task-card span { font-size: 0.85rem; font-weight: 700; color: #4a5568; }
+        
+        /* BOTÓN FINALIZAR */
+        .footer-actions { padding: 10px 20px 40px; text-align: center; }
+        
+        .btn-finish { 
+            width: 100%; 
+            max-width: 460px;
+            padding: 18px; 
+            background: #e11d48; 
+            color: white; 
+            border: none; 
+            border-radius: 15px; 
+            font-weight: 800; 
+            font-size: 1rem; 
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(225, 29, 72, 0.3);
+        }
+        
+        .btn-finish:active { background: #be123c; transform: translateY(2px); }
     </style>
 </head>
 <body>
@@ -29,20 +90,29 @@
     <div class="store-info">
         <h2 id="activeStoreName">Cargando tienda...</h2>
         <div id="userRoleBadge" class="role-badge">Cargando...</div>
-        <p style="margin: 8px 0 0; opacity: 0.8; font-size: 0.9rem;">Operación en curso</p>
+        <p style="margin: 10px 0 0; opacity: 0.7; font-size: 0.85rem; font-weight: 500;">🟢 Operación en curso</p>
     </div>
 
     <div class="task-grid" id="taskContainer">
         </div>
 
-    <button onclick="finishDay()" class="btn-finish">
-        FINALIZAR DÍA / SALIDA
-    </button>
+    <div class="footer-actions">
+        <button onclick="finishDay()" class="btn-finish">
+            FINALIZAR DÍA / SALIDA
+        </button>
+    </div>
 
     <script>
-        // 1. Obtener datos de sesión
+        // 1. Obtener datos de sesión (claves sincronizadas con dashboard.html)
         const role = localStorage.getItem("role") || "promotor";
         const storeName = localStorage.getItem("activeStoreName") || "Tienda no seleccionada";
+        const activeStoreId = localStorage.getItem("activeStoreId");
+
+        // Seguridad: Si no hay tienda activa, regresar al dashboard
+        if (!activeStoreId) {
+            alert("No hay una sesión de trabajo activa.");
+            window.location.href = "./dashboard.html";
+        }
 
         document.getElementById("activeStoreName").innerText = storeName;
         document.getElementById("userRoleBadge").innerText = role;
@@ -50,18 +120,17 @@
         // 2. Definir botones según el ROL
         const tasks = {
             demostradora: [
-                { id: 'completo_demo', label: 'Reporte Diario', icon: '📋' },
+                { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
                 { id: 'degustacion', label: 'Degustación', icon: '🍷' },
-                { id: 'precios_competencia', label: 'Competencia', icon: '🏁' }
+                { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ],
             promotor: [
                 { id: 'ventas', label: 'Ventas', icon: '📈' },
                 { id: 'precios', label: 'Precios Propios', icon: '💰' },
                 { id: 'agotados', label: 'Agotados', icon: '❌' },
-                { id: 'preagotados', label: 'Pre-Agotados', icon: '⚠️' },
                 { id: 'inventario', label: 'Inventarios', icon: '📦' },
-                { id: 'exhibicion_libre', label: 'Exhib. Adicional', icon: '✨' },
-                { id: 'precios_competencia', label: 'Competencia', icon: '🏁' },
+                { id: 'exhibicion', label: 'Exhib. Adicional', icon: '✨' },
+                { id: 'competencia', label: 'Competencia', icon: '🏁' },
                 { id: 'fotos_anaquel', label: 'Fotos Anaquel', icon: '📸' },
                 { id: 'fotos_exhibicion', label: 'Fotos Exhibición', icon: '🖼️' }
             ]
@@ -70,7 +139,9 @@
         // 3. Renderizar botones
         function renderTasks() {
             const container = document.getElementById("taskContainer");
-            const userTasks = tasks[role] || tasks['promotor']; // Por defecto promotor
+            // Normalizar rol para evitar errores de mayúsculas
+            const userRole = role.toLowerCase();
+            const userTasks = tasks[userRole] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
                 <div class="task-card" onclick="goToReport('${task.id}')">
@@ -81,13 +152,17 @@
         }
 
         function goToReport(type) {
+            // Pasamos el tipo de reporte por URL para que report.html sepa qué campos mostrar
             window.location.href = `./report.html?type=${type}`;
         }
 
         function finishDay() {
-            if(confirm("¿Seguro que quieres cerrar la operación en esta tienda? Esto registrará tu hora de salida.")) {
+            if(confirm("¿Seguro que quieres cerrar la operación? Se registrará tu hora de salida.")) {
+                // Limpiar solo los datos de la tienda activa, mantener la sesión del usuario
                 localStorage.removeItem("activeStoreId");
                 localStorage.removeItem("activeStoreName");
+                
+                alert("Salida registrada correctamente.");
                 window.location.href = "./dashboard.html";
             }
         }
@@ -95,5 +170,6 @@
         // Inicializar
         renderTasks();
     </script>
+
 </body>
 </html>

@@ -6,13 +6,21 @@
 
 <style>
 body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
+
 .sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; display:flex; flex-direction:column; }
+
 .sidebar button { margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; }
+
 .main { flex:1; padding:20px; }
+
 .card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; }
+
 .store-list { display:flex; gap:10px; }
+
 .store-column { flex:1; min-height:120px; background:#16a34a; padding:10px; border-radius:8px; color:white; }
+
 .store-column.assigned { background:#3b82f6; }
+
 .store-item { background:#fcd34d; color:black; margin:5px 0; padding:5px; border-radius:6px; cursor:grab; }
 </style>
 
@@ -21,20 +29,34 @@ body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
 <body>
 
 <div class="sidebar">
+
   <h2>⚡ Admin PRO</h2>
+
   <button onclick="loadDashboard()">Dashboard</button>
   <button onclick="loadReports()">Reportes</button>
   <button onclick="loadUsers()">Usuarios</button>
+
+  <!-- 🔥 NUEVO -->
+  <button onclick="loadCreateUser()">Crear Usuario</button>
+
   <button onclick="loadAgencies()">Agencias</button>
   <button onclick="loadStores()">Tiendas</button>
+
   <button onclick="logout()">Salir</button>
+
 </div>
 
-<div class="main" id="content"></div>
+<div class="main">
+  <!-- 🔥 INFO USUARIO -->
+  <div id="userInfo" style="margin-bottom:10px;font-weight:bold;"></div>
+
+  <div id="content"></div>
+</div>
 
 <script>
 
 const BACKEND_URL = "https://storepulse.onrender.com";
+
 const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
 const agencyId = localStorage.getItem("agencyId");
@@ -43,13 +65,40 @@ let draggedStore = null;
 let allStores = [];
 let allAgencies = [];
 
+// ================= API
 async function fetchAPI(url, options={}){
   options.headers = { ...(options.headers||{}), userId };
   const res = await fetch(url, options);
   return res.json();
 }
 
-// ---------------- USERS (FULL)
+// ================= USER INFO 🔥
+async function loadUserInfo(){
+
+  let text = `👤 ${localStorage.getItem("name") || ""}`;
+
+  if(agencyId){
+    try{
+      const agencies = await fetchAPI(`${BACKEND_URL}/agencies`);
+      const agency = agencies.find(a=>a._id === agencyId);
+
+      if(agency){
+        text += ` | 🏢 ${agency.name}`;
+      }
+    }catch(e){}
+  }
+
+  document.getElementById("userInfo").innerText = text;
+}
+
+loadUserInfo();
+
+// ================= DASHBOARD
+function loadDashboard(){
+  document.getElementById("content").innerHTML = "<h2>Dashboard</h2>";
+}
+
+// ================= USERS
 async function loadUsers(){
 
   const users = await fetchAPI(`${BACKEND_URL}/users`);
@@ -65,6 +114,7 @@ async function loadUsers(){
 
     html += `
     <div class="card">
+
       <b>${u.name}</b> (${u.email})
 
       <br><br>
@@ -94,10 +144,12 @@ async function loadUsers(){
           ondragover="allowDrop(event)">
 
           <b>Disponibles</b>
+
           ${available.map(s=>`
             <div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">
               ${s.name}
             </div>`).join("")}
+
         </div>
 
         <div class="store-column assigned"
@@ -105,10 +157,12 @@ async function loadUsers(){
           ondragover="allowDrop(event)">
 
           <b>Asignadas</b>
+
           ${assigned.map(id=>{
             const s = allStores.find(x=>x._id===id);
             return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : "";
           }).join("")}
+
         </div>
 
       </div>
@@ -120,7 +174,7 @@ async function loadUsers(){
   document.getElementById("content").innerHTML = html;
 }
 
-// ---------------- DRAG & DROP
+// ================= DRAG
 function dragStart(id){
   draggedStore = id;
 }
@@ -133,7 +187,6 @@ async function dropStore(e, userId, type){
   e.preventDefault();
 
   const user = await fetchAPI(`${BACKEND_URL}/users/${userId}`);
-
   let stores = (user.stores||[]).map(s=>s._id||s);
 
   if(type==="assigned"){
@@ -151,7 +204,46 @@ async function dropStore(e, userId, type){
   loadUsers();
 }
 
-// ---------------- ROLE
+// ================= CREATE USER 🔥
+async function loadCreateUser(){
+
+  document.getElementById("content").innerHTML = `
+    <div class="card">
+      <h2>Crear Usuario</h2>
+
+      <input id="name" placeholder="Nombre">
+      <input id="email" placeholder="Email">
+      <input id="pass" placeholder="Password">
+
+      <select id="roleUser">
+        <option value="promotor">Promotor</option>
+        <option value="demostradora">Demostradora</option>
+        <option value="admin">Admin</option>
+      </select>
+
+      <button onclick="createUser()">Crear</button>
+    </div>
+  `;
+}
+
+async function createUser(){
+
+  await fetchAPI(`${BACKEND_URL}/admin/create-user`,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      name:document.getElementById("name").value,
+      email:document.getElementById("email").value,
+      password:document.getElementById("pass").value,
+      role:document.getElementById("roleUser").value,
+      agencyId
+    })
+  });
+
+  alert("Usuario creado ✅");
+}
+
+// ================= ROLE
 async function changeRole(uid, role){
   await fetchAPI(`${BACKEND_URL}/users/${uid}/role`,{
     method:"PUT",
@@ -160,7 +252,7 @@ async function changeRole(uid, role){
   });
 }
 
-// ---------------- AGENCY
+// ================= AGENCY
 async function changeAgency(uid, agencyId){
   await fetchAPI(`${BACKEND_URL}/users/${uid}/agency`,{
     method:"PUT",
@@ -169,7 +261,7 @@ async function changeAgency(uid, agencyId){
   });
 }
 
-// ---------------- DELETE
+// ================= DELETE
 async function deleteUser(uid){
   if(!confirm("Eliminar usuario?")) return;
 
@@ -180,8 +272,9 @@ async function deleteUser(uid){
   loadUsers();
 }
 
-// ---------------- STORES (con dirección)
+// ================= STORES
 async function loadStores(){
+
   const stores = await fetchAPI(`${BACKEND_URL}/stores`);
 
   document.getElementById("content").innerHTML = `
@@ -200,6 +293,7 @@ async function loadStores(){
 }
 
 async function createStore(){
+
   await fetchAPI(`${BACKEND_URL}/stores`,{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -214,15 +308,35 @@ async function createStore(){
   loadStores();
 }
 
-// ---------------- REPORTES
+// ================= REPORTES 🔥 FIX
 async function loadReports(){
+
+  if(!agencyId){
+    return alert("⚠️ Sin agencia");
+  }
+
   const reports = await fetchAPI(`${BACKEND_URL}/reports/${agencyId}`);
 
+  if(!reports.length){
+    document.getElementById("content").innerHTML = "<h3>No hay reportes</h3>";
+    return;
+  }
+
   document.getElementById("content").innerHTML =
-    reports.map(r=>`<div>${r.userId?.name} - ${r.data?.producto}</div>`).join("");
+    `<div class="card"><h2>Reportes</h2>` +
+    reports.map(r=>`
+      <div style="margin-bottom:10px;">
+        👤 ${r.userId?.name || "Usuario"}<br>
+        🏪 ${r.storeId?.name || "Tienda"}<br>
+        📦 ${r.data?.producto || "-"}<br>
+        💰 $${r.data?.precio || 0}<br>
+        📅 ${new Date(r.date).toLocaleString()}
+      </div>
+    `).join("") +
+    `</div>`;
 }
 
-// ---------------- LOGOUT
+// ================= LOGOUT
 function logout(){
   localStorage.clear();
   window.location.href="./login.html";

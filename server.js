@@ -49,11 +49,9 @@ mongoose.connect(process.env.MONGO_URI)
 async function auth(req,res,next){
   try{
     const userId = req.headers.userid;
-
     if(!userId) return res.status(401).json({error:"No autorizado"});
 
     const user = await User.findById(userId);
-
     if(!user) return res.status(401).json({error:"Usuario inválido"});
 
     req.user = user;
@@ -150,15 +148,14 @@ app.post("/login", async (req,res)=>{
 
 // TODOS LOS USUARIOS
 app.get("/users", auth, async (req,res)=>{
-
   let users;
 
   if(req.user.role==="superadmin"){
     users = await User.find().populate("agencyId").populate("stores");
   } else {
     users = await User.find({ agencyId: req.user.agencyId })
-    .populate("agencyId")
-    .populate("stores");
+      .populate("agencyId")
+      .populate("stores");
   }
 
   res.json(users);
@@ -170,14 +167,77 @@ app.get("/users/:id", auth, async (req,res)=>{
   res.json(user);
 });
 
-// 🔥 TIENDAS DEL USUARIO (CLAVE PARA APP)
+// 🔥 CAMBIAR ROL
+app.put("/users/:id/role", auth, async (req,res)=>{
+  try{
+    const { role } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if(!user) return res.status(404).json({error:"Usuario no existe"});
+
+    if(req.user.role !== "superadmin" &&
+       user.agencyId?.toString() !== req.user.agencyId?.toString()){
+      return res.status(403).json({error:"No autorizado"});
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({message:"Rol actualizado"});
+
+  }catch(err){
+    console.error("Error cambiando rol:", err);
+    res.status(500).json({error:"Error cambiando rol"});
+  }
+});
+
+// 🔥 CAMBIAR AGENCIA
+app.put("/users/:id/agency", auth, onlySuper, async (req,res)=>{
+  try{
+    const { agencyId } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { agencyId },
+      { new:true }
+    );
+
+    res.json(user);
+
+  }catch(err){
+    console.error("Error cambiando agencia:", err);
+    res.status(500).json({error:"Error cambiando agencia"});
+  }
+});
+
+// 🔥 ELIMINAR USUARIO
+app.delete("/users/:id", auth, async (req,res)=>{
+  try{
+    const user = await User.findById(req.params.id);
+    if(!user) return res.status(404).json({error:"Usuario no existe"});
+
+    if(req.user.role !== "superadmin" &&
+       user.agencyId?.toString() !== req.user.agencyId?.toString()){
+      return res.status(403).json({error:"No autorizado"});
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    res.json({message:"Usuario eliminado"});
+
+  }catch(err){
+    console.error("Error eliminando usuario:", err);
+    res.status(500).json({error:"Error eliminando usuario"});
+  }
+});
+
+// 🔥 TIENDAS DEL USUARIO
 app.get("/users/:id/stores", auth, async (req,res)=>{
   try{
     const user = await User.findById(req.params.id).populate("stores");
 
     if(!user) return res.status(404).json({error:"Usuario no encontrado"});
 
-    // 🔒 Validación agencia
     if(req.user.role !== "superadmin" &&
        user.agencyId?.toString() !== req.user.agencyId?.toString()){
       return res.status(403).json({error:"No autorizado"});
@@ -191,30 +251,50 @@ app.get("/users/:id/stores", auth, async (req,res)=>{
   }
 });
 
+// 🔥 ACTUALIZAR TIENDAS (DRAG & DROP)
+app.put("/users/:id/stores", auth, async (req,res)=>{
+  try{
+    const { stores } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if(!user) return res.status(404).json({error:"Usuario no existe"});
+
+    if(req.user.role !== "superadmin" &&
+       user.agencyId?.toString() !== req.user.agencyId?.toString()){
+      return res.status(403).json({error:"No autorizado"});
+    }
+
+    user.stores = stores;
+    await user.save();
+
+    res.json({message:"Tiendas actualizadas"});
+
+  }catch(err){
+    console.error("Error actualizando tiendas:", err);
+    res.status(500).json({error:"Error actualizando tiendas"});
+  }
+});
+
 // =====================================================
 // 🔹 TIENDAS
 // =====================================================
 
-// TODAS
 app.get("/stores", auth, async (req,res)=>{
   const stores = await Store.find().populate("agencyId");
   res.json(stores);
 });
 
-// POR AGENCIA
 app.get("/stores/agency/:agencyId", auth, async (req,res)=>{
   const stores = await Store.find({ agencyId:req.params.agencyId });
   res.json(stores);
 });
 
-// POR ID (para checkin)
 app.get("/stores/:id", auth, async (req,res)=>{
   const store = await Store.findById(req.params.id);
   if(!store) return res.status(404).json({error:"Tienda no encontrada"});
   res.json(store);
 });
 
-// CREAR
 app.post("/stores", auth, onlyAdmin, async (req,res)=>{
   const { name,address,lat,lng,agencyId } = req.body;
 
@@ -231,7 +311,7 @@ app.post("/stores", auth, onlyAdmin, async (req,res)=>{
 });
 
 // =====================================================
-// 🔹 CHECKIN (GPS REAL)
+// 🔹 CHECKIN
 // =====================================================
 
 const storage = multer.diskStorage({
@@ -255,25 +335,19 @@ function calcularDistancia(lat1,lon1,lat2,lon2){
   return R * 2 * Math.atan2(Math.sqrt(a),Math.sqrt(1-a)) * 1000;
 }
 
-// CHECKIN
 app.post("/checkin", upload.single("photo"), async (req,res)=>{
-
   try{
     const { userId, storeId, lat, lng } = req.body;
 
     const user = await User.findById(userId);
-    if(!user) return res.status(404).json({error:"Usuario no existe"});
-
     const store = await Store.findById(storeId);
-    if(!store) return res.status(404).json({error:"Tienda no existe"});
+
+    if(!user || !store) return res.status(404).json({error:"Datos inválidos"});
 
     const distancia = calcularDistancia(lat,lng,store.lat,store.lng);
 
     if(distancia > 120){
-      return res.status(400).json({
-        error:"Debes estar dentro de la tienda",
-        distancia: Math.round(distancia)+"m"
-      });
+      return res.status(400).json({error:"Fuera de rango", distancia});
     }
 
     await Checkin.create({
@@ -286,48 +360,22 @@ app.post("/checkin", upload.single("photo"), async (req,res)=>{
       date:new Date()
     });
 
-    res.json({message:"Check-in válido", distancia:Math.round(distancia)+"m"});
+    res.json({message:"Check-in válido"});
 
   }catch(err){
-    console.error("Error checkin:", err);
-    res.status(500).json({error:"Error al crear check-in"});
+    res.status(500).json({error:"Error checkin"});
   }
-
-});
-
-// =====================================================
-// 🔹 MAPA ADMIN
-// =====================================================
-
-app.get("/map/users/:agencyId", auth, async (req,res)=>{
-
-  if(req.user.role !== "superadmin" &&
-     req.user.agencyId?.toString() !== req.params.agencyId){
-    return res.status(403).json({error:"No autorizado"});
-  }
-
-  const checkins = await Checkin.find({ agencyId:req.params.agencyId })
-  .populate("userId")
-  .sort({ date:-1 });
-
-  res.json(checkins);
 });
 
 // =====================================================
 // 🔹 REPORTES
 // =====================================================
 
-// GUARDAR
 app.post("/reports", auth, async (req,res)=>{
-
   try{
     const { userId, storeId, type, data } = req.body;
 
     const user = await User.findById(userId);
-    if(!user) return res.status(404).json({error:"Usuario no existe"});
-
-    const store = await Store.findById(storeId);
-    if(!store) return res.status(404).json({error:"Tienda no existe"});
 
     const report = new Report({
       userId,
@@ -344,38 +392,24 @@ app.post("/reports", auth, async (req,res)=>{
     res.json({message:"Reporte guardado"});
 
   }catch(err){
-    console.error("Error guardando reporte:", err);
-    res.status(500).json({error:"Error guardando reporte"});
+    res.status(500).json({error:"Error"});
   }
 });
 
-// OBTENER
 app.get("/reports/:agencyId", auth, async (req,res)=>{
-
-  if(req.user.role !== "superadmin" &&
-     req.user.agencyId?.toString() !== req.params.agencyId){
-    return res.status(403).json({error:"No autorizado"});
-  }
-
   const reports = await Report.find({ agencyId:req.params.agencyId })
-  .populate("userId")
-  .populate("storeId")
-  .sort({ date:-1 });
+    .populate("userId")
+    .populate("storeId")
+    .sort({ date:-1 });
 
   res.json(reports);
 });
 
 // =====================================================
-// 🔹 404
-// =====================================================
 
 app.use((req,res)=>{
   res.status(404).json({error:"Ruta no encontrada"});
 });
-
-// =====================================================
-// 🔹 START
-// =====================================================
 
 const PORT = process.env.PORT || 3000;
 

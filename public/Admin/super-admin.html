@@ -87,17 +87,19 @@ const userId = localStorage.getItem("userId");
 const userRoleRaw = localStorage.getItem("userRole");
 
 // --- VALIDACIÓN DE SEGURIDAD MEJORADA ---
-// Normalizamos el rol a minúsculas para evitar errores de escritura en la DB
+// Normalizamos el rol a minúsculas y eliminamos espacios para evitar errores de comparación
 const userRole = userRoleRaw ? userRoleRaw.toLowerCase().trim() : "";
+
+console.log("Validando sesión...", { userId, role: userRole });
 
 if (!userId || userRole !== 'super-admin') {
     console.error("Acceso denegado. Rol detectado:", userRole);
     alert("Acceso no autorizado. Por favor inicia sesión como Super Admin.");
-    localStorage.clear();
+    localStorage.clear(); // Limpiamos sesión antigua para evitar bucles de error
     window.location.href = "../login.html";
 }
 
-// Listas globales para mapeo rápido
+// Listas globales
 let agenciesList = [];
 let usersList = [];
 
@@ -110,16 +112,10 @@ async function fetchAPI(url, options = {}) {
     };
     
     const res = await fetch(url, options);
-    const contentType = res.headers.get("content-type");
-    
     if (!res.ok) {
-        if (contentType && contentType.includes("application/json")) {
-            const err = await res.json();
-            throw new Error(err.error || err.message || "Error en la petición");
-        }
-        throw new Error(`Error del servidor (${res.status})`);
+        const err = await res.json().catch(() => ({ message: "Error desconocido del servidor" }));
+        throw new Error(err.error || err.message || "Error en la petición");
     }
-    
     return res.json();
 }
 
@@ -130,7 +126,7 @@ function changeTab(btn, callback) {
     callback();
 }
 
-// --- ACTUALIZAR STATS ---
+// --- ACTUALIZAR ESTADÍSTICAS ---
 async function updateStats() {
     try {
         agenciesList = await fetchAPI(`${BACKEND_URL}/super/agencies`);
@@ -138,11 +134,13 @@ async function updateStats() {
         document.getElementById("stat-agencies").innerText = agenciesList.length;
         document.getElementById("stat-users").innerText = usersList.length;
     } catch (e) {
-        console.error("Error cargando estadísticas:", e);
+        console.error("Error al cargar estadísticas:", e);
     }
 }
 
-// --- PAGINA 1: GESTIÓN DE AGENCIAS ---
+// ==========================================
+// --- GESTIÓN DE AGENCIAS ---
+// ==========================================
 async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando agencias...</h3>";
     await updateStats();
@@ -186,41 +184,34 @@ async function loadAgenciesPage() {
 }
 
 async function createAgency() {
-    const data = {
-        name: document.getElementById("new_age_name").value.trim(),
-        email: document.getElementById("new_age_email").value.trim()
-    };
-    if (!data.name) return alert("El nombre es obligatorio");
+    const data = { name: document.getElementById("new_age_name").value.trim(), email: document.getElementById("new_age_email").value.trim() };
+    if (!data.name) return alert("Nombre requerido");
     try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies`, {
-            method: "POST",
-            body: JSON.stringify(data)
-        });
+        await fetchAPI(`${BACKEND_URL}/super/agencies`, { method: "POST", body: JSON.stringify(data) });
         loadAgenciesPage();
     } catch(e) { alert("Error: " + e.message); }
 }
 
 async function toggleAgencyStatus(id, newStatus) {
     try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, {
-            method: "PUT",
-            body: JSON.stringify({ isActive: newStatus })
-        });
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, { method: "PUT", body: JSON.stringify({ isActive: newStatus }) });
         loadAgenciesPage();
     } catch(e) { alert("Error al cambiar estado"); }
 }
 
 async function deleteAgency(id) {
-    if(!confirm("¿Eliminar agencia? Los usuarios vinculados quedarán sin agencia asignada.")) return;
+    if(!confirm("¿Eliminar agencia? Los usuarios vinculados perderán su asignación.")) return;
     try {
         await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, { method: "DELETE" });
         loadAgenciesPage();
-    } catch(e) { alert("Error al eliminar"); }
+    } catch(e) { alert("Error al borrar"); }
 }
 
-// --- PAGINA 2: USUARIOS GLOBALES ---
+// ==========================================
+// --- USUARIOS GLOBALES ---
+// ==========================================
 async function loadUsersPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando usuarios globales...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
     await updateStats();
 
     let html = `
@@ -228,7 +219,7 @@ async function loadUsersPage() {
             <h3>👥 Registrar Usuario Global</h3>
             <div class="form-grid">
                 <div><label>Nombre Completo</label><input id="new_usr_name"></div>
-                <div><label>Email (Login)</label><input id="new_usr_email" type="email"></div>
+                <div><label>Email</label><input id="new_usr_email" type="email"></div>
                 <div><label>Contraseña</label><input id="new_usr_pass" type="password"></div>
                 <div>
                     <label>Rol</label>
@@ -243,7 +234,7 @@ async function loadUsersPage() {
             <button class="btn-action" onclick="createGlobalUser()">REGISTRAR USUARIO</button>
         </div>
         <div class="card">
-            <h3>Todos los Usuarios del Sistema</h3>
+            <h3>Usuarios del Sistema</h3>
             <table>
                 <thead><tr><th>Nombre / Email</th><th>Rol</th><th>Agencia</th><th>Acciones</th></tr></thead>
                 <tbody>
@@ -254,9 +245,8 @@ async function loadUsersPage() {
                                 <option value="">-- Sin Agencia --</option>`;
         
         agenciesList.forEach(a => {
-            const userAgencyId = u.agencyId?._id || u.agencyId;
-            const isAssigned = userAgencyId === a._id;
-            agencySelect += `<option value="${a._id}" ${isAssigned ? 'selected' : ''}>${a.name}</option>`;
+            const currentAgencyId = (u.agencyId?._id || u.agencyId);
+            agencySelect += `<option value="${a._id}" ${currentAgencyId === a._id ? 'selected' : ''}>${a.name}</option>`;
         });
         agencySelect += `</select>`;
 
@@ -287,21 +277,15 @@ async function createGlobalUser() {
     };
     if(!data.name || !data.email || !data.password) return alert("Faltan datos");
     try {
-        await fetchAPI(`${BACKEND_URL}/super/users`, {
-            method: "POST",
-            body: JSON.stringify(data)
-        });
+        await fetchAPI(`${BACKEND_URL}/super/users`, { method: "POST", body: JSON.stringify(data) });
         loadUsersPage();
     } catch(e) { alert("Error: " + e.message); }
 }
 
 async function assignUserToAgency(usrId, ageId) {
     try {
-        await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, {
-            method: "PUT",
-            body: JSON.stringify({ agencyId: ageId })
-        });
-        alert("Agencia actualizada ✅");
+        await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: JSON.stringify({ agencyId: ageId }) });
+        alert("Agencia asignada ✅");
     } catch(e) { alert("Error al asignar"); loadUsersPage(); }
 }
 

@@ -1,247 +1,99 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Operación - StorePulse</title>
-
-<style>
-body { margin:0; font-family:Arial; background:#F5F7FA; }
-
-.header {
-  display:flex;
-  align-items:center;
-  padding:15px;
-  background:white;
-  box-shadow:0 2px 6px rgba(0,0,0,0.1);
-}
-
-.menu-btn { font-size:22px; cursor:pointer; margin-right:10px; }
-
-.title { font-weight:bold; }
-
-.container { padding:20px; }
-
-.card {
-  background:white;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
-  box-shadow:0 3px 8px rgba(0,0,0,0.05);
-}
-
-input {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  border-radius:8px;
-  border:1px solid #ccc;
-}
-
-button {
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-.btn-main {
-  background:#0B1F3A;
-  color:white;
-  width:100%;
-}
-
-.btn-danger {
-  background:red;
-  color:white;
-  width:100%;
-  margin-top:10px;
-}
-
-.drawer {
-  position:fixed;
-  top:0;
-  left:-250px;
-  width:250px;
-  height:100%;
-  background:#0B1F3A;
-  color:white;
-  padding:20px;
-  transition:0.3s;
-}
-
-.drawer.open { left:0; }
-
-.report {
-  border-bottom:1px solid #eee;
-  padding:10px 0;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Trabajo - StorePulse</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #F5F7FA; }
+        .store-info { background: #0B1F3A; color: white; padding: 25px 20px; text-align: center; border-radius: 0 0 20px 20px; }
+        .store-info h2 { margin: 0; font-size: 1.4rem; }
+        .role-badge { display: inline-block; background: #D4AF37; color: #0B1F3A; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-top: 10px; text-transform: uppercase; }
+        
+        .task-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px; }
+        .task-card { 
+            background: white; padding: 18px 10px; border-radius: 15px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; border: 1px solid #edf2f7;
+            transition: transform 0.2s;
+        }
+        .task-card:active { transform: scale(0.95); background: #f8f9fa; }
+        .task-card .icon { font-size: 28px; display: block; margin-bottom: 8px; }
+        .task-card span { font-size: 0.9rem; font-weight: 600; color: #334155; display: block; }
+        
+        .btn-finish { width: 90%; margin: 10px 5% 30px; padding: 16px; background: #e11d48; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+    </style>
 </head>
-
 <body>
 
-<div class="drawer" id="drawer">
-  <h3 id="userName"></h3>
-  <p id="userRole"></p>
-  <button onclick="logout()">Cerrar sesión</button>
-</div>
+    <div class="store-info">
+        <h2 id="activeStoreName">Cargando tienda...</h2>
+        <div id="userRoleBadge" class="role-badge">Cargando...</div>
+        <p style="margin: 8px 0 0; opacity: 0.8; font-size: 0.9rem;">Operación en curso</p>
+    </div>
 
-<div class="header">
-  <div class="menu-btn" onclick="toggleMenu()">☰</div>
-  <div class="title">Operación</div>
-</div>
-
-<div class="container">
-
-  <div class="card">
-    <h3 id="storeName">Tienda</h3>
-    <button class="btn-danger" onclick="endOperation()">Finalizar operación</button>
-  </div>
-
-  <div class="card">
-    <h3>📊 Nuevo Reporte</h3>
-
-    <input id="producto" placeholder="Producto">
-    <input id="precio" placeholder="Precio">
-    <input id="ventas" placeholder="Ventas">
-
-    <button class="btn-main" onclick="sendReport()">Enviar Reporte</button>
-  </div>
-
-  <div class="card">
-    <h3>📸 Subir Evidencia</h3>
-    <input type="file" id="photo">
-    <button class="btn-main" onclick="uploadPhoto()">Subir Foto</button>
-  </div>
-
-  <div class="card">
-    <h3>📄 Historial</h3>
-    <div id="history"></div>
-  </div>
-
-</div>
-
-<script>
-
-const BACKEND_URL = "https://storepulse.onrender.com";
-
-const userId = localStorage.getItem("userId");
-const name = localStorage.getItem("name");
-const role = localStorage.getItem("role");
-const storeId = localStorage.getItem("activeStore");
-
-if(!userId || !storeId) window.location.href="./login.html";
-
-document.getElementById("userName").innerText = name;
-document.getElementById("userRole").innerText = role;
-
-// ---------------- MENU
-function toggleMenu(){
-  document.getElementById("drawer").classList.toggle("open");
-}
-
-// ---------------- LOAD STORE
-async function loadStore(){
-
-  const res = await fetch(`${BACKEND_URL}/stores/${storeId}`,{
-    headers:{ userId }
-  });
-
-  const store = await res.json();
-
-  document.getElementById("storeName").innerText = store.name;
-}
-
-// ---------------- SEND REPORT
-async function sendReport(){
-
-  const producto = document.getElementById("producto").value;
-  const precio = document.getElementById("precio").value;
-  const ventas = document.getElementById("ventas").value;
-
-  await fetch(`${BACKEND_URL}/reports`,{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      userId
-    },
-    body: JSON.stringify({
-      userId,
-      storeId,
-      type:"ventas",
-      data:{ producto, precio, ventas }
-    })
-  });
-
-  alert("Reporte enviado ✅");
-
-  loadHistory();
-}
-
-// ---------------- PHOTO
-async function uploadPhoto(){
-
-  const file = document.getElementById("photo").files[0];
-
-  if(!file) return alert("Selecciona una foto");
-
-  const formData = new FormData();
-  formData.append("photo", file);
-  formData.append("userId", userId);
-  formData.append("storeId", storeId);
-
-  await fetch(`${BACKEND_URL}/checkin`,{
-    method:"POST",
-    body: formData
-  });
-
-  alert("Foto subida 📸");
-}
-
-// ---------------- HISTORY
-async function loadHistory(){
-
-  const res = await fetch(`${BACKEND_URL}/reports/${localStorage.getItem("agencyId")}`,{
-    headers:{ userId }
-  });
-
-  const reports = await res.json();
-
-  let html = "";
-
-  reports
-    .filter(r=>r.userId?._id===userId)
-    .forEach(r=>{
-      html += `
-        <div class="report">
-          <b>${r.data?.producto}</b><br>
-          Ventas: ${r.data?.ventas}<br>
-          $${r.data?.precio}
+    <div class="task-grid" id="taskContainer">
         </div>
-      `;
-    });
 
-  document.getElementById("history").innerHTML = html;
-}
+    <button onclick="finishDay()" class="btn-finish">
+        FINALIZAR DÍA / SALIDA
+    </button>
 
-// ---------------- END
-function endOperation(){
+    <script>
+        // 1. Obtener datos de sesión
+        const role = localStorage.getItem("role") || "promotor";
+        const storeName = localStorage.getItem("activeStoreName") || "Tienda no seleccionada";
 
-  localStorage.removeItem("activeStore");
+        document.getElementById("activeStoreName").innerText = storeName;
+        document.getElementById("userRoleBadge").innerText = role;
 
-  window.location.href="./dashboard.html";
-}
+        // 2. Definir botones según el ROL
+        const tasks = {
+            demostradora: [
+                { id: 'completo_demo', label: 'Reporte Diario', icon: '📋' },
+                { id: 'degustacion', label: 'Degustación', icon: '🍷' },
+                { id: 'precios_competencia', label: 'Competencia', icon: '🏁' }
+            ],
+            promotor: [
+                { id: 'ventas', label: 'Ventas', icon: '📈' },
+                { id: 'precios', label: 'Precios Propios', icon: '💰' },
+                { id: 'agotados', label: 'Agotados', icon: '❌' },
+                { id: 'preagotados', label: 'Pre-Agotados', icon: '⚠️' },
+                { id: 'inventario', label: 'Inventarios', icon: '📦' },
+                { id: 'exhibicion_libre', label: 'Exhib. Adicional', icon: '✨' },
+                { id: 'precios_competencia', label: 'Competencia', icon: '🏁' },
+                { id: 'fotos_anaquel', label: 'Fotos Anaquel', icon: '📸' },
+                { id: 'fotos_exhibicion', label: 'Fotos Exhibición', icon: '🖼️' }
+            ]
+        };
 
-// ---------------- LOGOUT
-function logout(){
-  localStorage.clear();
-  window.location.href="./login.html";
-}
+        // 3. Renderizar botones
+        function renderTasks() {
+            const container = document.getElementById("taskContainer");
+            const userTasks = tasks[role] || tasks['promotor']; // Por defecto promotor
 
-loadStore();
-loadHistory();
+            container.innerHTML = userTasks.map(task => `
+                <div class="task-card" onclick="goToReport('${task.id}')">
+                    <span class="icon">${task.icon}</span>
+                    <span>${task.label}</span>
+                </div>
+            `).join('');
+        }
 
-</script>
+        function goToReport(type) {
+            window.location.href = `./report.html?type=${type}`;
+        }
 
+        function finishDay() {
+            if(confirm("¿Seguro que quieres cerrar la operación en esta tienda? Esto registrará tu hora de salida.")) {
+                localStorage.removeItem("activeStoreId");
+                localStorage.removeItem("activeStoreName");
+                window.location.href = "./dashboard.html";
+            }
+        }
+
+        // Inicializar
+        renderTasks();
+    </script>
 </body>
 </html>

@@ -1,246 +1,168 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-<meta charset="UTF-8">
-<title>Reportes - StorePulse</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte - StorePulse</title>
+    <style>
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; }
+        body { font-family: sans-serif; margin: 0; background: var(--bg); padding-bottom: 30px; }
+        header { background: var(--primary); color: white; padding: 15px; display: flex; align-items: center; }
+        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; margin-right: 10px; }
+        .container { padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid var(--gold); padding-bottom: 5px; text-transform: capitalize; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        
+        .photo-preview { width: 100%; height: 200px; background: #eee; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-top: 10px; overflow: hidden; border: 2px dashed #ccc; }
+        .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 
-<style>
-:root {
-  --primary: #0B1F3A;
-  --secondary: #D4AF37;
-  --bg: #F5F7FA;
-}
-
-body {
-  font-family: Arial;
-  margin: 0;
-  background: var(--bg);
-}
-
-header {
-  background: var(--primary);
-  color: white;
-  padding: 15px;
-  display: flex;
-  align-items: center;
-}
-
-header h1 {
-  flex: 1;
-  margin: 0;
-  text-align: center;
-}
-
-.back {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.container {
-  padding: 20px;
-}
-
-label, input, button {
-  display: block;
-  width: 100%;
-  margin-bottom: 10px;
-}
-
-input {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-button {
-  background: var(--secondary);
-  border: none;
-  color: white;
-  padding: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-button.secondary {
-  background: #003366;
-}
-
-.info {
-  margin-bottom: 15px;
-  font-size: 14px;
-  color: #333;
-}
-
-.error {
-  color: red;
-}
-
-.card {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
-}
-</style>
-
+        .btn-main { background: var(--gold); color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 20px; }
+        .btn-main:disabled { opacity: 0.5; }
+        .hidden { display: none; }
+    </style>
 </head>
-
 <body>
 
 <header>
-  <button class="back" onclick="goBack()">⬅</button>
-  <h1>Reportes</h1>
+    <button class="back-btn" onclick="history.back()">⬅</button>
+    <span id="headerTitle">Nuevo Reporte</span>
 </header>
 
 <div class="container">
+    <div class="card">
+        <h3 id="formTitle">Cargando...</h3>
+        <form id="reportForm">
+            <div class="form-group" id="group-articulo">
+                <label>Nombre del Artículo</label>
+                <input type="text" id="articulo" placeholder="Ej. Jabón Líquido 500ml">
+            </div>
 
-  <!-- 🔥 INFO USUARIO -->
-  <div class="info" id="userInfo"></div>
+            <div id="block-demo" class="hidden">
+                <div class="form-group"><label>Inv. Inicial</label><input type="number" id="inv_inicial"></div>
+                <div class="form-group"><label>Ventas Realizadas</label><input type="number" id="ventas"></div>
+                <div class="form-group"><label>Inv. Final</label><input type="number" id="inv_final"></div>
+                <div class="form-group"><label>Precio de Venta</label><input type="number" id="precio"></div>
+            </div>
 
-  <!-- 🔥 CAPTURA DE REPORTE (NUEVO) -->
-  <div class="card">
-    <h3>📝 Captura de Reporte</h3>
+            <div class="form-group hidden" id="group-cantidad">
+                <label id="label-cantidad">Cantidad / Valor</label>
+                <input type="number" id="cantidad">
+            </div>
+            
+            <div class="form-group hidden" id="group-precio-simple">
+                <label>Precio ($)</label>
+                <input type="number" id="precio_simple">
+            </div>
 
-    <input id="producto" placeholder="Producto">
-    <input id="invInicial" placeholder="Inventario inicial">
-    <input id="ventas" placeholder="Ventas">
-    <input id="invFinal" placeholder="Inventario final">
-    <input id="precio" placeholder="Precio">
+            <div class="form-group hidden" id="group-foto">
+                <label>Captura de Evidencia</label>
+                <input type="file" id="foto" accept="image/*" capture="camera" onchange="previewImage(this)">
+                <div class="photo-preview" id="preview"><span style="color:#999">Sin foto seleccionada</span></div>
+            </div>
 
-    <button onclick="guardar()">Guardar Reporte</button>
-  </div>
+            <div class="form-group hidden" id="group-comentarios">
+                <label>Comentarios / Observaciones</label>
+                <textarea id="comentarios" rows="4" placeholder="Escribe aquí..."></textarea>
+            </div>
 
-  <!-- 🔥 GENERACIÓN DE REPORTES -->
-  <div class="card">
-    <h3>📊 Exportar Reportes</h3>
-
-    <label>Fecha inicio:</label>
-    <input type="date" id="start">
-
-    <label>Fecha fin:</label>
-    <input type="date" id="end">
-
-    <button onclick="generatePDF()">📄 Generar PDF</button>
-    <button class="secondary" onclick="generateExcel()">📊 Exportar Excel</button>
-  </div>
-
-  <button class="secondary" onclick="logout()">Cerrar sesión</button>
-
-  <div class="error" id="error"></div>
-
+            <button type="button" id="btnSend" class="btn-main" onclick="saveReport()">ENVIAR REPORTE</button>
+        </form>
+    </div>
 </div>
 
 <script>
+    const BACKEND_URL = "https://storepulse.onrender.com";
+    const urlParams = new URLSearchParams(window.location.search);
+    const type = urlParams.get('type');
+    const storeId = localStorage.getItem("activeStoreId");
+    const userId = localStorage.getItem("userId");
 
-// 🔹 BACKEND
-function getBackendUrl() {
-  return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-    ? "http://192.168.1.10:3000"
-    : "https://storepulse.onrender.com";
-}
+    // Configuración de los campos según el tipo de reporte
+    const config = {
+        'completo_demo': { title: 'Reporte Diario', fields: ['block-demo'] },
+        'degustacion': { title: 'Degustación', fields: ['group-cantidad'], labelQty: 'Degustaciones dadas' },
+        'ventas': { title: 'Reporte Ventas', fields: ['group-cantidad'], labelQty: 'Unidades vendidas' },
+        'precios': { title: 'Control de Precios', fields: ['group-precio-simple'] },
+        'precios_competencia': { title: 'Precios Competencia', fields: ['group-precio-simple'] },
+        'agotados': { title: 'Reporte Agotados', fields: [] }, // Solo artículo
+        'preagotados': { title: 'Pre-Agotados', fields: ['group-cantidad'], labelQty: 'Existencia actual' },
+        'inventario': { title: 'Inventario Físico', fields: ['group-cantidad'], labelQty: 'Cantidad en estante' },
+        'exhibicion_libre': { title: 'Exhibición Adicional', fields: ['group-comentarios'], hideArt: true },
+        'fotos_anaquel': { title: 'Foto de Anaquel', fields: ['group-foto'] },
+        'fotos_exhibicion': { title: 'Foto Exhibición Especial', fields: ['group-foto', 'group-comentarios'] }
+    };
 
-// 🔹 INFO USUARIO
-const name = localStorage.getItem("name") || "Usuario";
-const role = localStorage.getItem("role");
+    window.onload = () => {
+        if(!type || !config[type]) return alert("Tipo de reporte no válido");
+        
+        const settings = config[type];
+        document.getElementById("formTitle").innerText = settings.title;
+        document.getElementById("headerTitle").innerText = settings.title;
 
-document.getElementById("userInfo").innerText =
-  `👤 ${name} | Rol: ${role}`;
+        // Mostrar campos necesarios
+        settings.fields.forEach(id => document.getElementById(id).classList.remove("hidden"));
+        if(settings.labelQty) document.getElementById("label-cantidad").innerText = settings.labelQty;
+        if(settings.hideArt) document.getElementById("group-articulo").classList.add("hidden");
+    };
 
-// 🔹 NAVEGACIÓN
-function goBack() { window.history.back(); }
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('preview').innerHTML = `<img src="${e.target.result}">`;
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
 
-// 🔹 LOGOUT
-function logout() {
-  localStorage.clear();
-  window.location.href="./login.html";
-}
+    async function saveReport() {
+        const btn = document.getElementById("btnSend");
+        btn.disabled = true;
+        btn.innerText = "Enviando...";
 
-// 🔹 VALIDACIÓN
-function validateDates(){
-  const start = document.getElementById("start").value;
-  const end = document.getElementById("end").value;
+        const formData = new FormData();
+        formData.append("storeId", storeId);
+        formData.append("type", type);
+        formData.append("articulo", document.getElementById("articulo").value);
+        formData.append("cantidad", document.getElementById("cantidad").value);
+        formData.append("precio", document.getElementById("precio").value || document.getElementById("precio_simple").value);
+        formData.append("inv_inicial", document.getElementById("inv_inicial").value);
+        formData.append("inv_final", document.getElementById("inv_final").value);
+        formData.append("comentarios", document.getElementById("comentarios").value);
+        
+        const fotoFile = document.getElementById("foto").files[0];
+        if(fotoFile) formData.append("photo", fotoFile);
 
-  if (!start || !end) {
-    document.getElementById("error").innerText = "⚠️ Selecciona ambas fechas";
-    return null;
-  }
+        try {
+            const res = await fetch(`${BACKEND_URL}/reports`, {
+                method: "POST",
+                headers: { "userId": userId },
+                body: formData
+            });
 
-  document.getElementById("error").innerText = "";
-  return { start, end };
-}
-
-// 🔹 GUARDAR REPORTE (NUEVO)
-async function guardar(){
-
-  const data = {
-    producto: document.getElementById("producto").value,
-    invInicial: document.getElementById("invInicial").value,
-    ventas: document.getElementById("ventas").value,
-    invFinal: document.getElementById("invFinal").value,
-    precio: document.getElementById("precio").value
-  };
-
-  try{
-
-    await fetch(`${getBackendUrl()}/reports`,{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        userId: localStorage.getItem("userId"),
-        storeId: localStorage.getItem("storeId"),
-        type:"reporte",
-        data
-      })
-    });
-
-    alert("✅ Reporte guardado");
-
-    // limpiar
-    document.getElementById("producto").value="";
-    document.getElementById("invInicial").value="";
-    document.getElementById("ventas").value="";
-    document.getElementById("invFinal").value="";
-    document.getElementById("precio").value="";
-
-  }catch(err){
-    console.error(err);
-    alert("❌ Error al guardar");
-  }
-}
-
-// 🔹 PDF
-function generatePDF() {
-
-  const dates = validateDates();
-  if(!dates) return;
-
-  const agencyId = localStorage.getItem("agencyId");
-  if (!agencyId) return;
-
-  const url = `${getBackendUrl()}/report/${agencyId}?start=${dates.start}&end=${dates.end}`;
-  window.open(url, "_blank");
-}
-
-// 🔹 EXCEL
-function generateExcel() {
-
-  const dates = validateDates();
-  if(!dates) return;
-
-  const agencyId = localStorage.getItem("agencyId");
-  if (!agencyId) return;
-
-  const url = `${getBackendUrl()}/report-excel/${agencyId}?start=${dates.start}&end=${dates.end}`;
-  window.open(url, "_blank");
-}
-
+            if(res.ok) {
+                alert("✅ Guardado correctamente");
+                // Si el tipo permite seguir agregando, limpiamos. Si no, volvemos.
+                if(['fotos_anaquel', 'fotos_exhibicion'].includes(type)) {
+                    window.location.href = "./home.html";
+                } else {
+                    document.getElementById("reportForm").reset();
+                    document.getElementById('preview').innerHTML = '<span style="color:#999">Sin foto</span>';
+                }
+            } else {
+                throw new Error("Error en el servidor");
+            }
+        } catch (err) {
+            alert("❌ Error al enviar reporte");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "ENVIAR REPORTE";
+        }
+    }
 </script>
-
 </body>
 </html>

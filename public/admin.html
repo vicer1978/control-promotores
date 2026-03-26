@@ -128,6 +128,12 @@ if(role!=="superadmin") document.getElementById("menuAgencies").style.display="n
 
 if(role!=="admin" && role!=="superadmin") document.getElementById("menuStores").style.display="none";
 
+// 🔥 OCULTAR RESUMEN SOLO PARA SUPERADMIN
+if(role !== "superadmin"){
+  const btnResumen = document.querySelector('button[onclick="loadAgencySummary()"]');
+  if(btnResumen) btnResumen.style.display = "none";
+}
+
 /* 🔥 ESTE ES EL FIX */
 if(role !== "superadmin") {
   const btn = document.querySelector('button[onclick="loadAgencySummary()"]');

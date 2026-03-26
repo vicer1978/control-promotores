@@ -19,11 +19,17 @@ input:focus, select:focus { border-color:#0B1F3A; outline:none; }
 .user:hover { background:#fafafa; }
 .small { padding:5px 10px; margin-top:5px; background:red; color:white; border:none; border-radius:6px; cursor:pointer; }
 .kpi { font-size:22px; font-weight:bold; }
-.store-list { display:flex; gap:10px; margin-top:10px; }
-.store-list div { flex:1; background:#F0F0F0; padding:10px; border-radius:8px; min-height:120px; transition:0.2s; }
-.store-list div.dragover { background:#e0e7ff; }
-.store-item { background:#D4AF37; color:white; padding:5px 8px; margin:5px 0; border-radius:6px; cursor:grab; user-select:none; transition:0.2s; }
-.store-item.dragging { opacity:0.5; transform:scale(0.95); }
+
+/* NUEVOS ESTILOS STORE LIST */
+.store-list { display:flex; gap:15px; margin-top:10px; }
+.store-column { flex:1; min-height:140px; padding:12px; border-radius:10px; background:#16a34a; color:white; position:relative; transition:background 0.3s, box-shadow 0.3s; }
+.store-column#assignedStores { background:#3b82f6; }
+.store-column:hover { box-shadow:0 0 15px rgba(0,0,0,0.3); }
+.store-column h4 { margin-top:0; font-weight:bold; color:#F5F7FA; }
+.store-item { background:#fcd34d; color:#0B1F3A; padding:8px 10px; margin:6px 0; border-radius:6px; cursor:grab; font-weight:bold; transition: transform 0.2s, box-shadow 0.2s; }
+.store-item:hover { transform:scale(1.05); box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+.store-item.dragging { opacity:0.5; }
+.store-column.drag-over { box-shadow:0 0 15px 3px rgba(255,255,255,0.6); border:2px dashed #F5F7FA; }
 </style>
 </head>
 <body>
@@ -123,21 +129,7 @@ function renderUsers(users){
   });
   html += `</div>`;
   document.getElementById("content").innerHTML = html;
-
-  // Drag & Drop dinámico
-  Object.keys(currentUserStores).forEach(uid=>{
-    const container = document.getElementById(`storeContainer_${uid}`);
-    if(!container) return;
-    const cols = container.querySelectorAll(".store-list > div");
-    cols.forEach((col,index)=>{
-      col.ondragover = e=>{ e.preventDefault(); col.classList.add("dragover"); };
-      col.ondragleave = e=>{ col.classList.remove("dragover"); };
-      col.ondrop = e=>{
-        col.classList.remove("dragover");
-        dropStore(e, uid, index===1?"assigned":"available");
-      };
-    });
-  });
+  addDragEvents();
 }
 
 function renderStoreDragDrop(uid){
@@ -145,11 +137,11 @@ function renderStoreDragDrop(uid){
   const available = currentUserStores[uid].available;
   return `
     <div class="store-list" id="storeContainer_${uid}">
-      <div>
+      <div class="store-column" id="availableStores">
         <h4>🟢 Disponibles</h4>
         ${available.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
       </div>
-      <div>
+      <div class="store-column" id="assignedStores">
         <h4>🔵 Asignadas</h4>
         ${assigned.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join("")}
       </div>
@@ -159,13 +151,15 @@ function renderStoreDragDrop(uid){
 // ---------------- DRAG & DROP ----------------
 let draggedStore = null;
 function dragStart(ev){ draggedStore = ev.target; ev.target.classList.add("dragging"); }
-async function dropStore(ev, uid, target){
+function dropStore(ev, uid, target){
   ev.preventDefault();
+  const column = ev.currentTarget;
+  column.classList.remove("drag-over");
   if(!draggedStore) return;
+
   draggedStore.classList.remove("dragging");
   const storeId = draggedStore.id.replace("store_","");
   const storeObj = allStores.find(s=>s._id===storeId);
-  if(!storeObj) return;
   const userStores = currentUserStores[uid];
 
   if(target==="assigned"){
@@ -176,19 +170,27 @@ async function dropStore(ev, uid, target){
     userStores.assigned = userStores.assigned.filter(s=>s._id!==storeId);
   }
 
-  // Actualización sin recargar usuarios
-  try{
-    await fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
-      method:"PUT",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ storeIds: userStores.assigned.map(s=>s._id) })
-    });
-  }catch(err){ console.error(err); alert("Error actualizando tiendas: "+err.message); }
+  // Actualizar en backend
+  fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ storeIds: userStores.assigned.map(s => s._id) })
+  }).catch(err => console.error(err));
 
-  // Solo actualizamos las listas de tiendas del usuario movido
-  const userDiv = document.getElementById(`user_${uid}`);
-  const newStoresHTML = renderStoreDragDrop(uid);
-  userDiv.querySelector(".store-list")?.replaceWith(document.createRange().createContextualFragment(newStoresHTML));
+  renderUsers(allUsers);
+}
+
+function addDragEvents(){
+  document.querySelectorAll(".store-column").forEach(col=>{
+    col.ondragover = e => e.preventDefault();
+    col.ondragenter = e => col.classList.add("drag-over");
+    col.ondragleave = e => col.classList.remove("drag-over");
+    col.ondrop = e => {
+      const uid = col.closest(".store-list").id.split("_")[1];
+      const target = col.id==="assignedStores"?"assigned":"available";
+      dropStore(e, uid, target);
+    };
+  });
 }
 
 // ---------------- CREAR USUARIO ----------------
@@ -266,6 +268,7 @@ async function loadStores(){
     </div>
   `;
 }
+
 async function createStore(){
   const name = document.getElementById("newStore").value;
   const lat = parseFloat(document.getElementById("latStore").value);
@@ -290,6 +293,7 @@ async function changeRole(uid,newRole){
   try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/role`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ role:newRole }) }); loadUsers(); }
   catch(err){ alert("Error cambiando rol: "+err.message); }
 }
+
 async function changeAgency(uid,aid){
   try{ await fetchWithAuth(`${BACKEND_URL}/users/${uid}/agency`, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agencyId:aid }) }); loadUsers(); }
   catch(err){ alert("Error cambiando agencia: "+err.message); }
@@ -305,5 +309,6 @@ async function deleteUser(uid){
 // ---------------- LOGOUT ----------------
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
 </script>
+
 </body>
 </html>

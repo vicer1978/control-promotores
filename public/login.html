@@ -1,268 +1,104 @@
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-<meta charset="UTF-8">
-<title>Login - StorePulse</title>
-
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#0B1F3A">
-
-<style>
-:root {
-  --primary: #0B1F3A;
-  --secondary: #D4AF37;
-  --bg: #F5F7FA;
-}
-
-body {
-  margin: 0;
-  font-family: Arial;
-  background: var(--bg);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-
-.login-container {
-  width: 90%;
-  max-width: 360px;
-  background: white;
-  border-radius: 15px;
-  padding: 30px;
-  box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-}
-
-.logo {
-  text-align: center;
-  font-size: 26px;
-  font-weight: bold;
-  color: var(--primary);
-  margin-bottom: 10px;
-}
-
-.subtitle {
-  text-align: center;
-  font-size: 12px;
-  color: gray;
-  margin-bottom: 20px;
-}
-
-input {
-  width: 100%;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-.password-wrapper {
-  position: relative;
-}
-
-.toggle-pass {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.button {
-  width: 100%;
-  padding: 12px;
-  background: var(--secondary);
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  margin-top: 10px;
-  cursor: pointer;
-  color: #fff;
-}
-
-.button:disabled {
-  opacity: 0.6;
-}
-
-.links {
-  text-align: center;
-  font-size: 12px;
-  margin-top: 12px;
-}
-
-.links a {
-  color: var(--primary);
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.error {
-  color: red;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 10px;
-}
-
-.loader {
-  text-align:center;
-  font-size:12px;
-  color:gray;
-  display:none;
-}
-
-.footer {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 11px;
-  color: gray;
-}
-</style>
-</head>
-
-<body>
-
-<div class="login-container">
-
-  <div class="logo">StorePulse</div>
-  <div class="subtitle">Plataforma SaaS multiempresa</div>
-
-  <input id="email" placeholder="Correo electrónico">
-
-  <div class="password-wrapper">
-    <input id="password" type="password" placeholder="Contraseña">
-    <button class="toggle-pass" onclick="togglePassword()" id="eyeBtn">👁️</button>
-  </div>
-
-  <label style="font-size:12px;">
-    <input type="checkbox" id="rememberMe"> Guardar usuario
-  </label>
-
-  <button class="button" id="loginBtn" onclick="login()">Ingresar</button>
-
-  <div class="loader" id="loader">Conectando...</div>
-
-  <div class="links">
-    <a href="./recover.html">¿Olvidaste tu contraseña?</a><br>
-    <span>¿No tienes cuenta?</span>
-    <a href="./register.html">Regístrate</a>
-  </div>
-
-  <div class="error" id="error"></div>
-  <div class="footer">Versión SaaS 3.0</div>
-
-</div>
-
 <script>
-
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// 🔥 AUTO LOGIN
+// 🔥 AUTO LOGIN & LIMPIEZA DE CACHÉ
 window.onload = () => {
+    const savedEmail = localStorage.getItem("savedEmail");
+    if(savedEmail) document.getElementById("email").value = savedEmail;
 
-  const savedEmail = localStorage.getItem("savedEmail");
-  if(savedEmail) document.getElementById("email").value = savedEmail;
+    const userId = localStorage.getItem("userId");
+    const role = localStorage.getItem("role");
 
-  const userId = localStorage.getItem("userId");
-  const role = localStorage.getItem("role");
-
-  if(userId && role){
-    redirectByRole(role);
-  }
+    if(userId && role){
+        redirectByRole(role);
+    }
 };
 
 // 👁️ PASSWORD
 function togglePassword(){
-  const pass = document.getElementById("password");
-  const btn = document.getElementById("eyeBtn");
-
-  if(pass.type === "password"){
-    pass.type = "text";
-    btn.innerText = "🙈";
-  } else {
-    pass.type = "password";
-    btn.innerText = "👁️";
-  }
+    const pass = document.getElementById("password");
+    const btn = document.getElementById("eyeBtn");
+    if(pass.type === "password"){
+        pass.type = "text";
+        btn.innerText = "🙈";
+    } else {
+        pass.type = "password";
+        btn.innerText = "👁️";
+    }
 }
 
-// 🔁 REDIRECCIÓN
+// 🔁 REDIRECCIÓN CORREGIDA (Rutas con carpeta Admin)
 function redirectByRole(role){
-  if(role === "superadmin"){
-    window.location.href = "./admin.html";
-  } else if(role === "admin"){
-    window.location.href = "./admin.html";
-  } else {
-    window.location.href = "./dashboard.html";
-  }
+    // Añadimos un "timestamp" (?v=...) para obligar al navegador a cargar la versión nueva
+    const version = Date.now(); 
+
+    if(role === "superadmin"){
+        window.location.href = `./Admin/super-admin.html?v=${version}`;
+    } else if(role === "admin"){
+        window.location.href = `./Admin/admin.html?v=${version}`;
+    } else {
+        // Promotores y Demostradoras van al Dashboard
+        window.location.href = `./dashboard.html?v=${version}`;
+    }
 }
 
 // 🔐 LOGIN PRO SAAS
 async function login(){
+    const email = document.getElementById("email").value.trim().toLowerCase();
+    const password = document.getElementById("password").value.trim();
+    const error = document.getElementById("error");
+    const loader = document.getElementById("loader");
+    const btn = document.getElementById("loginBtn");
 
-  const email = document.getElementById("email").value.trim().toLowerCase();
-  const password = document.getElementById("password").value.trim();
-  const error = document.getElementById("error");
-  const loader = document.getElementById("loader");
-  const btn = document.getElementById("loginBtn");
+    error.innerText = "";
 
-  error.innerText = "";
-
-  if(!email || !password){
-    error.innerText = "⚠️ Completa todos los campos";
-    return;
-  }
-
-  try {
-
-    loader.style.display = "block";
-    btn.disabled = true;
-
-    await fetch(BACKEND_URL);
-
-    const res = await fetch(`${BACKEND_URL}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
-    const data = await res.json();
-
-    if(!res.ok){
-      throw new Error(data.message || "Credenciales incorrectas");
+    if(!email || !password){
+        error.innerText = "⚠️ Completa todos los campos";
+        return;
     }
 
-    // 🔥 VALIDACIÓN SAAS
-    if(data.role !== "superadmin" && !data.agencyId){
-      throw new Error("Usuario sin agencia asignada. Contacta al administrador.");
+    try {
+        loader.style.display = "block";
+        btn.disabled = true;
+
+        const res = await fetch(`${BACKEND_URL}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if(!res.ok){
+            throw new Error(data.message || "Credenciales incorrectas");
+        }
+
+        // 🔥 VALIDACIÓN SAAS
+        if(data.role !== "superadmin" && !data.agencyId){
+            throw new Error("Usuario sin agencia asignada.");
+        }
+
+        // 💾 SESIÓN COMPLETA
+        localStorage.setItem("userId", data.userId);
+        localStorage.setItem("role", data.role);
+        localStorage.setItem("agencyId", data.agencyId || "");
+        localStorage.setItem("userName", data.name || ""); // Guardamos el nombre para el Home
+
+        // 💾 RECORDAR EMAIL
+        if(document.getElementById("rememberMe").checked){
+            localStorage.setItem("savedEmail", email);
+        } else {
+            localStorage.removeItem("savedEmail");
+        }
+
+        redirectByRole(data.role);
+
+    } catch(err){
+        console.error(err);
+        error.innerText = "❌ " + err.message;
+    } finally {
+        loader.style.display = "none";
+        btn.disabled = false;
     }
-
-    // 💾 SESIÓN
-    localStorage.setItem("userId", data.userId);
-    localStorage.setItem("role", data.role);
-    localStorage.setItem("agencyId", data.agencyId || "");
-
-    // 💾 RECORDAR EMAIL
-    if(document.getElementById("rememberMe").checked){
-      localStorage.setItem("savedEmail", email);
-    } else {
-      localStorage.removeItem("savedEmail");
-    }
-
-    redirectByRole(data.role);
-
-  } catch(err){
-    console.error(err);
-    error.innerText = "❌ " + err.message;
-  } finally {
-    loader.style.display = "none";
-    btn.disabled = false;
-  }
 }
-
 </script>
-
-</body>
-</html>

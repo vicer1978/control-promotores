@@ -1,155 +1,124 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Super Admin - StorePulse</title>
-<style>
-:root {
-  --primary: #0B1F3A;
-  --secondary: #D4AF37;
-  --bg: #F5F7FA;
-}
-body { margin:0;font-family:Arial;background:var(--bg); }
-.header { background:var(--primary); color:white; padding:15px; text-align:center; position:relative; }
-.back { position:absolute; left:10px; top:12px; background:transparent; border:none; color:white; font-size:16px; cursor:pointer; }
-.container { padding:20px; }
-.card { background:white; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
-input { width:100%; padding:10px; margin:6px 0; border-radius:6px; border:1px solid #ccc; }
-.button { background:var(--secondary); border:none; padding:12px; border-radius:8px; width:100%; font-weight:bold; margin-top:10px; cursor:pointer; }
-.actions { display:flex; gap:5px; margin-top:10px; }
-.btn-small { flex:1; padding:8px; border:none; border-radius:6px; font-size:12px; color:white; cursor:pointer; }
-.activate { background:#388E3C; }
-.deactivate { background:#D32F2F; }
-.metric { font-size:18px; font-weight:bold; margin-bottom:5px; }
-</style>
+    <meta charset="UTF-8">
+    <title>Super Admin - StorePulse</title>
+    <style>
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; }
+        body { margin:0; font-family: Arial; background: var(--bg); }
+        .header { background: var(--primary); color:white; padding:15px; text-align:center; position:relative; }
+        .back { position:absolute; left:15px; top:15px; background:transparent; border:none; color:white; font-size:20px; cursor:pointer; }
+        .container { padding:20px; max-width: 800px; margin: auto; }
+        .card { background:white; border-radius:12px; padding:20px; margin-bottom:15px; box-shadow:0 4px 6px rgba(0,0,0,0.05); }
+        h3 { margin-top: 0; color: var(--primary); }
+        input { width:100%; padding:12px; margin:8px 0; border-radius:8px; border:1px solid #ddd; box-sizing: border-box; }
+        .button { background: var(--gold); border:none; padding:15px; border-radius:8px; width:100%; font-weight:bold; cursor:pointer; color: white; }
+        .agency-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .status { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .status.active { background: #dcfce7; color: #166534; }
+        .status.inactive { background: #fee2e2; color: #991b1b; }
+        .btn-toggle { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    </style>
 </head>
 <body>
 
 <div class="header">
-  <button class="back" onclick="goBack()">⬅</button>
-  Super Admin
+    <button class="back" onclick="goBack()">⬅</button>
+    <h1>Control Central Super Admin</h1>
 </div>
 
 <div class="container">
+    <div class="card" style="display: flex; justify-content: space-around; text-align: center;">
+        <div><small>AGENCIAS</small><div id="totalAgencias" style="font-size: 24px; font-weight: bold;">0</div></div>
+        <div><small>USUARIOS TOTALES</small><div id="totalUsuarios" style="font-size: 24px; font-weight: bold;">0</div></div>
+    </div>
 
-  <!-- MÉTRICAS -->
-  <div class="card">
-    <div class="metric" id="totalAgencias">Agencias: 0</div>
-    <div class="metric" id="totalUsuarios">Usuarios: 0</div>
-  </div>
+    <div class="card">
+        <h3>➕ Registrar Nueva Agencia</h3>
+        <input id="nameAgencia" placeholder="Nombre de la empresa/agencia">
+        <input id="emailAgencia" placeholder="Correo administrativo">
+        <button class="button" onclick="crearAgencia()">CREAR AGENCIA</button>
+    </div>
 
-  <!-- CREAR AGENCIA -->
-  <div class="card">
-    <h3>Crear Agencia</h3>
-    <input id="nombreAgencia" placeholder="Nombre de la agencia">
-    <input id="emailAgencia" placeholder="Correo de la agencia">
-    <button class="button" onclick="crearAgencia()">➕ Crear Agencia</button>
-  </div>
-
-  <!-- LISTA DE AGENCIAS -->
-  <div id="listaAgencias"></div>
-
+    <div class="card">
+        <h3>🏢 Agencias Registradas</h3>
+        <div id="listaAgencias">Cargando agencias...</div>
+    </div>
 </div>
 
 <script>
-// 🔙 Regresar
-function goBack(){ window.location.href = "./dashboard.html"; }
-
-// 🔐 Validar acceso
+const BACKEND_URL = "https://storepulse.onrender.com";
 const role = localStorage.getItem("role");
-if(role !== "admin"){
-  alert("⚠️ Acceso restringido");
-  window.location.href = "./dashboard.html";
+
+// Verificación de seguridad
+if(role !== "superadmin"){
+    alert("Acceso Denegado");
+    window.location.href = "../login.html";
 }
 
-// 🔹 URL Backend
-function getBackendUrl(){
-  return (window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1")?
-    "http://192.168.1.10:3000":"https://https://storepulse.onrender.com";
+function goBack(){ window.location.href = "../dashboard.html"; }
+
+async function loadData(){
+    try {
+        // Cargar Agencias
+        const resA = await fetch(`${BACKEND_URL}/agencies`);
+        const agencias = await resA.json();
+        
+        document.getElementById("totalAgencias").innerText = agencias.length;
+        const contenedor = document.getElementById("listaAgencias");
+        contenedor.innerHTML = agencias.map(a => `
+            <div class="agency-item">
+                <div>
+                    <strong>${a.name}</strong><br>
+                    <small>${a.email}</small>
+                </div>
+                <div>
+                    <span class="status ${a.active ? 'active' : 'inactive'}">${a.active ? 'ACTIVA' : 'INACTIVA'}</span>
+                    <button class="btn-toggle" onclick="toggleAgencia('${a._id}', ${a.active})">
+                        ${a.active ? 'Suspender' : 'Activar'}
+                    </button>
+                </div>
+            </div>
+        `).join("");
+
+        // Cargar Conteo de Usuarios
+        const resU = await fetch(`${BACKEND_URL}/users/count`);
+        const dataU = await resU.json();
+        document.getElementById("totalUsuarios").innerText = dataU.count || 0;
+
+    } catch(err) {
+        console.error(err);
+    }
 }
 
-// 📊 Cargar agencias y métricas
-async function loadAgencias(){
-  try{
-    const res = await fetch(`${getBackendUrl()}/agencies`);
-    const agencias = await res.json();
-
-    // Mostrar lista
-    const contenedor = document.getElementById("listaAgencias");
-    contenedor.innerHTML = "";
-    agencias.forEach(a => {
-      contenedor.innerHTML += `
-        <div class="card">
-          <b>${a.name}</b><br>
-          ${a.email}<br>
-          Estado: ${a.active ? "🟢 Activa" : "🔴 Inactiva"}
-          <div class="actions">
-            <button class="btn-small ${a.active ? 'deactivate':'activate'}"
-              onclick="toggleEstado('${a._id}', ${a.active})">
-              ${a.active ? 'Desactivar':'Activar'}
-            </button>
-          </div>
-        </div>
-      `;
-    });
-
-    // Métricas
-    document.getElementById("totalAgencias").innerText = "Agencias: " + agencias.length;
-
-    // Traer total de usuarios
-    const resUsers = await fetch(`${getBackendUrl()}/users/count`);
-    const totalUsers = await resUsers.json();
-    document.getElementById("totalUsuarios").innerText = "Usuarios: " + totalUsers.count;
-
-  }catch(err){
-    console.error(err);
-    alert("⚠️ Error cargando agencias");
-  }
-}
-
-// 📊 Crear agencia
 async function crearAgencia(){
-  const nombre = document.getElementById("nombreAgencia").value.trim();
-  const email = document.getElementById("emailAgencia").value.trim();
-  if(!nombre || !email){ alert("⚠️ Completa todos los campos"); return; }
-
-  try{
-    const res = await fetch(`${getBackendUrl()}/agencies`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ name:nombre, email })
+    const name = document.getElementById("nameAgencia").value;
+    const email = document.getElementById("emailAgencia").value;
+    
+    const res = await fetch(`${BACKEND_URL}/agencies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email })
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error||"Error creando agencia");
-    alert("✅ Agencia creada");
-    document.getElementById("nombreAgencia").value = "";
-    document.getElementById("emailAgencia").value = "";
-    loadAgencias();
-  }catch(err){
-    alert(err.message);
-  }
+
+    if(res.ok){
+        alert("Agencia creada correctamente ✅");
+        location.reload();
+    } else {
+        alert("Error al crear agencia");
+    }
 }
 
-// 🔄 Activar / Desactivar
-async function toggleEstado(id, active){
-  try{
-    const res = await fetch(`${getBackendUrl()}/agencies/${id}`, {
-      method:"PATCH",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ active: !active })
+async function toggleAgencia(id, currentStatus){
+    await fetch(`${BACKEND_URL}/agencies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !currentStatus })
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || "Error actualizando estado");
-    loadAgencias();
-  }catch(err){
-    alert(err.message);
-  }
+    loadData();
 }
 
-// Inicial
-loadAgencias();
-
+window.onload = loadData;
 </script>
-
 </body>
 </html>

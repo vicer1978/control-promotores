@@ -1,348 +1,200 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Admin PRO - StorePulse</title>
-
-<style>
-body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
-
-.sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; display:flex; flex-direction:column; }
-
-.sidebar button { margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; }
-
-.main { flex:1; padding:20px; }
-
-.card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; }
-
-.store-list { display:flex; gap:10px; }
-
-.store-column { flex:1; min-height:120px; background:#16a34a; padding:10px; border-radius:8px; color:white; }
-
-.store-column.assigned { background:#3b82f6; }
-
-.store-item { background:#fcd34d; color:black; margin:5px 0; padding:5px; border-radius:6px; cursor:grab; }
-</style>
-
+    <meta charset="UTF-8">
+    <title>Admin PRO - StorePulse</title>
+    <style>
+        body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background:#F5F7FA; height: 100vh; }
+        .sidebar { width:240px; background:#0B1F3A; color:white; padding:20px; display:flex; flex-direction:column; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; }
+        .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; transition: 0.3s; }
+        .sidebar button:hover { background: #1e293b; }
+        .sidebar button.active { background: #D4AF37; color: #0B1F3A; font-weight: bold; }
+        .main { flex:1; padding:20px; overflow-y: auto; }
+        .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .store-list { display:flex; gap:10px; margin-top: 15px; }
+        .store-column { flex:1; min-height:150px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
+        .store-column.assigned { background:#e0f2fe; border-color: #7dd3fc; }
+        .store-item { background:white; color:#1e293b; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; font-size: 0.85rem; }
+        input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        .btn-action { background: #0B1F3A; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-danger { background: #e11d48 !important; }
+    </style>
 </head>
-
 <body>
 
 <div class="sidebar">
-
-  <h2>⚡ Admin PRO</h2>
-
-  <button onclick="loadDashboard()">Dashboard</button>
-  <button onclick="loadReports()">Reportes</button>
-  <button onclick="loadUsers()">Usuarios</button>
-
-  <!-- 🔥 NUEVO -->
-  <button onclick="loadCreateUser()">Crear Usuario</button>
-
-  <button onclick="loadAgencies()">Agencias</button>
-  <button onclick="loadStores()">Tiendas</button>
-
-  <button onclick="logout()">Salir</button>
-
+    <h2>⚡ Admin Agency</h2>
+    <button onclick="loadDashboard()" id="btn-dash">Dashboard</button>
+    <button onclick="loadReports()">Reportes</button>
+    <button onclick="loadUsers()">Gestión de Usuarios</button>
+    <button onclick="loadCreateUser()">Crear Nuevo Usuario</button>
+    <button onclick="loadStores()">Catálogo de Tiendas</button>
+    <div style="flex:1"></div>
+    <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
 
 <div class="main">
-  <!-- 🔥 INFO USUARIO -->
-  <div id="userInfo" style="margin-bottom:10px;font-weight:bold;"></div>
-
-  <div id="content"></div>
+    <div id="userInfo" style="margin-bottom:20px; color: #64748b; font-size: 0.9rem;"></div>
+    <div id="content"></div>
 </div>
 
 <script>
-
 const BACKEND_URL = "https://storepulse.onrender.com";
-
 const userId = localStorage.getItem("userId");
-const role = localStorage.getItem("role");
 const agencyId = localStorage.getItem("agencyId");
 
 let draggedStore = null;
 let allStores = [];
-let allAgencies = [];
 
-// ================= API
 async function fetchAPI(url, options={}){
-  options.headers = { ...(options.headers||{}), userId };
-  const res = await fetch(url, options);
-  return res.json();
+    options.headers = { ...(options.headers||{}), "userId": userId };
+    const res = await fetch(url, options);
+    return res.json();
 }
 
-// ================= USER INFO 🔥
 async function loadUserInfo(){
-
-  let text = `👤 ${localStorage.getItem("name") || ""}`;
-
-  if(agencyId){
-    try{
-      const agencies = await fetchAPI(`${BACKEND_URL}/agencies`);
-      const agency = agencies.find(a=>a._id === agencyId);
-
-      if(agency){
-        text += ` | 🏢 ${agency.name}`;
-      }
-    }catch(e){}
-  }
-
-  document.getElementById("userInfo").innerText = text;
+    let text = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
+    if(agencyId){
+        try {
+            const res = await fetch(`${BACKEND_URL}/agencies`);
+            const agencies = await res.json();
+            const agency = agencies.find(a => a._id === agencyId);
+            if(agency) text += ` | 🏢 Agencia: ${agency.name}`;
+        } catch(e) {}
+    }
+    document.getElementById("userInfo").innerText = text;
 }
 
-loadUserInfo();
-
-// ================= DASHBOARD
 function loadDashboard(){
-  document.getElementById("content").innerHTML = "<h2>Dashboard</h2>";
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>Bienvenido al Panel de Control</h2>
+            <p>Selecciona una opción del menú lateral para comenzar a gestionar tu operación.</p>
+        </div>`;
 }
 
-// ================= USERS
 async function loadUsers(){
+    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+    
+    let html = `<h2>Gestión de Usuarios</h2>`;
+    users.forEach(u => {
+        const assigned = (u.stores||[]).map(s => s._id || s);
+        const available = allStores.filter(s => !assigned.includes(s._id));
 
-  const users = await fetchAPI(`${BACKEND_URL}/users`);
-  allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-  allAgencies = await fetchAPI(`${BACKEND_URL}/agencies`);
-
-  let html = `<div class="card"><h2>Usuarios</h2>`;
-
-  users.forEach(u=>{
-
-    const assigned = (u.stores||[]).map(s=>s._id || s);
-    const available = allStores.filter(s=>!assigned.includes(s._id));
-
-    html += `
-    <div class="card">
-
-      <b>${u.name}</b> (${u.email})
-
-      <br><br>
-
-      <select onchange="changeRole('${u._id}', this.value)">
-        <option value="promotor" ${u.role==="promotor"?"selected":""}>Promotor</option>
-        <option value="demostradora" ${u.role==="demostradora"?"selected":""}>Demostradora</option>
-        <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
-      </select>
-
-      ${role==="superadmin" ? `
-      <select onchange="changeAgency('${u._id}', this.value)">
-        ${allAgencies.map(a=>`
-          <option value="${a._id}" ${(u.agencyId?._id||u.agencyId)===a._id?"selected":""}>
-            ${a.name}
-          </option>
-        `).join("")}
-      </select>
-      `:""}
-
-      <button onclick="deleteUser('${u._id}')" style="background:red;">Eliminar</button>
-
-      <div class="store-list">
-
-        <div class="store-column"
-          ondrop="dropStore(event,'${u._id}','available')"
-          ondragover="allowDrop(event)">
-
-          <b>Disponibles</b>
-
-          ${available.map(s=>`
-            <div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">
-              ${s.name}
-            </div>`).join("")}
-
-        </div>
-
-        <div class="store-column assigned"
-          ondrop="dropStore(event,'${u._id}','assigned')"
-          ondragover="allowDrop(event)">
-
-          <b>Asignadas</b>
-
-          ${assigned.map(id=>{
-            const s = allStores.find(x=>x._id===id);
-            return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : "";
-          }).join("")}
-
-        </div>
-
-      </div>
-
-    </div>`;
-  });
-
-  html += "</div>";
-  document.getElementById("content").innerHTML = html;
+        html += `
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <strong>${u.name}</strong> (${u.email})<br>
+                    <small>Rol: ${u.role}</small>
+                </div>
+                <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Eliminar</button>
+            </div>
+            
+            <div class="store-list">
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
+                    <small><b>Disponibles</b></small>
+                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join("")}
+                </div>
+                <div class="store-column assigned" ondrop="dropStore(event,'${u._id}','assigned')" ondragover="allowDrop(event)">
+                    <small><b>Asignadas</b></small>
+                    ${assigned.map(id => {
+                        const s = allStores.find(x => x._id === id);
+                        return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : "";
+                    }).join("")}
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById("content").innerHTML = html;
 }
 
-// ================= DRAG
-function dragStart(id){
-  draggedStore = id;
+function dragStart(id){ draggedStore = id; }
+function allowDrop(e){ e.preventDefault(); }
+
+async function dropStore(e, targetUserId, type){
+    e.preventDefault();
+    const user = await fetchAPI(`${BACKEND_URL}/users/${targetUserId}`);
+    let stores = (user.stores||[]).map(s => s._id||s);
+
+    if(type === "assigned"){
+        if(!stores.includes(draggedStore)) stores.push(draggedStore);
+    } else {
+        stores = stores.filter(s => s !== draggedStore);
+    }
+
+    await fetchAPI(`${BACKEND_URL}/users/${targetUserId}/stores`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stores })
+    });
+    loadUsers();
 }
 
-function allowDrop(e){
-  e.preventDefault();
-}
-
-async function dropStore(e, userId, type){
-  e.preventDefault();
-
-  const user = await fetchAPI(`${BACKEND_URL}/users/${userId}`);
-  let stores = (user.stores||[]).map(s=>s._id||s);
-
-  if(type==="assigned"){
-    if(!stores.includes(draggedStore)) stores.push(draggedStore);
-  }else{
-    stores = stores.filter(s=>s!==draggedStore);
-  }
-
-  await fetchAPI(`${BACKEND_URL}/users/${userId}/stores`,{
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ stores })
-  });
-
-  loadUsers();
-}
-
-// ================= CREATE USER 🔥
 async function loadCreateUser(){
-
-  document.getElementById("content").innerHTML = `
-    <div class="card">
-      <h2>Crear Usuario</h2>
-
-      <input id="name" placeholder="Nombre">
-      <input id="email" placeholder="Email">
-      <input id="pass" placeholder="Password">
-
-      <select id="roleUser">
-        <option value="promotor">Promotor</option>
-        <option value="demostradora">Demostradora</option>
-        <option value="admin">Admin</option>
-      </select>
-
-      <button onclick="createUser()">Crear</button>
-    </div>
-  `;
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>Crear Nuevo Usuario</h2>
+            <input id="new_name" placeholder="Nombre completo">
+            <input id="new_email" placeholder="Correo electrónico">
+            <input id="new_pass" type="password" placeholder="Contraseña">
+            <select id="new_role">
+                <option value="promotor">Promotor</option>
+                <option value="demostradora">Demostradora</option>
+                <option value="admin">Administrador de Agencia</option>
+            </select>
+            <button class="btn-action" onclick="createUser()">Registrar Usuario</button>
+        </div>`;
 }
 
 async function createUser(){
+    const name = document.getElementById("new_name").value;
+    const email = document.getElementById("new_email").value;
+    const password = document.getElementById("new_pass").value;
+    const role = document.getElementById("new_role").value;
 
-  await fetchAPI(`${BACKEND_URL}/admin/create-user`,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      name:document.getElementById("name").value,
-      email:document.getElementById("email").value,
-      password:document.getElementById("pass").value,
-      role:document.getElementById("roleUser").value,
-      agencyId
-    })
-  });
-
-  alert("Usuario creado ✅");
+    await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password, role, agencyId })
+    });
+    alert("Usuario creado exitosamente ✅");
+    loadUsers();
 }
 
-// ================= ROLE
-async function changeRole(uid, role){
-  await fetchAPI(`${BACKEND_URL}/users/${uid}/role`,{
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ role })
-  });
-}
-
-// ================= AGENCY
-async function changeAgency(uid, agencyId){
-  await fetchAPI(`${BACKEND_URL}/users/${uid}/agency`,{
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ agencyId })
-  });
-}
-
-// ================= DELETE
-async function deleteUser(uid){
-  if(!confirm("Eliminar usuario?")) return;
-
-  await fetchAPI(`${BACKEND_URL}/users/${uid}`,{
-    method:"DELETE"
-  });
-
-  loadUsers();
-}
-
-// ================= STORES
-async function loadStores(){
-
-  const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-
-  document.getElementById("content").innerHTML = `
-    <div class="card">
-      <input id="name" placeholder="Nombre">
-      <input id="addr" placeholder="Dirección">
-      <input id="lat" placeholder="Lat">
-      <input id="lng" placeholder="Lng">
-      <button onclick="createStore()">Crear</button>
-    </div>
-
-    <div class="card">
-      ${stores.map(s=>`<div>${s.name} - ${s.address||""}</div>`).join("")}
-    </div>
-  `;
-}
-
-async function createStore(){
-
-  await fetchAPI(`${BACKEND_URL}/stores`,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      name:document.getElementById("name").value,
-      address:document.getElementById("addr").value,
-      lat:document.getElementById("lat").value,
-      lng:document.getElementById("lng").value
-    })
-  });
-
-  loadStores();
-}
-
-// ================= REPORTES 🔥 FIX
 async function loadReports(){
+    const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+    if(!reports.length){
+        document.getElementById("content").innerHTML = "<h3>No hay reportes registrados aún.</h3>";
+        return;
+    }
 
-  if(!agencyId){
-    return alert("⚠️ Sin agencia");
-  }
-
-  const reports = await fetchAPI(`${BACKEND_URL}/reports/${agencyId}`);
-
-  if(!reports.length){
-    document.getElementById("content").innerHTML = "<h3>No hay reportes</h3>";
-    return;
-  }
-
-  document.getElementById("content").innerHTML =
-    `<div class="card"><h2>Reportes</h2>` +
-    reports.map(r=>`
-      <div style="margin-bottom:10px;">
-        👤 ${r.userId?.name || "Usuario"}<br>
-        🏪 ${r.storeId?.name || "Tienda"}<br>
-        📦 ${r.data?.producto || "-"}<br>
-        💰 $${r.data?.precio || 0}<br>
-        📅 ${new Date(r.date).toLocaleString()}
-      </div>
-    `).join("") +
-    `</div>`;
+    document.getElementById("content").innerHTML = `
+        <h2>Reportes Recientes</h2>
+        ${reports.map(r => `
+            <div class="card">
+                <div style="display:flex; justify-content:space-between">
+                    <span><b>${r.userId?.name || 'Usuario'}</b> en <b>${r.storeId?.name || 'Tienda'}</b></span>
+                    <small>${new Date(r.date).toLocaleString()}</small>
+                </div>
+                <hr style="border:0; border-top:1px solid #eee; margin:10px 0">
+                <p>Tipo: ${r.type} | Articulo: ${r.data?.articulo || 'N/A'}</p>
+                ${r.data?.foto_url ? `<button onclick="window.open('${BACKEND_URL}/uploads/${r.data.foto_url}')">Ver Evidencia 📸</button>` : ''}
+            </div>
+        `).join("")}`;
 }
 
-// ================= LOGOUT
 function logout(){
-  localStorage.clear();
-  window.location.href="./login.html";
+    localStorage.clear();
+    window.location.href = "../login.html";
 }
 
+window.onload = () => {
+    loadUserInfo();
+    loadDashboard();
+};
 </script>
-
 </body>
 </html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Administrativo - Reportes</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h2 { color: #0B1F3A; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #0B1F3A; color: white; text-transform: uppercase; font-size: 12px; }
+        tr:hover { background-color: #f1f1f1; }
+        .badge { padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+        .type-promo { background: #e3f2fd; color: #1976d2; }
+        .type-demo { background: #f3e5f5; color: #7b1fa2; }
+        .btn-excel { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .img-preview { width: 50px; height: 50px; border-radius: 4px; cursor: pointer; object-fit: cover; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h2>📊 Reportes de Campo</h2>
+        <button class="btn-excel" onclick="exportToExcel()">📥 Exportar Excel</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Colaborador</th>
+                <th>Tienda</th>
+                <th>Tipo</th>
+                <th>Detalles</th>
+                <th>Foto</th>
+            </tr>
+        </thead>
+        <tbody id="reportsTableBody">
+            </tbody>
+    </table>
+
+    <script>
+        const BACKEND_URL = "https://storepulse.onrender.com";
+        const agencyId = localStorage.getItem("agencyId");
+        const userId = localStorage.getItem("userId");
+
+        async function loadReports() {
+            try {
+                const res = await fetch(`${BACKEND_URL}/reports/agency/${agencyId}`, {
+                    headers: { "userId": userId }
+                });
+                const reports = await res.json();
+                const tableBody = document.getElementById("reportsTableBody");
+
+                tableBody.innerHTML = reports.map(r => {
+                    const date = new Date(r.date).toLocaleString();
+                    const details = formatDetails(r.type, r.data);
+                    const photo = r.data.foto_url 
+                        ? `<img src="${BACKEND_URL}/uploads/${r.data.foto_url}" class="img-preview" onclick="window.open(this.src)">` 
+                        : "No foto";
+
+                    return `
+                        <tr>
+                            <td>${date}</td>
+                            <td><strong>${r.userId?.name || 'N/A'}</strong><br><small>${r.role}</small></td>
+                            <td>${r.storeId?.name || 'N/A'}</td>
+                            <td><span class="badge ${r.role === 'promotor' ? 'type-promo' : 'type-demo'}">${r.type}</span></td>
+                            <td>${details}</td>
+                            <td>${photo}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error("Error al cargar reportes", err);
+            }
+        }
+
+        function formatDetails(type, data) {
+            let html = `<strong>${data.articulo || ''}</strong><br>`;
+            if (data.cantidad) html += `Cant: ${data.cantidad} | `;
+            if (data.precio) html += `Precio: $${data.precio} | `;
+            if (data.inv_inicial) html += `<br>Inv: ${data.inv_inicial} -> ${data.inv_final}`;
+            if (data.comentarios) html += `<br><small><i>${data.comentarios}</i></small>`;
+            return html;
+        }
+
+        function exportToExcel() {
+            // Aquí llamaríamos a una librería como SheetJS o enviaríamos al backend para generar el .xlsx
+            alert("Generando archivo Excel... (Función en desarrollo)");
+        }
+
+        window.onload = loadReports;
+    </script>
+</body>
+</html>

@@ -39,7 +39,9 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// --- Middleware de Autenticación ---
+// --- Middlewares de Autenticación ---
+
+// Auth General
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
@@ -49,6 +51,20 @@ async function auth(req, res, next) {
         req.user = user;
         next();
     } catch (err) { res.status(500).json({ error: "Error de autenticación" }); }
+}
+
+// Auth Exclusiva Super Admin
+async function authSuper(req, res, next) {
+    try {
+        const userId = req.headers.userid || req.headers.userId;
+        if (!userId) return res.status(401).json({ error: "No autorizado" });
+        const user = await User.findById(userId);
+        if (!user || user.role !== 'super-admin') {
+            return res.status(403).json({ error: "Acceso denegado: Se requiere Super Admin" });
+        }
+        req.user = user;
+        next();
+    } catch (err) { res.status(500).json({ error: "Error de autenticación Super" }); }
 }
 
 // --- RUTAS DE LOGIN ---
@@ -64,9 +80,72 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- RUTAS DE USUARIOS (ADMIN) ---
+// --- RUTAS DE SUPER ADMIN (GESTIÓN GLOBAL) ---
 
-// Obtener usuarios filtrados por agencia
+// Agencias
+app.get("/super/agencies", authSuper, async (req, res) => {
+    try {
+        const agencies = await Agency.find().sort({ name: 1 });
+        res.json(agencies);
+    } catch (err) { res.status(500).json({ error: "Error al obtener agencias" }); }
+});
+
+app.post("/super/agencies", authSuper, async (req, res) => {
+    try {
+        const agency = new Agency({ ...req.body, isActive: true });
+        await agency.save();
+        res.json({ message: "Agencia creada" });
+    } catch (err) { res.status(500).json({ error: "Error al crear agencia" }); }
+});
+
+app.put("/super/agencies/:id/status", authSuper, async (req, res) => {
+    try {
+        await Agency.findByIdAndUpdate(req.params.id, { isActive: req.body.isActive });
+        res.json({ message: "Estado actualizado" });
+    } catch (err) { res.status(500).json({ error: "Error al actualizar estado" }); }
+});
+
+app.delete("/super/agencies/:id", authSuper, async (req, res) => {
+    try {
+        await Agency.findByIdAndDelete(req.params.id);
+        await User.updateMany({ agencyId: req.params.id }, { agencyId: null });
+        res.json({ message: "Agencia eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
+});
+
+// Usuarios Globales
+app.get("/super/users", authSuper, async (req, res) => {
+    try {
+        const users = await User.find().populate('agencyId', 'name');
+        res.json(users);
+    } catch (err) { res.status(500).json({ error: "Error al obtener usuarios globales" }); }
+});
+
+app.post("/super/users", authSuper, async (req, res) => {
+    try {
+        const user = new User(req.body);
+        await user.save();
+        res.json({ message: "Usuario global creado" });
+    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
+});
+
+app.put("/super/users/:userId/assign", authSuper, async (req, res) => {
+    try {
+        const { agencyId } = req.body;
+        await User.findByIdAndUpdate(req.params.userId, { agencyId: agencyId || null });
+        res.json({ message: "Agencia asignada correctamente" });
+    } catch (err) { res.status(500).json({ error: "Error al asignar agencia" }); }
+});
+
+app.delete("/super/users/:id", authSuper, async (req, res) => {
+    try {
+        if (req.params.id === req.user._id.toString()) return res.status(400).json({ error: "No puedes borrarte a ti mismo" });
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: "Usuario eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar usuario" }); }
+});
+
+// --- RUTAS DE USUARIOS (ADMIN DE AGENCIA) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -75,28 +154,23 @@ app.get("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener usuarios" }); }
 });
 
-// Crear Usuario
 app.post("/admin/create-user", auth, async (req, res) => {
     try {
-        const newUser = new User(req.body);
+        const newUser = new User({ ...req.body, agencyId: req.user.agencyId });
         await newUser.save();
         res.json({ message: "Usuario creado" });
     } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
-} );
+});
 
-// NUEVA: Actualizar Rol de Usuario
 app.put("/users/:userId/role", auth, async (req, res) => {
     try {
-        const { role } = req.body;
-        await User.findByIdAndUpdate(req.params.userId, { role });
+        await User.findByIdAndUpdate(req.params.userId, { role: req.body.role });
         res.json({ message: "Rol actualizado" });
     } catch (err) { res.status(500).json({ error: "Error al actualizar rol" }); }
 });
 
-// Asignar/Quitar tiendas (Drag & Drop)
 app.put("/users/:userId/stores", auth, async (req, res) => {
     try {
-        // Recibe el array 'stores' actualizado desde el front
         await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
         res.json({ message: "Ruta actualizada" });
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
@@ -166,10 +240,15 @@ app.get("/agencies", async (req, res) => {
 });
 
 // --- Manejo de Rutas Frontend (SPA) ---
+app.get("/admin/super", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "super-admin.html"));
+});
+
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "admin.html"));
 });
 
+// Comodín para SPA (regex para evitar conflictos con rutas API)
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

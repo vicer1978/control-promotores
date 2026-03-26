@@ -170,7 +170,7 @@ app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "admin.html"));
 });
 
-app.get("/*", (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 

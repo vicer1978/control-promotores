@@ -66,16 +66,14 @@
     </div>
 
     <script>
-        // Cambia esto a tu URL de Render cuando hagas deploy
         const BACKEND_URL = "https://storepulse.onrender.com";
 
         async function login() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
             const msg = document.getElementById('msg');
             const btn = document.getElementById('btnEntrar');
 
-            // Feedback visual
             msg.innerText = "";
             btn.disabled = true;
             btn.innerText = "Verificando...";
@@ -90,26 +88,28 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    // 1. Limpiar cualquier sesión previa
+                    // 1. Limpiar sesión previa para evitar conflictos
                     localStorage.clear();
 
-                    // 2. Guardar nuevos datos de sesión
+                    // 2. Guardar nuevos datos (Asegurando coincidencia de nombres con super-admin.html)
                     localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('role', data.role);
+                    localStorage.setItem('userRole', data.role); // <-- CAMBIADO DE 'role' A 'userRole'
                     localStorage.setItem('name', data.name);
                     
-                    // IMPORTANTE: Guardamos el agencyId si existe (para filtrar tiendas después)
                     if (data.agencyId) {
                         localStorage.setItem('activeAgencyId', data.agencyId);
                     }
 
-                    // 3. Redirección basada en ROL EXACTO del servidor
-                    if (data.role === 'super-admin') {
+                    console.log("Sesión guardada:", { id: data.userId, role: data.role });
+
+                    // 3. Redirección (Normalizamos a minúsculas para mayor seguridad)
+                    const role = data.role.toLowerCase().trim();
+                    
+                    if (role === 'super-admin') {
                         window.location.href = 'Admin/super-admin.html';
-                    } else if (data.role === 'admin') {
+                    } else if (role === 'admin') {
                         window.location.href = 'Admin/admin.html';
                     } else {
-                        // Demostradora / Promotor
                         window.location.href = 'dashboard.html';
                     }
                 } else {
@@ -117,7 +117,7 @@
                 }
             } catch (err) {
                 msg.innerText = "Error de conexión con el servidor";
-                console.error(err);
+                console.error("Error en login:", err);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "ENTRAR";

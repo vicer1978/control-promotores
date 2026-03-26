@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Admin - StorePulse</title>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #22c55e; }
@@ -53,7 +54,6 @@
         .badge-inactive { background: var(--danger); }
         .badge-role { background: #64748b; }
         .badge-role.super { background: var(--primary); }
-
     </style>
 </head>
 <body>
@@ -77,7 +77,6 @@
             <div class="stat-card"><big id="stat-users">...</big><small>Usuarios</small></div>
         </div>
     </div>
-    
     <div id="content"></div>
 </div>
 
@@ -85,26 +84,42 @@
 // --- CONFIGURACIÓN ---
 const BACKEND_URL = "https://storepulse.onrender.com";
 const userId = localStorage.getItem("userId");
-const userRole = localStorage.getItem("userRole");
+const userRoleRaw = localStorage.getItem("userRole");
+
+// --- VALIDACIÓN DE SEGURIDAD MEJORADA ---
+// Normalizamos el rol a minúsculas para evitar errores de escritura en la DB
+const userRole = userRoleRaw ? userRoleRaw.toLowerCase().trim() : "";
+
+if (!userId || userRole !== 'super-admin') {
+    console.error("Acceso denegado. Rol detectado:", userRole);
+    alert("Acceso no autorizado. Por favor inicia sesión como Super Admin.");
+    localStorage.clear();
+    window.location.href = "../login.html";
+}
 
 // Listas globales para mapeo rápido
 let agenciesList = [];
 let usersList = [];
 
-// --- VALIDACIÓN DE SEGURIDAD ---
-if (!userId || userRole !== 'super-admin') {
-    alert("Acceso no autorizado");
-    window.location.href = "../login.html";
-}
-
 // --- HELPER FETCH (Con Auth Header) ---
 async function fetchAPI(url, options = {}) {
-    options.headers = { ...(options.headers || {}), "userId": userId };
+    options.headers = { 
+        ...(options.headers || {}), 
+        "userId": userId,
+        "Content-Type": "application/json"
+    };
+    
     const res = await fetch(url, options);
+    const contentType = res.headers.get("content-type");
+    
     if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Error en la petición");
+        if (contentType && contentType.includes("application/json")) {
+            const err = await res.json();
+            throw new Error(err.error || err.message || "Error en la petición");
+        }
+        throw new Error(`Error del servidor (${res.status})`);
     }
+    
     return res.json();
 }
 
@@ -117,15 +132,17 @@ function changeTab(btn, callback) {
 
 // --- ACTUALIZAR STATS ---
 async function updateStats() {
-    agenciesList = await fetchAPI(`${BACKEND_URL}/super/agencies`);
-    usersList = await fetchAPI(`${BACKEND_URL}/super/users`);
-    document.getElementById("stat-agencies").innerText = agenciesList.length;
-    document.getElementById("stat-users").innerText = usersList.length;
+    try {
+        agenciesList = await fetchAPI(`${BACKEND_URL}/super/agencies`);
+        usersList = await fetchAPI(`${BACKEND_URL}/super/users`);
+        document.getElementById("stat-agencies").innerText = agenciesList.length;
+        document.getElementById("stat-users").innerText = usersList.length;
+    } catch (e) {
+        console.error("Error cargando estadísticas:", e);
+    }
 }
 
-// ==========================================
 // --- PAGINA 1: GESTIÓN DE AGENCIAS ---
-// ==========================================
 async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando agencias...</h3>";
     await updateStats();
@@ -150,7 +167,7 @@ async function loadAgenciesPage() {
         html += `
             <tr>
                 <td><b>${a.name}</b></td>
-                <td>${a.email || 'Sin email'}</td>
+                <td>${a.email || 'N/A'}</td>
                 <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'INACTIVA'}</span></td>
                 <td>
                     <div style="display:flex; gap:5px;">
@@ -168,17 +185,15 @@ async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = html;
 }
 
-// --- Funciones API Agencias ---
 async function createAgency() {
     const data = {
-        name: document.getElementById("new_age_name").value,
-        email: document.getElementById("new_age_email").value
+        name: document.getElementById("new_age_name").value.trim(),
+        email: document.getElementById("new_age_email").value.trim()
     };
-    if (!data.name) return alert("Falta el nombre");
+    if (!data.name) return alert("El nombre es obligatorio");
     try {
         await fetchAPI(`${BACKEND_URL}/super/agencies`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
         loadAgenciesPage();
@@ -189,31 +204,28 @@ async function toggleAgencyStatus(id, newStatus) {
     try {
         await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ isActive: newStatus })
         });
         loadAgenciesPage();
-    } catch(e) { alert("Error"); }
+    } catch(e) { alert("Error al cambiar estado"); }
 }
 
 async function deleteAgency(id) {
-    if(!confirm("¿Eliminar agencia? Se borrarán sus usuarios y reportes. Esta acción es irreversible.")) return;
+    if(!confirm("¿Eliminar agencia? Los usuarios vinculados quedarán sin agencia asignada.")) return;
     try {
         await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, { method: "DELETE" });
         loadAgenciesPage();
-    } catch(e) { alert("Error"); }
+    } catch(e) { alert("Error al eliminar"); }
 }
 
-// ==========================================
 // --- PAGINA 2: USUARIOS GLOBALES ---
-// ==========================================
 async function loadUsersPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando usuarios globales...</h3>";
-    await updateStats(); // Carga agencias también
+    await updateStats();
 
     let html = `
         <div class="card">
-            <h3>👥 Registrar Usuario Global (Cualquier Rol)</h3>
+            <h3>👥 Registrar Usuario Global</h3>
             <div class="form-grid">
                 <div><label>Nombre Completo</label><input id="new_usr_name"></div>
                 <div><label>Email (Login)</label><input id="new_usr_email" type="email"></div>
@@ -228,7 +240,7 @@ async function loadUsersPage() {
                     </select>
                 </div>
             </div>
-            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR USUARIO GLOBAL</button>
+            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR USUARIO</button>
         </div>
         <div class="card">
             <h3>Todos los Usuarios del Sistema</h3>
@@ -238,22 +250,22 @@ async function loadUsersPage() {
     `;
 
     usersList.forEach(u => {
-        // Generar selector de agencias
         let agencySelect = `<select onchange="assignUserToAgency('${u._id}', this.value)" style="padding:5px; font-size:0.8rem; border-color: ${u.agencyId ? '#22c55e' : '#ddd'}">
                                 <option value="">-- Sin Agencia --</option>`;
         
         agenciesList.forEach(a => {
-            const isAssigned = (u.agencyId?._id || u.agencyId) === a._id;
+            const userAgencyId = u.agencyId?._id || u.agencyId;
+            const isAssigned = userAgencyId === a._id;
             agencySelect += `<option value="${a._id}" ${isAssigned ? 'selected' : ''}>${a.name}</option>`;
         });
         agencySelect += `</select>`;
 
-        const isSuper = u.role === 'super-admin';
+        const isSuper = u.role.toLowerCase() === 'super-admin';
 
         html += `
             <tr>
                 <td><b>${u.name}</b><br><small style="color:gray">${u.email}</small></td>
-                <td><span class="badge badge-role ${isSuper ? 'super' : ''}">${u.role.replace('-',' ')}</span></td>
+                <td><span class="badge badge-role ${isSuper ? 'super' : ''}">${u.role.toUpperCase()}</span></td>
                 <td>${isSuper ? 'N/A (Global)' : agencySelect}</td>
                 <td>
                     ${u._id === userId ? '<small style="color:gray">Tú</small>' : 
@@ -266,19 +278,17 @@ async function loadUsersPage() {
     document.getElementById("content").innerHTML = html;
 }
 
-// --- Funciones API Usuarios ---
 async function createGlobalUser() {
     const data = {
-        name: document.getElementById("new_usr_name").value,
-        email: document.getElementById("new_usr_email").value,
-        password: document.getElementById("new_usr_pass").value,
+        name: document.getElementById("new_usr_name").value.trim(),
+        email: document.getElementById("new_usr_email").value.trim(),
+        password: document.getElementById("new_usr_pass").value.trim(),
         role: document.getElementById("new_usr_role").value
     };
     if(!data.name || !data.email || !data.password) return alert("Faltan datos");
     try {
         await fetchAPI(`${BACKEND_URL}/super/users`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
         loadUsersPage();
@@ -289,31 +299,26 @@ async function assignUserToAgency(usrId, ageId) {
     try {
         await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ agencyId: ageId })
         });
-        updateStats(); // Actualizar caché sin recargar todo
-        alert("Agencia asignada ✅");
-    } catch(e) { alert("Error"); loadUsersPage(); }
+        alert("Agencia actualizada ✅");
+    } catch(e) { alert("Error al asignar"); loadUsersPage(); }
 }
 
 async function deleteGlobalUser(id) {
-    if(!confirm("¿Eliminar usuario definitivamente? Perderá acceso a todas las plataformas.")) return;
+    if(!confirm("¿Eliminar usuario definitivamente?")) return;
     try {
         await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" });
         loadUsersPage();
-    } catch(e) { alert("Error"); }
+    } catch(e) { alert("Error al eliminar"); }
 }
 
-// --- SALIR ---
 function logout() {
     localStorage.clear();
     window.location.href = "../login.html";
 }
 
-// --- INICIO ---
 window.onload = loadAgenciesPage;
-
 </script>
 </body>
 </html>

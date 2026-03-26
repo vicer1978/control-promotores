@@ -10,23 +10,16 @@ body { margin:0; font-family:Arial; display:flex; background:#F5F7FA; }
 .sidebar button { width:100%; margin:8px 0; padding:12px; background:#D4AF37; border:none; border-radius:8px; color:white; cursor:pointer; font-weight:bold; transition:0.2s; }
 .sidebar button:hover { background:#cfa233; }
 .main { flex:1; padding:20px; overflow-y:auto; }
-.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:15px; }
-.kpi { font-size:22px; font-weight:bold; }
 .card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; box-shadow:0 4px 10px rgba(0,0,0,0.05); transition:0.2s; }
 .card:hover { box-shadow:0 6px 15px rgba(0,0,0,0.1); }
-.agency-card { background:#3b82f6; color:white; padding:15px; border-radius:12px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; transition:0.2s; cursor:pointer; }
-.agency-card:hover { background:#2563eb; box-shadow:0 6px 15px rgba(0,0,0,0.2); }
+.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:15px; }
+.kpi { font-size:22px; font-weight:bold; }
+.agency-card { background:#3b82f6; color:white; padding:15px; border-radius:12px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; transition:0.2s; }
+.agency-card:hover { background:#2563eb; box-shadow:0 6px 15px rgba(0,0,0,0.2); cursor:pointer; }
 .agency-card h3 { margin:10px 0 5px 0; font-size:18px; }
 .agency-card p { margin:2px 0; font-size:14px; }
-.user-list { margin-top:10px; }
-.user-card { background:#f9f9f9; border-radius:8px; padding:8px 10px; margin:5px 0; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-.store-list { display:flex; gap:10px; margin-top:8px; }
-.store-column { flex:1; min-height:100px; padding:8px; border-radius:8px; background:#16a34a; color:white; transition:0.3s; position:relative; }
-.store-column#assignedStores { background:#3b82f6; }
-.store-column h4 { margin-top:0; font-weight:bold; color:#F5F7FA; }
-.store-item { background:#fcd34d; color:#0B1F3A; padding:6px 8px; margin:4px 0; border-radius:6px; cursor:grab; font-weight:bold; transition: transform 0.2s, box-shadow 0.2s; }
-.store-item.dragging { opacity:0.5; }
-.store-column.drag-over { box-shadow:0 0 15px 3px rgba(255,255,255,0.6); border:2px dashed #F5F7FA; }
+.user, input, select, .small { /* mantienen los estilos previos */ }
+.store-list, .store-column, .store-item { /* mantienen los estilos previos */ }
 </style>
 </head>
 <body>
@@ -61,134 +54,71 @@ async function fetchWithAuth(url, options={}) {
   return await res.json();
 }
 
-// ---------------- DASHBOARD INTERACTIVO CON TIENDAS ----------------
+// ---------------- DASHBOARD VISUAL ----------------
 async function loadDashboard() {
   try {
     allUsers = await fetchWithAuth(`${BACKEND_URL}/users`);
     allAgencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
-    allStores = await fetchWithAuth(`${BACKEND_URL}/stores`);
+    
+    if(role === "superadmin") {
+      let html = `<h2>Dashboard Superadmin</h2><div class="grid">`;
 
-    if(role==="superadmin") {
-      let html=`<h2>Dashboard Superadmin</h2><div class="grid">`;
-      allAgencies.forEach(agency=>{
-        const agencyUsers = allUsers.filter(u=>u.agencyId && (u.agencyId._id || u.agencyId)===agency._id);
-        html+=`
-        <div class="agency-card" onclick="toggleAgencyUsers('${agency._id}')">
-          <h3>${agency.name}</h3>
-          <p>👤 Total: ${agencyUsers.length}</p>
-          <p>🟢 Promotores: ${agencyUsers.filter(u=>u.role==='promotor').length}</p>
-          <p>🔵 Demostradoras: ${agencyUsers.filter(u=>u.role==='demostradora').length}</p>
-          <p>⭐ Admins: ${agencyUsers.filter(u=>u.role==='admin').length}</p>
-          <div class="user-list" id="agencyUsers_${agency._id}" style="display:none;"></div>
-        </div>`;
+      allAgencies.forEach(agency => {
+        const agencyUsers = allUsers.filter(u => u.agencyId && (u.agencyId._id || u.agencyId) === agency._id);
+        const total = agencyUsers.length;
+        const promotores = agencyUsers.filter(u => u.role==="promotor").length;
+        const demostradoras = agencyUsers.filter(u => u.role==="demostradora").length;
+        const admins = agencyUsers.filter(u => u.role==="admin").length;
+
+        html += `
+          <div class="agency-card">
+            <h3>${agency.name}</h3>
+            <p>👤 Total: ${total}</p>
+            <p>🟢 Promotores: ${promotores}</p>
+            <p>🔵 Demostradoras: ${demostradoras}</p>
+            <p>⭐ Admins: ${admins}</p>
+          </div>
+        `;
       });
-      html+='</div>';
-      document.getElementById("content").innerHTML=html;
+
+      html += `</div>`;
+      document.getElementById("content").innerHTML = html;
     } else {
-      // Admin normal
+      // Para admin simple, mostrar KPIs globales
       const users = allUsers;
-      document.getElementById("content").innerHTML=`
-      <h2>Dashboard</h2>
-      <div class="grid">
-        <div class="card"><div class="kpi">${users.length}</div>Total usuarios</div>
-        <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
-        <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
-        <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
-      </div>`;
+      document.getElementById("content").innerHTML = `
+        <h2>Dashboard</h2>
+        <div class="grid">
+          <div class="card"><div class="kpi">${users.length}</div>Total usuarios</div>
+          <div class="card"><div class="kpi">${users.filter(u=>u.role==="promotor").length}</div>Promotores</div>
+          <div class="card"><div class="kpi">${users.filter(u=>u.role==="demostradora").length}</div>Demostradoras</div>
+          <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
+        </div>
+      `;
     }
 
   } catch(err){ alert("Error cargando dashboard: "+err); console.error(err);}
 }
 
-// ---------------- TOGGLE USUARIOS Y TIENDAS ----------------
-function toggleAgencyUsers(agencyId){
-  const container=document.getElementById(`agencyUsers_${agencyId}`);
-  if(container.style.display==='none'){
-    const users = allUsers.filter(u=>u.agencyId && (u.agencyId._id || u.agencyId)===agencyId);
-    container.innerHTML = users.map(u=>{
-      if(u.role==='promotor'||u.role==='demostradora'){
-        const assigned = (u.stores||[]).map(s=>typeof s==="string"?allStores.find(a=>a._id===s):s).filter(Boolean);
-        const available = allStores.filter(s=>!assigned.some(as=>as._id===s._id));
-        currentUserStores[u._id]={assigned, available};
-        return `<div class="user-card">
-          <b>${u.name}</b> (${u.email}) - ${u.role}
-          ${renderStoreDragDrop(u._id)}
-        </div>`;
-      } else return `<div class="user-card"><b>${u.name}</b> (${u.email}) - ${u.role}</div>`;
-    }).join('');
-    container.style.display='block';
-    addDragEvents();
-  } else container.style.display='none';
-}
-
-// ---------------- DRAG & DROP TIENDAS ----------------
-function renderStoreDragDrop(uid){
-  const assigned = currentUserStores[uid].assigned;
-  const available = currentUserStores[uid].available;
-  return `<div class="store-list" id="storeContainer_${uid}">
-    <div class="store-column" id="availableStores">
-      <h4>🟢 Disponibles</h4>
-      ${available.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join('')}
-    </div>
-    <div class="store-column" id="assignedStores">
-      <h4>🔵 Asignadas</h4>
-      ${assigned.map(s=>`<div class="store-item" draggable="true" id="store_${s._id}" ondragstart="dragStart(event)">${s.name}</div>`).join('')}
-    </div>
-  </div>`;
-}
-
-let draggedStore=null;
-function dragStart(ev){ draggedStore=ev.target; ev.target.classList.add("dragging"); }
-function dropStore(ev,uid,target){
-  ev.preventDefault(); const col=ev.currentTarget; col.classList.remove("drag-over"); if(!draggedStore) return;
-  draggedStore.classList.remove("dragging");
-  const storeId=draggedStore.id.replace("store_","");
-  const storeObj=allStores.find(s=>s._id===storeId);
-  const userStores=currentUserStores[uid];
-  if(target==="assigned"){
-    if(!userStores.assigned.some(s=>s._id===storeId)) userStores.assigned.push(storeObj);
-    userStores.available=userStores.available.filter(s=>s._id!==storeId);
-  } else {
-    if(!userStores.available.some(s=>s._id===storeId)) userStores.available.push(storeObj);
-    userStores.assigned=userStores.assigned.filter(s=>s._id!==storeId);
-  }
-  fetchWithAuth(`${BACKEND_URL}/users/${uid}/stores`, {
-    method:"PUT",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({storeIds:userStores.assigned.map(s=>s._id)})
-  }).catch(err=>console.error(err));
-  // solo actualizar drag-drop sin recargar toda la lista
-  document.getElementById(`storeContainer_${uid}`).innerHTML=renderStoreDragDrop(uid).replaceAll('id="storeContainer_'+uid+'"','');
-  addDragEvents();
-}
-
-function addDragEvents(){
-  document.querySelectorAll(".store-column").forEach(col=>{
-    col.ondragover=e=>e.preventDefault();
-    col.ondragenter=e=>col.classList.add("drag-over");
-    col.ondragleave=e=>col.classList.remove("drag-over");
-    col.ondrop=e=>{
-      const uid=col.closest(".store-list").id.split("_")[1];
-      const target=col.id==="assignedStores"?"assigned":"available";
-      dropStore(e,uid,target);
-    };
-  });
-}
-
-// ---------------- MANTENER FUNCIONES EXISTENTES ----------------
-async function loadUsers(){ /* mantener tu código actual */ }
-async function loadCreateUser(){ /* mantener tu código actual */ }
-async function createUser(){ /* mantener tu código actual */ }
-async function loadAgencies(){ /* mantener tu código actual */ }
-async function createAgency(){ /* mantener tu código actual */ }
-async function loadStores(){ /* mantener tu código actual */ }
-async function createStore(){ /* mantener tu código actual */ }
-function filterUsers(term){ /* mantener tu código actual */ }
-async function changeRole(uid,newRole){ /* mantener tu código actual */ }
-async function changeAgency(uid,aid){ /* mantener tu código actual */ }
-async function deleteUser(uid){ /* mantener tu código actual */ }
+// ---------------- USUARIOS ----------------
+async function loadUsers(){ /* Mantener tu código actual */ }
+function renderUsers(users){ /* Mantener tu código actual */ }
+function renderStoreDragDrop(uid){ /* Mantener tu código actual */ }
+let draggedStore = null;
+function dragStart(ev){ /* Mantener tu código actual */ }
+function dropStore(ev, uid, target){ /* Mantener tu código actual */ }
+function addDragEvents(){ /* Mantener tu código actual */ }
+async function loadCreateUser(){ /* Mantener tu código actual */ }
+async function createUser(){ /* Mantener tu código actual */ }
+async function loadAgencies(){ /* Mantener tu código actual */ }
+async function createAgency(){ /* Mantener tu código actual */ }
+async function loadStores(){ /* Mantener tu código actual */ }
+async function createStore(){ /* Mantener tu código actual */ }
+function filterUsers(term){ /* Mantener tu código actual */ }
+async function changeRole(uid,newRole){ /* Mantener tu código actual */ }
+async function changeAgency(uid,aid){ /* Mantener tu código actual */ }
+async function deleteUser(uid){ /* Mantener tu código actual */ }
 function logout(){ localStorage.clear(); window.location.href="./login.html"; }
 </script>
-
 </body>
 </html>

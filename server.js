@@ -42,26 +42,22 @@ async function auth(req, res, next) {
 // 🔹 RUTAS DE SUPER ADMIN (GESTIÓN GLOBAL)
 // =====================================================
 
-// Listar todas las agencias
 app.get("/agencies", auth, async (req, res) => {
     const agencies = await Agency.find();
     res.json(agencies);
 });
 
-// Crear Agencia
 app.post("/agencies", auth, async (req, res) => {
     const agency = new Agency(req.body);
     await agency.save();
     res.json(agency);
 });
 
-// Activar/Desactivar Agencia
 app.patch("/agencies/:id", auth, async (req, res) => {
     const agency = await Agency.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(agency);
 });
 
-// 🔥 ELIMINACIÓN EN CASCADA
 app.delete("/agencies/:id", auth, async (req, res) => {
     const agencyId = req.params.id;
     await Report.deleteMany({ agencyId });
@@ -72,26 +68,23 @@ app.delete("/agencies/:id", auth, async (req, res) => {
     res.json({ message: "Agencia y todos sus datos eliminados." });
 });
 
-// Listar todos los usuarios del sistema
 app.get("/users", auth, async (req, res) => {
     const users = await User.find().populate("agencyId", "name");
     res.json(users);
 });
 
-// Conteo global
 app.get("/users/count", auth, async (req, res) => {
     const count = await User.countDocuments();
     res.json({ count });
 });
 
-// Eliminar usuario
 app.delete("/users/:id", auth, async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: "Usuario eliminado" });
 });
 
 // =====================================================
-// 🔹 RUTAS EXISTENTES (LOGIN, REPORTS, ETC)
+// 🔹 RUTAS EXISTENTES
 // =====================================================
 
 app.post("/login", async (req, res) => {
@@ -110,6 +103,13 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     const reports = await Report.find({ agencyId: req.params.agencyId }).populate("userId", "name").populate("storeId", "name").sort({ date: -1 });
     res.json(reports);
+});
+
+// =====================================================
+// 🔹 REDIRECCIÓN AUTOMÁTICA (SOLUCIÓN ERROR 404)
+// =====================================================
+app.use((req, res) => {
+    res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
 const PORT = process.env.PORT || 3000;

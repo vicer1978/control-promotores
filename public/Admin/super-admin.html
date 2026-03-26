@@ -151,6 +151,7 @@ function filterData() {
 async function crearAgencia() {
     const name = document.getElementById("new-ag-name").value;
     const email = document.getElementById("new-ag-email").value;
+    if(!name || !email) return alert("Faltan datos");
     await api(`${BACKEND_URL}/agencies`, 'POST', { name, email });
     loadAgencies();
 }
@@ -172,7 +173,12 @@ async function eliminarUsuario(id) {
     if(confirm("¿Borrar usuario?")) { await api(`${BACKEND_URL}/users/${id}`, 'DELETE'); loadGlobalUsers(); }
 }
 
-function logout() { localStorage.clear(); window.location.href = "../login.html"; }
+function logout() { 
+    localStorage.clear(); 
+    sessionStorage.clear();
+    window.location.href = "../login.html"; 
+}
+
 window.onload = loadAgencies;
 </script>
 </body>

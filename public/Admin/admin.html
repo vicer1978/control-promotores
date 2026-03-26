@@ -31,7 +31,6 @@
         .btn-danger { background: var(--danger) !important; }
         
         .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -59,8 +58,8 @@ const agencyId = localStorage.getItem("agencyId");
 
 let draggedStore = null;
 let allStores = [];
+let cachedUsers = []; // Para optimizar el drag & drop
 
-// --- Helper: Fetch Centralizado ---
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
     const res = await fetch(url, options);
@@ -68,14 +67,12 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- Manejo de Tabs ---
 function changeTab(btn, callback) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     callback();
 }
 
-// --- Cargar Info Usuario ---
 async function loadUserInfo() {
     let text = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
     if (agencyId) {
@@ -88,23 +85,22 @@ async function loadUserInfo() {
     document.getElementById("userInfo").innerText = text;
 }
 
-// --- VISTA: Dashboard ---
 function loadDashboard() {
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>Bienvenido al Panel de Control</h2>
-            <p>Desde aquí puedes gestionar los promotores de tu agencia, supervisar los reportes en tiempo real y administrar tu catálogo de tiendas asignadas.</p>
+            <p>Desde aquí puedes gestionar los promotores de tu agencia, supervisar los reportes en tiempo real y administrar tu catálogo de tiendas.</p>
         </div>`;
 }
 
-// --- VISTA: Gestión de Usuarios (Drag & Drop) ---
+// --- GESTIÓN DE USUARIOS CON CAMBIO DE ROL ---
 async function loadUsers() {
     document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
-    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     
     let html = `<h2>Gestión de Usuarios y Rutas</h2>`;
-    users.forEach(u => {
+    cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
 
@@ -113,9 +109,16 @@ async function loadUsers() {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                 <div>
                     <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
-                    <small>${u.email} | Rol: <b>${u.role}</b></small>
+                    <small>${u.email}</small>
                 </div>
-                <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
+                        <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
+                        <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Agencia</option>
+                    </select>
+                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
+                </div>
             </div>
             
             <div class="store-list">
@@ -136,40 +139,57 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+// --- DRAG AND DROP BIDIRECCIONAL ---
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 
 async function dropStore(e, targetUserId, type) {
     e.preventDefault();
-    const user = await fetchAPI(`${BACKEND_URL}/users/${targetUserId}`);
+    const user = cachedUsers.find(u => u._id === targetUserId);
+    if(!user) return;
+
     let stores = (user.stores || []).map(s => s._id || s);
 
     if (type === "assigned") {
         if (!stores.includes(draggedStore)) stores.push(draggedStore);
     } else {
+        // Al soltar en "Disponibles", lo quitamos del array del usuario
         stores = stores.filter(s => s !== draggedStore);
     }
 
-    await fetchAPI(`${BACKEND_URL}/users/${targetUserId}/stores`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stores })
-    });
-    loadUsers();
+    try {
+        await fetchAPI(`${BACKEND_URL}/users/${targetUserId}/stores`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stores })
+        });
+        loadUsers(); 
+    } catch(err) { alert("Error al actualizar la ruta"); }
 }
 
-// --- VISTA: Crear Usuario ---
+// --- ACTUALIZAR ROL ---
+async function updateUserRole(userId, newRole) {
+    try {
+        await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role: newRole })
+        });
+        alert("Rol actualizado ✅");
+    } catch (e) {
+        alert("Error al cambiar rol");
+        loadUsers();
+    }
+}
+
+// --- RESTO DE FUNCIONES (CREAR, REPORTES, TIENDAS) ---
 function loadCreateUser() {
     document.getElementById("content").innerHTML = `
         <div class="card" style="max-width: 500px;">
             <h2>➕ Registrar Nuevo Miembro</h2>
-            <label>Nombre Completo</label>
-            <input id="new_name" placeholder="Ej. Juan Pérez">
-            <label>Correo Electrónico</label>
-            <input id="new_email" type="email" placeholder="correo@ejemplo.com">
-            <label>Contraseña Temporal</label>
-            <input id="new_pass" type="password" placeholder="Min. 6 caracteres">
-            <label>Tipo de Perfil</label>
+            <input id="new_name" placeholder="Nombre Completo">
+            <input id="new_email" type="email" placeholder="Correo electrónico">
+            <input id="new_pass" type="password" placeholder="Contraseña temporal">
             <select id="new_role">
                 <option value="promotor">Promotor (Ruta)</option>
                 <option value="demostradora">Demostradora (Fijo)</option>
@@ -187,140 +207,77 @@ async function createUser() {
         role: document.getElementById("new_role").value,
         agencyId: agencyId
     };
-
-    if(!data.name || !data.email || !data.password) return alert("Completa todos los campos");
-
-    try {
-        await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
-        });
-        alert("Usuario creado exitosamente ✅");
-        loadUsers();
-    } catch(e) { alert("Error al crear usuario"); }
+    if(!data.name || !data.email || !data.password) return alert("Faltan datos");
+    await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+    alert("Creado ✅");
+    loadUsers();
 }
 
-// --- VISTA: Reportes (Corregido) ---
 async function loadReports() {
     document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-    try {
-        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
-        if (!reports.length) {
-            document.getElementById("content").innerHTML = "<div class='card'><h3>No hay reportes hoy.</h3></div>";
-            return;
-        }
-
-        let html = `<h2>📊 Reportes Recientes</h2>`;
-        reports.reverse().forEach(r => {
-            html += `
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:start;">
-                    <div>
-                        <b style="color: var(--primary); font-size: 1.1rem;">${r.userId?.name || 'Promotor'}</b><br>
-                        <small>📍 ${r.storeId?.name || 'Tienda'}</small>
-                    </div>
-                    <div style="text-align: right;">
-                        <span style="background: var(--gold); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase;">${r.type.replace('_',' ')}</span><br>
-                        <small style="color: #94a3b8;">${new Date(r.createdAt || r.date).toLocaleString()}</small>
-                    </div>
-                </div>
-                <hr style="border:0; border-top:1px solid #eee; margin:15px 0">
-                <div style="display: grid; grid-template-columns: 1fr auto; gap: 15px;">
-                    <div>
-                        <p style="margin: 5px 0;"><b>Artículo:</b> ${r.articulo || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><b>Cantidad/Precio:</b> ${r.cantidad || r.precio || 0}</p>
-                        ${r.comentarios ? `<p style="font-style: italic; color: #64748b; margin-top: 10px; background: #f8fafc; padding: 10px; border-radius: 5px;">"${r.comentarios}"</p>` : ''}
-                    </div>
-                    ${r.foto_url ? `
-                        <div onclick="window.open('${BACKEND_URL}${r.foto_url}', '_blank')" style="cursor:pointer; position: relative;">
-                            <img src="${BACKEND_URL}${r.foto_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;">
-                            <div style="position: absolute; bottom: 0; background: rgba(0,0,0,0.5); color: white; width: 100%; text-align: center; font-size: 10px; border-radius: 0 0 8px 8px;">VER 🔍</div>
-                        </div>` : ''}
-                </div>
-            </div>`;
-        });
-        document.getElementById("content").innerHTML = html;
-    } catch (e) { document.getElementById("content").innerHTML = "<h3>Error al conectar con el servidor de reportes.</h3>"; }
+    const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+    let html = `<h2>📊 Reportes Recientes</h2>`;
+    if(!reports.length) html += "<p>No hay reportes hoy.</p>";
+    reports.reverse().forEach(r => {
+        html += `
+        <div class="card">
+            <div style="display:flex; justify-content:space-between;">
+                <b>${r.userId?.name || 'Usuario'} - ${r.storeId?.name || 'Tienda'}</b>
+                <small>${new Date(r.createdAt || r.date).toLocaleString()}</small>
+            </div>
+            <p>Tipo: ${r.type} | Art: ${r.articulo || 'N/A'}</p>
+            ${r.foto_url ? `<button class="btn-action" style="padding:5px 10px; font-size:0.7rem;" onclick="window.open('${BACKEND_URL}${r.foto_url}')">Ver Foto 📸</button>` : ''}
+        </div>`;
+    });
+    document.getElementById("content").innerHTML = html;
 }
 
-// --- VISTA: Catálogo de Tiendas (Nuevo) ---
 async function loadStores() {
     document.getElementById("content").innerHTML = "<h3>Cargando catálogo...</h3>";
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-    
-    let html = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-            <h2>🏬 Catálogo de Tiendas</h2>
-            <button class="btn-action" onclick="showAddStore()">+ AGREGAR TIENDA</button>
-        </div>
-        <div id="form-store-container"></div>
-        <div class="grid-tiendas">
-    `;
-
+    let html = `<div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🏬 Catálogo</h2>
+        <button class="btn-action" onclick="showAddStore()">+ TIENDA</button>
+    </div><div id="form-store-container"></div><div class="grid-tiendas">`;
     stores.forEach(s => {
-        html += `
-            <div class="card" style="margin-bottom:0; display:flex; flex-direction:column; justify-content:space-between;">
-                <div>
-                    <strong>${s.name}</strong><br>
-                    <small style="color: #64748b;">${s.address || 'Sin dirección'}</small>
-                </div>
-                <button class="btn-action btn-danger" onclick="deleteStore('${s._id}')" style="margin-top:15px; padding: 5px; font-size: 0.7rem;">Borrar</button>
-            </div>`;
+        html += `<div class="card">
+            <strong>${s.name}</strong><br><small>${s.address || ''}</small><br>
+            <button class="btn-action btn-danger" onclick="deleteStore('${s._id}')" style="margin-top:10px; padding:5px; font-size:0.7rem;">Borrar</button>
+        </div>`;
     });
-
-    html += `</div>`;
-    document.getElementById("content").innerHTML = html;
+    document.getElementById("content").innerHTML = html + `</div>`;
 }
 
 function showAddStore() {
     document.getElementById("form-store-container").innerHTML = `
-        <div class="card" style="border: 1px solid var(--gold); background: #fffcf0;">
-            <h3>Nueva Tienda</h3>
-            <input id="st_name" placeholder="Nombre (ej. Soriana Hiper)">
-            <input id="st_addr" placeholder="Dirección o Ciudad">
-            <button class="btn-action" onclick="saveStore()">GUARDAR TIENDA</button>
-            <button class="btn-action btn-danger" onclick="document.getElementById('form-store-container').innerHTML=''">CANCELAR</button>
+        <div class="card" style="border: 1px solid var(--gold);">
+            <input id="st_name" placeholder="Nombre Tienda">
+            <input id="st_addr" placeholder="Dirección">
+            <button class="btn-action" onclick="saveStore()">GUARDAR</button>
         </div>`;
 }
 
 async function saveStore() {
     const name = document.getElementById("st_name").value;
     const address = document.getElementById("st_addr").value;
-    if(!name) return alert("El nombre es obligatorio");
-
-    try {
-        await fetchAPI(`${BACKEND_URL}/stores`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, address })
-        });
-        loadStores();
-    } catch(e) { alert("Error al guardar"); }
-}
-
-async function deleteUser(id) {
-    if(!confirm("¿Eliminar usuario definitivamente?")) return;
-    await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" });
-    loadUsers();
-}
-
-async function deleteStore(id) {
-    if(!confirm("¿Eliminar tienda del catálogo?")) return;
-    await fetchAPI(`${BACKEND_URL}/stores/${id}`, { method: "DELETE" });
+    await fetchAPI(`${BACKEND_URL}/stores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, address })
+    });
     loadStores();
 }
 
-function logout() {
-    localStorage.clear();
-    window.location.href = "../login.html";
-}
+async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } }
+async function deleteStore(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:"DELETE"}); loadStores(); } }
 
-window.onload = () => {
-    loadUserInfo();
-    loadDashboard();
-};
+function logout() { localStorage.clear(); window.location.href = "../login.html"; }
+
+window.onload = () => { loadUserInfo(); loadDashboard(); };
 </script>
-
 </body>
 </html>

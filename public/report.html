@@ -18,13 +18,27 @@
         input, textarea { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 16px; background: #f8fafc; transition: border 0.3s; }
         input:focus { outline: none; border-color: var(--gold); background: white; }
         
-        .photo-preview { width: 100%; height: 220px; background: #f1f5f9; border-radius: 15px; display: flex; align-items: center; justify-content: center; margin-top: 10px; overflow: hidden; border: 2px dashed #cbd5e1; position: relative; }
+        /* FOTO MEJORADA */
+        .photo-preview { 
+            width: 100%; 
+            height: 200px; 
+            background: #f1f5f9; 
+            border-radius: 15px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            margin-top: 10px; 
+            overflow: hidden; 
+            border: 2px dashed #cbd5e1; 
+            position: relative; 
+            cursor: pointer;
+        }
         .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 
-        .btn-main { background: var(--primary); color: white; border: none; padding: 18px; width: 100%; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 25px; box-shadow: 0 4px 10px rgba(11, 31, 58, 0.2); }
+        .btn-main { background: var(--primary); color: white; border: none; padding: 18px; width: 100%; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 25px; box-shadow: 0 4px 10px rgba(11, 31, 58, 0.2); transition: 0.3s; }
         .btn-main:disabled { background: #94a3b8; cursor: not-allowed; }
         
-        .hidden { display: none; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -39,31 +53,33 @@
         <h3 id="formTitle">Cargando...</h3>
         <form id="reportForm">
             <div class="form-group" id="group-articulo">
-                <label>Nombre del Artículo</label>
+                <label>Nombre del Artículo / Marca</label>
                 <input type="text" id="articulo" placeholder="Ej. Producto X 500ml">
             </div>
 
             <div id="block-demo" class="hidden">
-                <div class="form-group"><label>Inv. Inicial</label><input type="number" id="inv_inicial" placeholder="0"></div>
-                <div class="form-group"><label>Ventas Realizadas</label><input type="number" id="ventas" placeholder="0"></div>
-                <div class="form-group"><label>Inv. Final</label><input type="number" id="inv_final" placeholder="0"></div>
-                <div class="form-group"><label>Precio de Venta ($)</label><input type="number" id="precio" placeholder="0.00"></div>
+                <div class="form-group"><label>Inv. Inicial</label><input type="number" id="inv_inicial" value="0"></div>
+                <div class="form-group"><label>Ventas Realizadas</label><input type="number" id="ventas" value="0"></div>
+                <div class="form-group"><label>Inv. Final</label><input type="number" id="inv_final" value="0"></div>
+                <div class="form-group"><label>Precio de Venta ($)</label><input type="number" id="precio" value="0.00" step="0.01"></div>
             </div>
 
             <div class="form-group hidden" id="group-cantidad">
-                <label id="label-cantidad">Cantidad / Valor</label>
-                <input type="number" id="cantidad" placeholder="0">
+                <label id="label-cantidad">Cantidad</label>
+                <input type="number" id="cantidad" value="0">
             </div>
             
             <div class="form-group hidden" id="group-precio-simple">
                 <label>Precio Unitario ($)</label>
-                <input type="number" id="precio_simple" placeholder="0.00">
+                <input type="number" id="precio_simple" value="0.00" step="0.01">
             </div>
 
             <div class="form-group hidden" id="group-foto">
                 <label>Foto de Evidencia</label>
-                <input type="file" id="foto" accept="image/*" capture="environment" onchange="previewImage(this)">
-                <div class="photo-preview" id="preview"><span style="color:#94a3b8; font-size: 14px;">Pulsa para tomar foto</span></div>
+                <input type="file" id="foto" accept="image/*" capture="environment" onchange="previewImage(this)" class="hidden">
+                <div class="photo-preview" id="preview" onclick="document.getElementById('foto').click()">
+                    <span style="color:#94a3b8; font-size: 14px; text-align: center;">📸<br>Toca para tomar foto</span>
+                </div>
             </div>
 
             <div class="form-group hidden" id="group-comentarios">
@@ -80,12 +96,9 @@
     const BACKEND_URL = "https://storepulse.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
     const type = urlParams.get('type');
-    
-    // Datos de sesión
     const storeId = localStorage.getItem("activeStoreId");
     const userId = localStorage.getItem("userId");
 
-    // Configuración dinámica por tipo
     const config = {
         'reporte_diario': { title: 'Reporte Diario', fields: ['block-demo', 'group-comentarios'] },
         'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', 'group-foto'], labelQty: 'Degustaciones dadas' },
@@ -95,27 +108,20 @@
         'agotados': { title: 'Reporte Agotados', fields: ['group-articulo', 'group-foto'] },
         'inventario': { title: 'Inventario Físico', fields: ['group-articulo', 'group-cantidad'], labelQty: 'Cantidad en estante' },
         'exhibicion': { title: 'Exhibición Adicional', fields: ['group-foto', 'group-comentarios'], hideArt: true },
-        'fotos_anaquel': { title: 'Foto de Anaquel', fields: ['group-foto'], hideArt: true }
+        'fotos_anaquel': { title: 'Foto de Anaquel', fields: ['group-foto'], hideArt: true },
+        'fotos_exhibicion': { title: 'Foto de Exhibición', fields: ['group-foto'], hideArt: true }
     };
 
     window.onload = () => {
-        if(!type || !config[type]) {
-            alert("Acceso no válido");
-            return window.location.href = "./home.html";
-        }
+        if(!type || !config[type]) return window.location.href = "./home.html";
         
-        const settings = config[type];
-        document.getElementById("formTitle").innerText = settings.title;
-        document.getElementById("headerTitle").innerText = settings.title;
+        const s = config[type];
+        document.getElementById("formTitle").innerText = s.title;
+        document.getElementById("headerTitle").innerText = s.title;
 
-        // Mostrar campos según configuración
-        settings.fields.forEach(id => {
-            const el = document.getElementById(id);
-            if(el) el.classList.remove("hidden");
-        });
-        
-        if(settings.labelQty) document.getElementById("label-cantidad").innerText = settings.labelQty;
-        if(settings.hideArt) document.getElementById("group-articulo").classList.add("hidden");
+        s.fields.forEach(id => document.getElementById(id).classList.remove("hidden"));
+        if(s.labelQty) document.getElementById("label-cantidad").innerText = s.labelQty;
+        if(s.hideArt) document.getElementById("group-articulo").classList.add("hidden");
     };
 
     function previewImage(input) {
@@ -131,47 +137,49 @@
     async function saveReport() {
         const btn = document.getElementById("btnSend");
         btn.disabled = true;
-        btn.innerText = "ENVIANDO REPORTE...";
+        btn.innerText = "ENVIANDO...";
 
         const formData = new FormData();
-        // Campos obligatorios para el modelo Report del servidor
         formData.append("storeId", storeId);
         formData.append("type", type);
-        
-        // Datos del formulario
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
         formData.append("cantidad", document.getElementById("cantidad").value || 0);
-        formData.append("precio", document.getElementById("precio").value || document.getElementById("precio_simple").value || 0);
+        
+        // Unificar precio
+        const priceVal = document.getElementById("precio").value || document.getElementById("precio_simple").value || 0;
+        formData.append("precio", priceVal);
+        
         formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
         formData.append("inv_final", document.getElementById("inv_final").value || 0);
         formData.append("comentarios", document.getElementById("comentarios").value || "");
         
-        const fotoFile = document.getElementById("foto").files[0];
-        if(fotoFile) formData.append("photo", fotoFile);
+        // Foto (Asegúrate que el backend busque el campo "photo")
+        const fotoInput = document.getElementById("foto");
+        if(fotoInput.files[0]) {
+            formData.append("photo", fotoInput.files[0]);
+        }
 
         try {
             const res = await fetch(`${BACKEND_URL}/reports`, {
                 method: "POST",
-                headers: { "userId": userId },
-                body: formData
+                headers: { "userId": userId }, // Enviamos el ID por header
+                body: formData // Importante: FormData no lleva "Content-Type" manual
             });
 
-            const data = await res.json();
-
             if(res.ok) {
-                alert("✅ Reporte enviado con éxito");
+                alert("✅ Enviado correctamente");
                 window.location.href = "./home.html";
             } else {
-                throw new Error(data.message || "Error al guardar");
+                const errData = await res.json();
+                alert("❌ Error: " + (errData.message || "Fallo al enviar"));
             }
         } catch (err) {
-            alert("❌ Error: " + err.message);
+            alert("❌ Error de conexión");
         } finally {
             btn.disabled = false;
             btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>
-
 </body>
 </html>

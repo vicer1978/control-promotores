@@ -5,30 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Trabajo - StorePulse</title>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: #F5F7FA; color: #1a202c; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
+        body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: #1a202c; }
         
         /* BANNER SUPERIOR */
         .store-info { 
-            background: #0B1F3A; 
+            background: var(--primary); 
             color: white; 
-            padding: 30px 20px; 
+            padding: 35px 20px; 
             text-align: center; 
-            border-radius: 0 0 25px 25px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 0 0 30px 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
         }
-        .store-info h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .store-info h2 { margin: 0; font-size: 1.4rem; font-weight: 600; }
         
         .role-badge { 
             display: inline-block; 
-            background: #D4AF37; 
-            color: #0B1F3A; 
-            padding: 5px 15px; 
+            background: var(--gold); 
+            color: var(--primary); 
+            padding: 6px 18px; 
             border-radius: 20px; 
             font-size: 0.75rem; 
             font-weight: 800; 
             margin-top: 12px; 
             text-transform: uppercase;
             letter-spacing: 1px;
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            margin-right: 5px;
+            box-shadow: 0 0 8px #22c55e;
         }
         
         /* GRID DE TAREAS */
@@ -43,10 +54,10 @@
         
         .task-card { 
             background: white; 
-            padding: 22px 10px; 
-            border-radius: 18px; 
+            padding: 25px 10px; 
+            border-radius: 20px; 
             text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.04); 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02); 
             cursor: pointer; 
             border: 1px solid #edf2f7;
             transition: all 0.2s ease;
@@ -58,21 +69,19 @@
         
         .task-card:active { 
             transform: scale(0.92); 
-            background: #fdfdfd; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            background: #f8fafc; 
         }
         
-        .task-card .icon { font-size: 32px; margin-bottom: 10px; }
-        .task-card span { font-size: 0.85rem; font-weight: 700; color: #4a5568; }
+        .task-card .icon { font-size: 35px; margin-bottom: 12px; }
+        .task-card span { font-size: 0.85rem; font-weight: 700; color: #475569; }
         
-        /* BOTÓN FINALIZAR */
+        /* FOOTER */
         .footer-actions { padding: 10px 20px 40px; text-align: center; }
-        
         .btn-finish { 
             width: 100%; 
             max-width: 460px;
             padding: 18px; 
-            background: #e11d48; 
+            background: var(--danger); 
             color: white; 
             border: none; 
             border-radius: 15px; 
@@ -80,9 +89,9 @@
             font-size: 1rem; 
             cursor: pointer;
             box-shadow: 0 4px 14px rgba(225, 29, 72, 0.3);
+            transition: 0.2s;
         }
-        
-        .btn-finish:active { background: #be123c; transform: translateY(2px); }
+        .btn-finish:active { transform: translateY(2px); opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -90,41 +99,44 @@
     <div class="store-info">
         <h2 id="activeStoreName">Cargando tienda...</h2>
         <div id="userRoleBadge" class="role-badge">Cargando...</div>
-        <p style="margin: 10px 0 0; opacity: 0.7; font-size: 0.85rem; font-weight: 500;">🟢 Operación en curso</p>
+        <p style="margin: 15px 0 0; opacity: 0.8; font-size: 0.85rem; font-weight: 500;">
+            <span class="status-dot"></span> Operación en curso
+        </p>
     </div>
 
     <div class="task-grid" id="taskContainer">
         </div>
 
     <div class="footer-actions">
-        <button onclick="finishDay()" class="btn-finish">
+        <button id="btnFinish" onclick="finishDay()" class="btn-finish">
             FINALIZAR DÍA / SALIDA
         </button>
     </div>
 
     <script>
-        // 1. Obtener datos de sesión (claves sincronizadas con dashboard.html)
+        const BACKEND_URL = "https://storepulse.onrender.com";
+        
+        // 1. Datos de sesión
+        const userId = localStorage.getItem("userId");
         const role = localStorage.getItem("role") || "promotor";
-        const storeName = localStorage.getItem("activeStoreName") || "Tienda no seleccionada";
+        const storeName = localStorage.getItem("activeStoreName");
         const activeStoreId = localStorage.getItem("activeStoreId");
 
-        // Seguridad: Si no hay tienda activa, regresar al dashboard
-        if (!activeStoreId) {
-            alert("No hay una sesión de trabajo activa.");
-            window.location.href = "./dashboard.html";
-        }
+        // Seguridad: Si no hay tienda activa o no hay usuario, redirigir
+        if (!userId) window.location.href = "./login.html";
+        if (!activeStoreId) window.location.href = "./dashboard.html";
 
-        document.getElementById("activeStoreName").innerText = storeName;
-        document.getElementById("userRoleBadge").innerText = role;
+        document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
+        document.getElementById("userRoleBadge").innerText = role.replace('-', ' ');
 
-        // 2. Definir botones según el ROL
+        // 2. Diccionario de Tareas (Roles sincronizados con el backend)
         const tasks = {
-            demostradora: [
+            'demostradora': [
                 { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
                 { id: 'degustacion', label: 'Degustación', icon: '🍷' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ],
-            promotor: [
+            'promotor': [
                 { id: 'ventas', label: 'Ventas', icon: '📈' },
                 { id: 'precios', label: 'Precios Propios', icon: '💰' },
                 { id: 'agotados', label: 'Agotados', icon: '❌' },
@@ -136,12 +148,11 @@
             ]
         };
 
-        // 3. Renderizar botones
+        // 3. Renderizado
         function renderTasks() {
             const container = document.getElementById("taskContainer");
-            // Normalizar rol para evitar errores de mayúsculas
-            const userRole = role.toLowerCase();
-            const userTasks = tasks[userRole] || tasks['promotor']; 
+            // Limpiar por si acaso y obtener tareas por rol
+            const userTasks = tasks[role.toLowerCase()] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
                 <div class="task-card" onclick="goToReport('${task.id}')">
@@ -152,24 +163,36 @@
         }
 
         function goToReport(type) {
-            // Pasamos el tipo de reporte por URL para que report.html sepa qué campos mostrar
-            window.location.href = `./report.html?type=${type}`;
+            // Mandamos el ID de la tienda y el tipo de reporte por URL
+            window.location.href = `./report.html?type=${type}&storeId=${activeStoreId}`;
         }
 
-        function finishDay() {
-            if(confirm("¿Seguro que quieres cerrar la operación? Se registrará tu hora de salida.")) {
-                // Limpiar solo los datos de la tienda activa, mantener la sesión del usuario
+        async function finishDay() {
+            if(!confirm("¿Deseas registrar tu salida y finalizar el turno?")) return;
+
+            const btn = document.getElementById("btnFinish");
+            btn.innerText = "REGISTRANDO SALIDA...";
+            btn.disabled = true;
+
+            try {
+                // Opcional: Podrías hacer un POST a /checkout si quieres guardar la hora exacta en el server
+                // const res = await fetch(`${BACKEND_URL}/checkout`, { ... });
+
+                // Limpiamos la tienda activa de la memoria
                 localStorage.removeItem("activeStoreId");
                 localStorage.removeItem("activeStoreName");
                 
-                alert("Salida registrada correctamente.");
+                alert("Salida registrada con éxito. ¡Buen descanso!");
                 window.location.href = "./dashboard.html";
+            } catch (err) {
+                alert("Hubo un problema al cerrar sesión. Intenta de nuevo.");
+                btn.innerText = "FINALIZAR DÍA / SALIDA";
+                btn.disabled = false;
             }
         }
 
-        // Inicializar
+        // Ejecutar al cargar
         renderTasks();
     </script>
-
 </body>
 </html>

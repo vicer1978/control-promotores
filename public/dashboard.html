@@ -5,67 +5,77 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StorePulse - Inicio</title>
     <style>
-        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background:#F5F7FA; color: #333; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; }
+        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
 
         /* HEADER */
         .header {
             display:flex;
             align-items:center;
-            padding:15px;
+            padding:15px 20px;
             background:white;
-            box-shadow:0 2px 6px rgba(0,0,0,0.1);
+            box-shadow:0 2px 10px rgba(0,0,0,0.05);
             position: sticky;
             top: 0;
             z-index: 10;
         }
-        .menu-btn { font-size:24px; cursor:pointer; margin-right:15px; color: #0B1F3A; }
-        .title { font-weight:bold; font-size:20px; color: #0B1F3A; }
+        .menu-btn { font-size:24px; cursor:pointer; margin-right:15px; color: var(--primary); }
+        .title { font-weight:bold; font-size:20px; color: var(--primary); flex: 1; }
 
-        /* CONTAINER & STORES */
+        /* CONTAINER */
         .container { padding:20px; max-width: 600px; margin: auto; }
-        h2 { font-size: 1.2rem; color: #666; margin-bottom: 20px; }
-        
-        .store {
-            background:white;
-            padding:18px;
-            border-radius:12px;
-            margin-bottom:12px;
-            cursor:pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: transform 0.2s;
-            border-left: 5px solid #D4AF37;
-        }
-        .store:active { transform: scale(0.98); }
-        .store b { font-size: 1.1rem; display: block; margin-bottom: 5px; }
-        .store small { color: #888; }
+        .welcome-msg { margin-bottom: 25px; }
+        .welcome-msg h1 { font-size: 1.5rem; margin: 0; color: var(--primary); }
+        .welcome-msg p { margin: 5px 0 0; color: #64748b; }
 
-        /* DRAWER (MENU LATERAL) */
+        /* STORE CARDS */
+        .stores-list { display: flex; flex-direction: column; gap: 15px; }
+        .store-card {
+            background:white;
+            padding:20px;
+            border-radius:15px;
+            cursor:pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+            border-left: 6px solid var(--gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .store-card:active { transform: scale(0.97); background: #f8fafc; }
+        .store-info b { font-size: 1.1rem; color: var(--primary); display: block; margin-bottom: 4px; }
+        .store-info small { color: #94a3b8; font-size: 0.85rem; }
+        .arrow { color: var(--gold); font-size: 1.2rem; }
+
+        /* DRAWER */
         .drawer {
             position:fixed;
             top:0;
             left:-280px;
-            width:260px;
+            width:280px;
             height:100%;
-            background:#0B1F3A;
+            background: var(--primary);
             color:white;
-            padding:30px 20px;
-            transition:0.3s;
+            padding:40px 25px;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 100;
             box-sizing: border-box;
         }
-        .drawer.open { left:0; }
-        .drawer h3 { margin-top: 0; color: #D4AF37; }
-        .drawer p { font-size: 0.9rem; opacity: 0.8; margin-bottom: 30px; }
-        .drawer button {
+        .drawer.open { left:0; box-shadow: 10px 0 30px rgba(0,0,0,0.3); }
+        .drawer h3 { margin: 0; color: var(--gold); font-size: 1.4rem; }
+        .drawer p { font-size: 0.9rem; opacity: 0.7; margin: 5px 0 30px; }
+        .drawer-nav button {
             width:100%;
-            padding:12px;
-            background: #e74c3c;
+            padding:15px;
+            background: rgba(255,255,255,0.05);
             border:none;
-            border-radius:8px;
+            border-radius:10px;
             color:white;
-            font-weight: bold;
+            text-align: left;
+            margin-bottom: 10px;
             cursor: pointer;
         }
+        .logout-btn { background: #ef4444 !important; font-weight: bold; margin-top: 20px; text-align: center !important; }
 
         /* MODAL */
         .modal {
@@ -74,34 +84,37 @@
             left:0;
             width:100%;
             height:100%;
-            background:rgba(0,0,0,0.6);
+            background:rgba(11, 31, 58, 0.8);
             display:none;
             justify-content:center;
             align-items:center;
             z-index: 200;
+            backdrop-filter: blur(4px);
         }
         .modal-content {
             background:white;
-            padding:25px;
-            border-radius:15px;
+            padding:30px;
+            border-radius:20px;
             text-align:center;
             width:85%;
             max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
         }
-        .btn-green { background:#22c55e; color:white; padding:15px; border:none; border-radius:10px; width:100%; margin-top:15px; font-weight:bold; font-size:1rem; cursor:pointer; }
-        .btn-gray { background:#eee; color: #666; padding:12px; border:none; border-radius:10px; width:100%; margin-top:10px; cursor:pointer; }
+        .btn-checkin { background: #22c55e; color:white; padding:18px; border:none; border-radius:12px; width:100%; margin-top:20px; font-weight:bold; font-size:1rem; cursor:pointer; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
+        .btn-cancel { background:none; color: #94a3b8; padding:12px; border:none; width:100%; margin-top:10px; cursor:pointer; font-weight: 500; }
 
-        /* LOADING SPINNER */
-        .loader { text-align: center; padding: 40px; color: #999; }
+        .loader { text-align: center; padding: 50px; color: #94a3b8; }
     </style>
 </head>
 <body>
 
 <div class="drawer" id="drawer">
     <h3 id="userName">Cargando...</h3>
-    <p id="userRole">Rol</p>
-    <hr style="opacity: 0.1; margin-bottom: 20px;">
-    <button onclick="logout()">Cerrar sesión</button>
+    <p id="userRole">Cargando...</p>
+    <div class="drawer-nav">
+        <button onclick="toggleMenu()">🏠 Inicio</button>
+        <button onclick="logout()" class="logout-btn">🚪 Cerrar Sesión</button>
+    </div>
 </div>
 
 <div class="header">
@@ -109,84 +122,84 @@
     <div class="title">StorePulse</div>
 </div>
 
-<div class="container" id="storesContainer">
-    <div class="loader">Buscando tiendas asignadas...</div>
+<div class="container">
+    <div class="welcome-msg">
+        <h1 id="greeting">Hola...</h1>
+        <p>Selecciona tu tienda para comenzar el turno.</p>
+    </div>
+
+    <div id="storesContainer" class="stores-list">
+        <div class="loader">Buscando tus tiendas asignadas...</div>
+    </div>
 </div>
 
 <div class="modal" id="modal">
     <div class="modal-content">
-        <h3 id="storeName">Tienda Seleccionada</h3>
-        <p>¿Deseas iniciar operación en esta sucursal? Se registrará tu ubicación actual.</p>
-        <button class="btn-green" onclick="startCheckin()">INICIAR OPERACIÓN</button>
-        <button class="btn-gray" onclick="closeModal()">Cancelar</button>
+        <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
+        <p style="color: #64748b; line-height: 1.5;">Para iniciar operación, el sistema validará tu ubicación GPS actual.</p>
+        <button class="btn-checkin" id="btnCheckin" onclick="startCheckin()">INICIAR OPERACIÓN</button>
+        <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
     </div>
 </div>
 
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
-
-    // Recuperar datos de sesión
     const userId = localStorage.getItem("userId");
     const name = localStorage.getItem("name") || "Usuario";
-    const role = localStorage.getItem("role") || "Demostradora";
+    const role = localStorage.getItem("role") || "Promotor";
 
     let selectedStore = null;
 
-    // Protección de ruta
-    if(!userId) {
-        window.location.href="./login.html";
-    }
+    // Protección de sesión
+    if(!userId) window.location.href="./login.html";
 
-    // Mostrar datos de perfil
+    // UI Inicial
     document.getElementById("userName").innerText = name;
     document.getElementById("userRole").innerText = role.toUpperCase();
+    document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
 
     function toggleMenu(){
         document.getElementById("drawer").classList.toggle("open");
     }
 
-    // CARGAR TIENDAS DESDE EL SERVER
     async function loadStores(){
         const container = document.getElementById("storesContainer");
-        
         try {
             const res = await fetch(`${BACKEND_URL}/users/${userId}/stores`, {
-                method: 'GET',
-                headers: { 
-                    "userId": userId,
-                    "Content-Type": "application/json"
-                }
+                headers: { "userId": userId }
             });
 
-            if(!res.ok) throw new Error("No se pudieron cargar las tiendas");
-
+            if(!res.ok) throw new Error("Fallo en servidor");
             const stores = await res.json();
 
             if (stores.length === 0) {
-                container.innerHTML = "<h2>No tienes tiendas asignadas</h2><p>Contacta a tu supervisor.</p>";
+                container.innerHTML = `
+                    <div style="text-align:center; padding:40px;">
+                        <span style="font-size:40px;">🏪</span>
+                        <h3>No tienes tiendas asignadas</h3>
+                        <p style="color:#64748b">Pide a tu supervisor que te asigne una sucursal.</p>
+                    </div>`;
                 return;
             }
 
-            let html = "<h2>Selecciona tu tienda</h2>";
-            stores.forEach(s => {
-                html += `
-                    <div class="store" onclick='openModal(${JSON.stringify(s)})'>
+            container.innerHTML = stores.map(s => `
+                <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
+                    <div class="store-info">
                         <b>${s.name}</b>
-                        <small>${s.address || "Dirección no disponible"}</small>
+                        <small>${s.address || "Ver mapa para dirección"}</small>
                     </div>
-                `;
-            });
-            container.innerHTML = html;
+                    <div class="arrow">➔</div>
+                </div>
+            `).join("");
 
         } catch (err) {
-            console.error(err);
-            container.innerHTML = "<h2>Error de conexión</h2><p>Intenta recargar la página.</p>";
+            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>Revisa tu internet y recarga.</p>";
         }
     }
 
     function openModal(store){
         selectedStore = store;
-        document.getElementById("storeName").innerText = store.name;
+        document.getElementById("storeNameDisplay").innerText = store.name;
         document.getElementById("modal").style.display = "flex";
     }
 
@@ -194,56 +207,56 @@
         document.getElementById("modal").style.display = "none";
     }
 
-    // PROCESO DE CHECK-IN
     function startCheckin(){
+        const btn = document.getElementById("btnCheckin");
+        
         if(!navigator.geolocation){
-            return alert("Tu dispositivo no soporta o tiene desactivado el GPS.");
+            return alert("GPS no disponible en este navegador.");
         }
 
-        const btn = document.querySelector(".btn-green");
-        btn.innerText = "PROCESANDO...";
+        btn.innerText = "LOCALIZANDO...";
         btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(async pos => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
+            const { latitude, longitude } = pos.coords;
 
             try {
                 const res = await fetch(`${BACKEND_URL}/checkin`, {
                     method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json",
-                        "userId": userId 
-                    },
+                    headers: { "Content-Type": "application/json", "userId": userId },
                     body: JSON.stringify({
                         storeId: selectedStore._id,
-                        lat: lat,
-                        lng: lng
+                        lat: latitude,
+                        lng: longitude
                     })
                 });
 
                 const data = await res.json();
 
                 if(res.ok){
-                    alert("✅ Registro exitoso. ¡Buen turno!");
+                    // GUARDAR TIENDA ACTIVA
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
-                    window.location.href = "./home.html"; // Redirigir al área de trabajo
+                    
+                    alert(`✅ ¡Entrada exitosa en ${selectedStore.name}!`);
+                    window.location.href = "./home.html";
                 } else {
-                    alert("Error: " + (data.error || "No se pudo registrar"));
-                    btn.innerText = "INICIAR OPERACIÓN";
-                    btn.disabled = false;
+                    alert("❌ " + (data.message || "Error al marcar entrada"));
+                    resetBtn(btn);
                 }
             } catch (err) {
-                alert("Error de conexión con el servidor.");
-                btn.innerText = "INICIAR OPERACIÓN";
-                btn.disabled = false;
+                alert("Error de red.");
+                resetBtn(btn);
             }
-        }, error => {
-            alert("Debes permitir el acceso a tu ubicación para trabajar.");
-            btn.innerText = "INICIAR OPERACIÓN";
-            btn.disabled = false;
-        });
+        }, err => {
+            alert("Error: Activa el GPS de tu celular para poder entrar.");
+            resetBtn(btn);
+        }, { enableHighAccuracy: true });
+    }
+
+    function resetBtn(btn){
+        btn.innerText = "INICIAR OPERACIÓN";
+        btn.disabled = false;
     }
 
     function logout(){
@@ -251,9 +264,7 @@
         window.location.href="./login.html";
     }
 
-    // Iniciar carga al abrir
-    loadStores();
+    window.onload = loadStores;
 </script>
-
 </body>
 </html>

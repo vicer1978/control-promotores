@@ -2,40 +2,126 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - StorePulse</title>
     <style>
-        body { background: white; color: black; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { border: 2px solid #000; padding: 20px; text-align: center; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; }
+        body { 
+            background: var(--primary); 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .login-card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+            width: 100%; 
+            max-width: 350px; 
+            text-align: center; 
+        }
+        .logo { font-size: 2rem; font-weight: bold; color: var(--primary); margin-bottom: 30px; }
+        .logo span { color: var(--gold); }
+        
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin-bottom: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 16px; 
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: var(--gold); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 16px; 
+            cursor: pointer; 
+            transition: 0.3s; 
+        }
+        button:hover { background: #b8952d; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        #msg { color: #ef4444; font-size: 14px; margin-top: 15px; min-height: 20px; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h1>StorePulse</h1>
-        <input type="email" id="email" placeholder="Email"><br><br>
-        <input type="password" id="password" placeholder="Password"><br><br>
-        <button onclick="login()">ENTRAR</button>
-        <p id="msg" style="color:red"></p>
+
+    <div class="login-card">
+        <div class="logo">Store<span>Pulse</span> 🚀</div>
+        <form id="loginForm" onsubmit="event.preventDefault(); login();">
+            <input type="email" id="email" placeholder="Correo electrónico" required>
+            <input type="password" id="password" placeholder="Contraseña" required>
+            <button type="submit" id="btnEntrar">ENTRAR</button>
+        </form>
+        <div id="msg"></div>
     </div>
 
     <script>
+        // Cambia esto a tu URL de Render cuando hagas deploy
+        const BACKEND_URL = "https://storepulse.onrender.com";
+
         async function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+            const btn = document.getElementById('btnEntrar');
+
+            // Feedback visual
+            msg.innerText = "";
+            btn.disabled = true;
+            btn.innerText = "Verificando...";
+
             try {
-                const res = await fetch('/login', {
+                const res = await fetch(`${BACKEND_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
+
                 const data = await res.json();
+
                 if (res.ok) {
+                    // 1. Limpiar cualquier sesión previa
+                    localStorage.clear();
+
+                    // 2. Guardar nuevos datos de sesión
                     localStorage.setItem('userId', data.userId);
                     localStorage.setItem('role', data.role);
-                    window.location.href = data.role === 'superadmin' ? 'Admin/super-admin.html' : 'dashboard.html';
+                    localStorage.setItem('name', data.name);
+                    
+                    // IMPORTANTE: Guardamos el agencyId si existe (para filtrar tiendas después)
+                    if (data.agencyId) {
+                        localStorage.setItem('activeAgencyId', data.agencyId);
+                    }
+
+                    // 3. Redirección basada en ROL EXACTO del servidor
+                    if (data.role === 'super-admin') {
+                        window.location.href = 'Admin/super-admin.html';
+                    } else if (data.role === 'admin') {
+                        window.location.href = 'Admin/admin.html';
+                    } else {
+                        // Demostradora / Promotor
+                        window.location.href = 'dashboard.html';
+                    }
                 } else {
-                    alert(data.message);
+                    msg.innerText = data.message || "Credenciales incorrectas";
                 }
-            } catch (err) { alert("Error de conexión"); }
+            } catch (err) {
+                msg.innerText = "Error de conexión con el servidor";
+                console.error(err);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "ENTRAR";
+            }
         }
     </script>
 </body>

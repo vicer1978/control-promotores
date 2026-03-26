@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+<meta charset="UTF-8">
+<title>Seleccionar Tienda - StorePulse</title>
+
+<style>
+:root {
+  --primary:#0B1F3A;
+  --secondary:#D4AF37;
+  --bg:#F5F7FA;
+}
+
+body {
+  margin:0;
+  font-family:Arial;
+  background:var(--bg);
+}
+
+header {
+  background:var(--primary);
+  color:white;
+  padding:15px;
+  text-align:center;
+  font-size:18px;
+}
+
+.container {
+  padding:20px;
+}
+
+.card {
+  background:white;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:12px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.1);
+}
+
+.store {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.store-name {
+  font-weight:bold;
+}
+
+button {
+  background:var(--secondary);
+  border:none;
+  padding:8px 12px;
+  border-radius:8px;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.empty {
+  text-align:center;
+  color:#777;
+  margin-top:40px;
+}
+</style>
+
+</head>
+
+<body>
+
+<header>
+  Selecciona tu tienda
+</header>
+
+<div class="container" id="content">
+  <p>Cargando tiendas...</p>
+</div>
+
+<script>
+
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+const userId = localStorage.getItem("userId");
+
+if(!userId){
+  window.location.href = "./login.html";
+}
+
+// ---------------- CARGAR TIENDAS ----------------
+
+async function loadStores(){
+
+  try{
+
+    const res = await fetch(`${BACKEND_URL}/users/${userId}`);
+    const user = await res.json();
+
+    const stores = user.stores || [];
+
+    if(stores.length === 0){
+      document.getElementById("content").innerHTML = `
+        <div class="empty">
+          ⚠️ No tienes tiendas asignadas<br><br>
+          Contacta a tu administrador
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+
+    stores.forEach(s=>{
+      html += `
+        <div class="card">
+          <div class="store">
+            <div>
+              <div class="store-name">${s.name}</div>
+              <small>${s.address || ""}</small>
+            </div>
+            <button onclick="selectStore('${s._id}')">
+              Entrar
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    document.getElementById("content").innerHTML = html;
+
+  }catch(err){
+    console.error(err);
+    document.getElementById("content").innerHTML = `
+      <div class="empty">❌ Error cargando tiendas</div>
+    `;
+  }
+
+}
+
+
+// ---------------- SELECCIONAR ----------------
+
+function selectStore(storeId){
+
+  localStorage.setItem("storeId", storeId);
+
+  // 🔥 REDIRECCIÓN
+  window.location.href = "./checkin.html";
+}
+
+
+// INIT
+loadStores();
+
+</script>
+
+</body>
+</html>

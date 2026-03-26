@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>Subir Evidencias - StorePulse</title>
+
 <style>
-:root { --primary:#0B1F3A; --secondary:#D4AF37; --bg:#F5F7FA; --text-color:#333; }
-body{margin:0;font-family:Arial,sans-serif;background:var(--bg);}
+:root { --primary:#0B1F3A; --secondary:#D4AF37; --bg:#F5F7FA; }
+
+body{margin:0;font-family:Arial;background:var(--bg);}
+
 .header{
   display:flex;
   align-items:center;
@@ -14,6 +18,7 @@ body{margin:0;font-family:Arial,sans-serif;background:var(--bg);}
   color:white;
   padding:15px;
 }
+
 .header .back{
   position:absolute;
   left:15px;
@@ -25,13 +30,28 @@ body{margin:0;font-family:Arial,sans-serif;background:var(--bg);}
   border:none;
   color:white;
 }
-.header h1{
-  margin:0 auto;
-  font-size:1.2em;
+
+.header h1{ margin:0 auto; font-size:1.2em; }
+
+.user-info{
+  text-align:center;
+  font-size:13px;
+  margin-top:5px;
+  opacity:0.8;
 }
+
 .container{padding:20px;}
-select,input,textarea{width:100%;padding:10px;margin:6px 0;border-radius:6px;border:1px solid #ccc;}
+
+select,input,textarea{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
 textarea{resize:none;}
+
 .button{
   background:var(--secondary);
   border:none;
@@ -42,27 +62,30 @@ textarea{resize:none;}
   margin-top:10px;
   cursor:pointer;
 }
+
 .preview{margin-top:10px;text-align:center;}
 .preview img{max-width:100%;border-radius:10px;}
 </style>
+
 </head>
+
 <body>
 
 <div class="header">
   <button class="back" onclick="goBack()">⬅</button>
-  <h1>Subir Evidencias</h1>
+  <div style="width:100%">
+    <h1>Subir Evidencias</h1>
+    <div class="user-info" id="userInfo"></div>
+  </div>
 </div>
 
 <div class="container">
+
   <label><b>🏪 Tienda</b></label>
   <select id="tienda"></select>
 
   <label><b>📊 Tipo de reporte</b></label>
-  <select id="tipoReporte">
-    <option value="checkin">Check-in</option>
-    <option value="exhibicion">Exhibición</option>
-    <option value="inventario">Inventario</option>
-  </select>
+  <select id="tipoReporte"></select>
 
   <label><b>📝 Comentarios</b></label>
   <textarea id="comentarios" placeholder="Describe la actividad..."></textarea>
@@ -76,36 +99,72 @@ textarea{resize:none;}
 
   <button class="button" onclick="getLocation()">📍 Obtener ubicación</button>
   <p id="ubicacion">Ubicación no capturada</p>
+
   <button class="button" onclick="subir()">⬆️ Subir Evidencia</button>
+
 </div>
 
 <script>
-const usuario = JSON.parse(localStorage.getItem("usuario")) || { _id:"demo", name:"Demo" };
+
+const BACKEND_URL = "https://storepulse.onrender.com";
+
+const userId = localStorage.getItem("userId");
+const role = localStorage.getItem("role");
+const userName = localStorage.getItem("userName") || "Usuario";
+
 let lat=null,lng=null;
 
-function getBackendUrl(){
-  return (window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1")?
-    "http://192.168.1.10:3000":"https://https://storepulse.onrender.com";
-}
+// 🔥 INFO USUARIO
+document.getElementById("userInfo").innerText =
+  `👤 ${userName} | Rol: ${role}`;
 
+// 🔙
 function goBack(){ window.location.href="./dashboard.html"; }
 
-async function cargarTiendas(){
-  const agencyId = localStorage.getItem("agencyId");
-  if(!agencyId){ alert("⚠️ Agencia no encontrada"); return; }
-  try{
-    const res = await fetch(`${getBackendUrl()}/stores/${agencyId}`);
-    const stores = await res.json();
-    const select = document.getElementById("tienda");
-    stores.forEach(s=>{
-      const option = document.createElement("option");
-      option.value=s._id;
-      option.textContent=s.name;
-      select.appendChild(option);
-    });
-  }catch(err){ console.error(err); alert("⚠️ Error cargando tiendas"); }
+// 🔥 TIPOS SEGÚN ROL
+function cargarTipos(){
+
+  const select = document.getElementById("tipoReporte");
+
+  if(role === "promotor"){
+    select.innerHTML = `
+      <option value="anaquel">Fotos anaquel</option>
+      <option value="exhibiciones">Exhibiciones adicionales</option>
+      <option value="precios">Precios</option>
+    `;
+  }else{
+    select.innerHTML = `
+      <option value="reporte">Reporte</option>
+      <option value="degustacion">Degustación</option>
+      <option value="precios_competencia">Precios competencia</option>
+    `;
+  }
 }
 
+// 🔥 TIENDAS ASIGNADAS
+async function cargarTiendas(){
+
+  try{
+    const res = await fetch(`${BACKEND_URL}/users/${userId}`);
+    const user = await res.json();
+
+    const select = document.getElementById("tienda");
+    select.innerHTML = "";
+
+    (user.stores || []).forEach(s=>{
+      const option = document.createElement("option");
+      option.value = s._id;
+      option.textContent = s.name;
+      select.appendChild(option);
+    });
+
+  }catch(err){
+    console.error(err);
+    alert("⚠️ Error cargando tiendas");
+  }
+}
+
+// 📸 PREVIEW
 document.getElementById("foto").addEventListener("change",function(e){
   const file = e.target.files[0];
   if(file){
@@ -119,37 +178,60 @@ document.getElementById("foto").addEventListener("change",function(e){
   }
 });
 
+// 📍 GPS
 function getLocation(){
   navigator.geolocation.getCurrentPosition(
-    (pos)=>{ lat=pos.coords.latitude; lng=pos.coords.longitude; document.getElementById("ubicacion").innerText="Ubicación capturada ✅"; },
+    (pos)=>{
+      lat=pos.coords.latitude;
+      lng=pos.coords.longitude;
+      document.getElementById("ubicacion").innerText="Ubicación capturada ✅";
+    },
     ()=>{ alert("⚠️ Activa el GPS"); }
   );
 }
 
+// 🚀 SUBIR
 async function subir(){
+
   const tienda=document.getElementById("tienda").value;
   const tipo=document.getElementById("tipoReporte").value;
   const comentarios=document.getElementById("comentarios").value;
-  const fileInput=document.getElementById("foto");
-  const fotoFile=fileInput.files[0];
-  if(!tienda||!fotoFile||!lat){ alert("⚠️ Completa todos los datos"); return; }
+  const fotoFile=document.getElementById("foto").files[0];
+
+  if(!tienda || !fotoFile || !lat){
+    return alert("⚠️ Completa todos los datos");
+  }
+
   const formData=new FormData();
-  formData.append("usuarioId",usuario._id);
+  formData.append("userId",userId);
   formData.append("storeId",tienda);
   formData.append("tipo",tipo);
   formData.append("comentarios",comentarios);
   formData.append("lat",lat);
   formData.append("lng",lng);
   formData.append("foto",fotoFile);
+
   try{
-    const res=await fetch(`${getBackendUrl()}/evidences`,{method:"POST",body:formData});
+
+    const res=await fetch(`${BACKEND_URL}/evidences`,{
+      method:"POST",
+      body:formData
+    });
+
     const data=await res.json();
-    if(!res.ok) throw new Error(data.error||"Error subiendo evidencia");
+
+    if(!res.ok) throw new Error(data.error || "Error");
+
     alert("✅ Evidencia subida correctamente");
     limpiar();
-  }catch(err){ console.error(err); alert(err.message); }
+
+  }catch(err){
+    console.error(err);
+    alert(err.message);
+  }
 }
 
+// 🧹 LIMPIAR
 function limpiar(){
   document.getElementById("comentarios").value="";
   document.getElementById("previewImg").style.display="none";
@@ -158,7 +240,10 @@ function limpiar(){
   lat=null; lng=null;
 }
 
+// INIT
+cargarTipos();
 cargarTiendas();
+
 </script>
 
 </body>

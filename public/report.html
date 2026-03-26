@@ -1,20 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
-<title>Reportes PDF - StorePulse</title>
+<title>Reportes - StorePulse</title>
+
 <style>
 :root {
   --primary: #0B1F3A;
   --secondary: #D4AF37;
   --bg: #F5F7FA;
-  --text: #1A1A1A;
 }
+
 body {
   font-family: Arial;
   margin: 0;
   background: var(--bg);
 }
+
 header {
   background: var(--primary);
   color: white;
@@ -22,11 +25,13 @@ header {
   display: flex;
   align-items: center;
 }
+
 header h1 {
   flex: 1;
   margin: 0;
   text-align: center;
 }
+
 .back {
   background: none;
   border: none;
@@ -34,20 +39,23 @@ header h1 {
   font-size: 18px;
   cursor: pointer;
 }
+
 .container {
   padding: 20px;
 }
+
 label, input, button {
   display: block;
   width: 100%;
   margin-bottom: 10px;
-  font-size: 14px;
 }
+
 input {
   padding: 10px;
   border-radius: 8px;
   border: 1px solid #ccc;
 }
+
 button {
   background: var(--secondary);
   border: none;
@@ -55,77 +63,183 @@ button {
   padding: 12px;
   border-radius: 8px;
   cursor: pointer;
+  font-weight: bold;
 }
+
 button.secondary {
   background: #003366;
-  margin-top: 5px;
 }
+
+.info {
+  margin-bottom: 15px;
+  font-size: 14px;
+  color: #333;
+}
+
 .error {
   color: red;
-  margin-top: 10px;
+}
+
+.card {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
 }
 </style>
+
 </head>
+
 <body>
 
 <header>
   <button class="back" onclick="goBack()">⬅</button>
-  <h1>Reportes PDF</h1>
+  <h1>Reportes</h1>
 </header>
 
 <div class="container">
-  <label>Fecha inicio:</label>
-  <input type="date" id="start">
-  <label>Fecha fin:</label>
-  <input type="date" id="end">
-  <button onclick="generateReport()">Generar Reporte</button>
+
+  <!-- 🔥 INFO USUARIO -->
+  <div class="info" id="userInfo"></div>
+
+  <!-- 🔥 CAPTURA DE REPORTE (NUEVO) -->
+  <div class="card">
+    <h3>📝 Captura de Reporte</h3>
+
+    <input id="producto" placeholder="Producto">
+    <input id="invInicial" placeholder="Inventario inicial">
+    <input id="ventas" placeholder="Ventas">
+    <input id="invFinal" placeholder="Inventario final">
+    <input id="precio" placeholder="Precio">
+
+    <button onclick="guardar()">Guardar Reporte</button>
+  </div>
+
+  <!-- 🔥 GENERACIÓN DE REPORTES -->
+  <div class="card">
+    <h3>📊 Exportar Reportes</h3>
+
+    <label>Fecha inicio:</label>
+    <input type="date" id="start">
+
+    <label>Fecha fin:</label>
+    <input type="date" id="end">
+
+    <button onclick="generatePDF()">📄 Generar PDF</button>
+    <button class="secondary" onclick="generateExcel()">📊 Exportar Excel</button>
+  </div>
+
   <button class="secondary" onclick="logout()">Cerrar sesión</button>
+
   <div class="error" id="error"></div>
+
 </div>
 
 <script>
-// 🔹 URL dinámica del backend
+
+// 🔹 BACKEND
 function getBackendUrl() {
   return (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
     ? "http://192.168.1.10:3000"
-    : "https://https://storepulse.onrender.com";
+    : "https://storepulse.onrender.com";
 }
 
-// 🔹 Navegación
+// 🔹 INFO USUARIO
+const name = localStorage.getItem("name") || "Usuario";
+const role = localStorage.getItem("role");
+
+document.getElementById("userInfo").innerText =
+  `👤 ${name} | Rol: ${role}`;
+
+// 🔹 NAVEGACIÓN
 function goBack() { window.history.back(); }
 
-// 🔹 Cerrar sesión
+// 🔹 LOGOUT
 function logout() {
   localStorage.clear();
   window.location.href="./login.html";
 }
 
-// 🔹 Generar reporte
-function generateReport() {
+// 🔹 VALIDACIÓN
+function validateDates(){
   const start = document.getElementById("start").value;
   const end = document.getElementById("end").value;
-  const error = document.getElementById("error");
-  error.innerText = "";
 
   if (!start || !end) {
-    error.innerText = "⚠️ Selecciona ambas fechas";
-    return;
+    document.getElementById("error").innerText = "⚠️ Selecciona ambas fechas";
+    return null;
   }
 
-  const agencyId = localStorage.getItem("agencyId");
-  if (!agencyId) {
-    window.location.href = "./login.html";
-    return;
-  }
+  document.getElementById("error").innerText = "";
+  return { start, end };
+}
 
-  try {
-    const url = `${getBackendUrl()}/report/${agencyId}?start=${start}&end=${end}`;
-    window.open(url, "_blank");
-  } catch(err) {
+// 🔹 GUARDAR REPORTE (NUEVO)
+async function guardar(){
+
+  const data = {
+    producto: document.getElementById("producto").value,
+    invInicial: document.getElementById("invInicial").value,
+    ventas: document.getElementById("ventas").value,
+    invFinal: document.getElementById("invFinal").value,
+    precio: document.getElementById("precio").value
+  };
+
+  try{
+
+    await fetch(`${getBackendUrl()}/reports`,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        userId: localStorage.getItem("userId"),
+        storeId: localStorage.getItem("storeId"),
+        type:"reporte",
+        data
+      })
+    });
+
+    alert("✅ Reporte guardado");
+
+    // limpiar
+    document.getElementById("producto").value="";
+    document.getElementById("invInicial").value="";
+    document.getElementById("ventas").value="";
+    document.getElementById("invFinal").value="";
+    document.getElementById("precio").value="";
+
+  }catch(err){
     console.error(err);
-    error.innerText = "⚠️ No se pudo generar el reporte";
+    alert("❌ Error al guardar");
   }
 }
+
+// 🔹 PDF
+function generatePDF() {
+
+  const dates = validateDates();
+  if(!dates) return;
+
+  const agencyId = localStorage.getItem("agencyId");
+  if (!agencyId) return;
+
+  const url = `${getBackendUrl()}/report/${agencyId}?start=${dates.start}&end=${dates.end}`;
+  window.open(url, "_blank");
+}
+
+// 🔹 EXCEL
+function generateExcel() {
+
+  const dates = validateDates();
+  if(!dates) return;
+
+  const agencyId = localStorage.getItem("agencyId");
+  if (!agencyId) return;
+
+  const url = `${getBackendUrl()}/report-excel/${agencyId}?start=${dates.start}&end=${dates.end}`;
+  window.open(url, "_blank");
+}
+
 </script>
 
 </body>

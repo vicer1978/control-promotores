@@ -69,16 +69,20 @@ input, select {
   font-weight:bold;
 }
 </style>
-
 </head>
 
 <body>
 
 <div class="sidebar">
+
   <h2>⚡ Admin PRO</h2>
 
   <button onclick="loadDashboard()">📊 Dashboard</button>
   <button id="btnResumen" onclick="loadAgencySummary()">📊 Resumen Agencias</button>
+
+  <!-- 🔥 NUEVO -->
+  <button onclick="loadReports()">📄 Reportes</button>
+
   <button onclick="loadUsers()">👤 Usuarios</button>
   <button onclick="loadCreateUser()">➕ Crear Usuario</button>
 
@@ -91,6 +95,7 @@ input, select {
   </div>
 
   <button onclick="logout()">🚪 Salir</button>
+
 </div>
 
 <div class="main" id="content"><h2>Bienvenido</h2></div>
@@ -128,6 +133,46 @@ async function loadDashboard(){
       <div class="card"><div class="kpi">${users.filter(u=>u.role==="admin").length}</div>Admins</div>
     </div>
   `;
+}
+
+// ---------------- REPORTES 🔥 NUEVO
+async function loadReports(){
+
+  if(!agencyId){
+    return alert("⚠️ No hay agencia asignada");
+  }
+
+  try{
+
+    const reports = await fetchWithAuth(`${BACKEND_URL}/reports/${agencyId}`);
+
+    let html = `<div class="card"><h3>📄 Reportes capturados</h3>`;
+
+    if(!reports.length){
+      html += `<p>No hay reportes aún</p>`;
+    }
+
+    reports.forEach(r=>{
+      html += `
+        <div class="user">
+          <b>${r.userId?.name || "Usuario"}</b><br>
+          🏪 ${r.storeId?.name || "Tienda"}<br>
+          📦 ${r.data?.producto || "-"}<br>
+          Ventas: ${r.data?.ventas || 0}<br>
+          💰 $${r.data?.precio || 0}<br>
+          📅 ${new Date(r.date).toLocaleString()}
+        </div>
+      `;
+    });
+
+    html += "</div>";
+
+    document.getElementById("content").innerHTML = html;
+
+  }catch(err){
+    console.error(err);
+    alert("❌ Error cargando reportes");
+  }
 }
 
 // ---------------- RESUMEN
@@ -190,7 +235,6 @@ function renderUsers(users){
           ${assigned.map(s=>`<div class="store-item" draggable="true" ondragstart="dragStart(event,'${s._id}')">${s.name}</div>`).join("")}
         </div>
       </div>
-
     </div>`;
   });
 
@@ -198,9 +242,8 @@ function renderUsers(users){
   document.getElementById("content").innerHTML=html;
 }
 
-// ---------------- CREATE USER (FIX)
+// ---------------- CREATE USER
 async function loadCreateUser(){
-
   document.getElementById("content").innerHTML=`
     <div class="card">
       <h3>Crear Usuario</h3>
@@ -221,7 +264,6 @@ async function loadCreateUser(){
 }
 
 async function createUser(){
-
   const body={
     name:document.getElementById("name").value,
     email:document.getElementById("email").value,
@@ -239,40 +281,7 @@ async function createUser(){
   alert("Usuario creado ✅");
 }
 
-// ---------------- AGENCIAS (FIX)
-async function loadAgencies(){
-
-  const agencies = await fetchWithAuth(`${BACKEND_URL}/agencies`);
-
-  let html = `<div class="card"><h3>Agencias</h3>`;
-
-  agencies.forEach(a=>{
-    html += `<div class="user">${a.name}</div>`;
-  });
-
-  html += `
-    <input id="newAgency" placeholder="Nueva agencia">
-    <button onclick="createAgency()">Crear Agencia</button>
-  </div>`;
-
-  document.getElementById("content").innerHTML = html;
-}
-
-async function createAgency(){
-
-  const name = document.getElementById("newAgency").value;
-
-  await fetchWithAuth(`${BACKEND_URL}/agencies`,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ name })
-  });
-
-  alert("Agencia creada ✅");
-  loadAgencies();
-}
-
-// ---------------- STORES (YA FUNCIONANDO)
+// ---------------- STORES
 async function loadStores(){
   const stores = await fetchWithAuth(`${BACKEND_URL}/stores`);
 
@@ -281,7 +290,6 @@ async function loadStores(){
     <input id="name" placeholder="Nombre">
     <input id="lat" placeholder="Lat">
     <input id="lng" placeholder="Lng">
-    <input id="addr" placeholder="Dirección">
     <button onclick="createStore()">Crear</button>
   </div>
 
@@ -305,11 +313,6 @@ async function createStore(){
   alert("Tienda creada");
   loadStores();
 }
-
-// ---------------- DRAG
-let draggedId=null;
-function dragStart(e,id){ draggedId=id; }
-function allowDrop(e){ e.preventDefault(); }
 
 // ---------------- ROLE
 async function changeRole(uid, newRole){

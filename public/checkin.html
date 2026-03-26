@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
 <title>Check-in - StorePulse</title>
+
 <style>
 body {
   font-family: Arial, sans-serif;
@@ -52,8 +54,11 @@ button {
 }
 button:active { transform: scale(0.98); }
 .error { color: red; margin-top: 10px; }
+.success { color: green; margin-top: 10px; }
 </style>
+
 </head>
+
 <body>
 
 <header>
@@ -62,51 +67,99 @@ button:active { transform: scale(0.98); }
 </header>
 
 <div class="container">
+
   <input type="file" id="photo" accept="image/*">
+
   <button onclick="doCheckin()">Realizar Check-in</button>
+
   <div class="error" id="error"></div>
+  <div class="success" id="success"></div>
+
 </div>
 
 <script>
-// Flecha de retroceso
+
+// 🔙 Navegación
 function goBack() { window.history.back(); }
 
-// 🔹 BACKEND FIJO
+// 🔹 BACKEND
 const BACKEND_URL = "https://storepulse.onrender.com";
 
 // ---------------- CHECKIN ----------------
 async function doCheckin() {
+
   const error = document.getElementById("error");
+  const success = document.getElementById("success");
+
   error.innerText = "";
+  success.innerText = "";
 
   const photo = document.getElementById("photo").files[0];
-  if(!photo){ error.innerText = "⚠️ Selecciona una foto"; return; }
-  if(!navigator.geolocation){ error.innerText = "⚠️ Geolocalización no disponible"; return; }
+  const userId = localStorage.getItem("userId");
+  const storeId = localStorage.getItem("storeId");
 
+  // 🔐 VALIDACIONES
+  if(!userId){
+    error.innerText = "⚠️ Sesión inválida";
+    return;
+  }
+
+  if(!storeId){
+    error.innerText = "⚠️ Debes seleccionar una tienda antes";
+    return;
+  }
+
+  if(!photo){
+    error.innerText = "⚠️ Selecciona una foto";
+    return;
+  }
+
+  if(!navigator.geolocation){
+    error.innerText = "⚠️ Geolocalización no disponible";
+    return;
+  }
+
+  // 📍 GPS
   navigator.geolocation.getCurrentPosition(async pos => {
+
     try {
+
       const formData = new FormData();
       formData.append("photo", photo);
       formData.append("lat", pos.coords.latitude);
       formData.append("lng", pos.coords.longitude);
-      formData.append("userId", localStorage.getItem("userId"));
+      formData.append("userId", userId);
+      formData.append("storeId", storeId);
 
-      const res = await fetch(`${BACKEND_URL}/checkin`, { method: "POST", body: formData });
-      if(!res.ok) throw new Error("Error en el servidor");
+      const res = await fetch(`${BACKEND_URL}/checkin`, {
+        method: "POST",
+        body: formData
+      });
 
       const data = await res.json();
-      alert(data.message || "Check-in realizado correctamente");
+
+      // ❌ ERROR BACKEND (fuera de rango, etc)
+      if(!res.ok){
+        error.innerText = data.error || "❌ No se pudo hacer check-in";
+        return;
+      }
+
+      // ✅ ÉXITO
+      success.innerText = `✅ ${data.message} ${data.distancia ? "(" + data.distancia + ")" : ""}`;
+
       document.getElementById("photo").value = "";
 
     } catch(err) {
       console.error(err);
-      error.innerText = "⚠️ No se pudo conectar al servidor";
+      error.innerText = "⚠️ Error al conectar con servidor";
     }
-  }, err => {
-    console.error(err);
+
+  }, () => {
     error.innerText = "⚠️ No se pudo obtener ubicación";
   });
+
 }
+
 </script>
 
 </body>

@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
 <meta charset="UTF-8">
 <title>StorePulse App</title>
@@ -27,9 +26,7 @@ body {
   padding: 20px;
 }
 
-.sidebar h2 {
-  text-align: center;
-}
+.sidebar h2 { text-align: center; }
 
 .sidebar small {
   display:block;
@@ -65,25 +62,6 @@ body {
   margin-bottom: 15px;
   box-shadow: 0 3px 8px rgba(0,0,0,0.1);
 }
-
-input, button {
-  padding: 10px;
-  margin: 8px 0;
-  border-radius: 8px;
-}
-
-input {
-  width: 100%;
-  border: 1px solid #ccc;
-}
-
-button {
-  width: 100%;
-  background: var(--secondary);
-  border: none;
-  color: white;
-  font-weight: bold;
-}
 </style>
 </head>
 
@@ -94,12 +72,14 @@ button {
   <h2>StorePulse</h2>
   <small id="userInfo"></small>
 
-  <button onclick="loadDashboard()">📊 Dashboard</button>
-  <button onclick="loadCheckin()">📍 Check-in</button>
+  <!-- 🔥 TIENDAS -->
+  <div id="storesMenu"></div>
+
+  <button onclick="goCheckin()">📍 Check-in</button>
   <button onclick="loadHistory()">📋 Historial</button>
   <button onclick="loadRanking()">🏆 Ranking</button>
 
-  <!-- 🔥 SOLO ADMIN -->
+  <!-- SOLO ADMIN -->
   <div id="reportMenu">
     <button onclick="loadReport()">📄 Reportes</button>
   </div>
@@ -119,8 +99,10 @@ const BACKEND_URL = "https://storepulse.onrender.com";
 const userId = localStorage.getItem("userId");
 const role = localStorage.getItem("role");
 const agencyId = localStorage.getItem("agencyId");
+const userName = localStorage.getItem("name");
 
-// 🔐 VALIDACIÓN GLOBAL SAAS
+
+// 🔐 VALIDACIÓN
 (function(){
 
   if(!userId){
@@ -128,162 +110,149 @@ const agencyId = localStorage.getItem("agencyId");
     return;
   }
 
-  // 🔥 UI DINÁMICA POR ROL
   if(role !== "admin"){
     document.getElementById("reportMenu").style.display = "none";
   }
 
-  // 🔥 INFO USUARIO
   document.getElementById("userInfo").innerText =
-    `Rol: ${role} ${agencyId ? "| Agencia activa" : "| Sin agencia"}`;
+    `Bienvenido ${userName || "Usuario"} | ${role}`;
+
+  loadUserStores();
 
 })();
 
 
-// ---------------- DASHBOARD ----------------
-
-async function loadDashboard(){
-
-  if(!agencyId){
-    return showError("⚠️ No tienes agencia asignada");
-  }
+// 🔥 CARGAR TIENDAS
+async function loadUserStores(){
 
   try{
 
-    const res = await fetch(`${BACKEND_URL}/dashboard/${agencyId}`);
-    const data = await res.json();
+    const res = await fetch(`${BACKEND_URL}/users`,{
+      headers:{ userId }
+    });
 
-    document.getElementById("content").innerHTML = `
-      <div class="card">
-        <h3>📊 Dashboard</h3>
-        <p>Total usuarios: ${data.totalUsers}</p>
-        <p>Total tiendas: ${data.totalStores}</p>
-        <p>Total check-ins: ${data.totalCheckins}</p>
-        <p>Usuarios activos: ${data.activeUsers}</p>
-      </div>
-    `;
+    const users = await res.json();
+    const user = users.find(u => u._id === userId);
 
-  }catch{
-    showError("❌ Error cargando dashboard");
+    const stores = user?.stores || [];
+
+    let html = `<h3>🏬 Mis tiendas</h3>`;
+
+    stores.forEach(s=>{
+      html += `
+        <button onclick="selectStore('${s._id}','${s.name}')">
+          ${s.name}
+        </button>
+      `;
+    });
+
+    document.getElementById("storesMenu").innerHTML = html;
+
+  }catch(err){
+    console.log("Error cargando tiendas", err);
   }
+
 }
 
 
-// ---------------- CHECK-IN ----------------
+// 🔥 SELECCIONAR TIENDA
+function selectStore(id, name){
 
-function loadCheckin(){
+  localStorage.setItem("storeId", id);
+
+  let menu = "";
+
+  if(role === "demostradora"){
+    menu = `
+      <button onclick="goPage('report.html')">📊 Reporte</button>
+      <button onclick="goPage('degustacion.html')">🍽 Degustación</button>
+      <button onclick="goPage('precios_competencia.html')">💲 Competencia</button>
+    `;
+  }
+
+  if(role === "promotor"){
+    menu = `
+      <button onclick="goPage('ventas.html')">💰 Ventas</button>
+      <button onclick="goPage('precios_marca.html')">💲 Precios</button>
+      <button onclick="goPage('agotados.html')">❌ Agotados</button>
+      <button onclick="goPage('preagotados.html')">⚠️ Preagotados</button>
+      <button onclick="goPage('inventario.html')">📦 Inventario</button>
+      <button onclick="goPage('exhibiciones.html')">🧾 Exhibiciones</button>
+      <button onclick="goPage('precios_competencia.html')">🏷 Competencia</button>
+      <button onclick="goPage('upload.html')">📸 Fotos</button>
+    `;
+  }
 
   document.getElementById("content").innerHTML = `
     <div class="card">
-      <h3>📍 Check-in</h3>
-      <input type="file" id="photo">
-      <button onclick="doCheckin()">Enviar</button>
-      <p id="msg"></p>
+      <h3>🏬 ${name}</h3>
+      <p>Tienda seleccionada</p>
+      <button onclick="goCheckin()">📍 Hacer Check-in</button>
+    </div>
+
+    <div class="card">
+      <h3>📋 Operación</h3>
+      ${menu}
     </div>
   `;
 }
 
-function doCheckin(){
 
-  const photo = document.getElementById("photo").files[0];
+// 🔥 CHECKIN
+function goCheckin(){
 
-  if(!photo){
-    alert("Selecciona una foto");
-    return;
+  const storeId = localStorage.getItem("storeId");
+
+  if(!storeId){
+    return showError("⚠️ Selecciona una tienda primero");
   }
 
-  navigator.geolocation.getCurrentPosition(async pos => {
-
-    const formData = new FormData();
-    formData.append("photo", photo);
-    formData.append("lat", pos.coords.latitude);
-    formData.append("lng", pos.coords.longitude);
-    formData.append("userId", userId);
-
-    try{
-
-      const res = await fetch(`${BACKEND_URL}/checkin`,{
-        method:"POST",
-        body: formData
-      });
-
-      const data = await res.json();
-      document.getElementById("msg").innerText = data.message;
-
-    }catch{
-      document.getElementById("msg").innerText = "❌ Error en check-in";
-    }
-
-  }, () => {
-    alert("❌ Activa tu ubicación");
-  });
-
+  window.location.href = "./checkin.html";
 }
 
 
-// ---------------- HISTORIAL ----------------
-
+// 🔥 HISTORIAL
 async function loadHistory(){
 
-  if(!agencyId){
-    return showError("⚠️ Sin agencia asignada");
-  }
+  if(!agencyId) return showError("⚠️ Sin agencia");
 
-  try{
+  const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`);
+  const data = await res.json();
 
-    const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`);
-    const data = await res.json();
+  let html = `<div class="card"><h3>Historial</h3>`;
 
-    let html = `<div class="card"><h3>Historial</h3>`;
+  data.forEach(c=>{
+    html += `<p>${new Date(c.date).toLocaleString()}</p>`;
+  });
 
-    data.forEach(c=>{
-      html += `<p>${new Date(c.date).toLocaleString()}</p>`;
-    });
-
-    html += `</div>`;
-    document.getElementById("content").innerHTML = html;
-
-  }catch{
-    showError("❌ Error cargando historial");
-  }
+  html += `</div>`;
+  document.getElementById("content").innerHTML = html;
 }
 
 
-// ---------------- RANKING ----------------
-
+// 🔥 RANKING
 async function loadRanking(){
 
-  if(!agencyId){
-    return showError("⚠️ Sin agencia asignada");
-  }
+  if(!agencyId) return showError("⚠️ Sin agencia");
 
-  try{
+  const res = await fetch(`${BACKEND_URL}/stats/ranking/${agencyId}`);
+  const data = await res.json();
 
-    const res = await fetch(`${BACKEND_URL}/stats/ranking/${agencyId}`);
-    const data = await res.json();
+  let html = `<div class="card"><h3>Ranking</h3>`;
 
-    let html = `<div class="card"><h3>Ranking</h3>`;
+  data.forEach((r,i)=>{
+    html += `<p>${i+1}. ${r._id.name} - ${r.total}</p>`;
+  });
 
-    data.forEach((r,i)=>{
-      html += `<p>${i+1}. ${r._id.name} - ${r.total}</p>`;
-    });
-
-    html += `</div>`;
-    document.getElementById("content").innerHTML = html;
-
-  }catch{
-    showError("❌ Error cargando ranking");
-  }
+  html += `</div>`;
+  document.getElementById("content").innerHTML = html;
 }
 
 
-// ---------------- REPORTES ----------------
-
+// 🔥 REPORTES
 function loadReport(){
 
-  if(role !== "admin"){
-    return showError("❌ No autorizado");
-  }
+  if(role !== "admin") return showError("❌ No autorizado");
 
   document.getElementById("content").innerHTML = `
     <div class="card">
@@ -296,20 +265,17 @@ function loadReport(){
 }
 
 function generateReport(){
-
   const start = document.getElementById("start").value;
   const end = document.getElementById("end").value;
-
-  if(!start || !end){
-    alert("Selecciona fechas");
-    return;
-  }
 
   window.open(`${BACKEND_URL}/report/${agencyId}?start=${start}&end=${end}`);
 }
 
 
-// ---------------- UTIL ----------------
+// 🔥 UTIL
+function goPage(page){
+  window.location.href = "./" + page;
+}
 
 function showError(msg){
   document.getElementById("content").innerHTML =
@@ -317,11 +283,10 @@ function showError(msg){
 }
 
 
-// ---------------- LOGOUT ----------------
-
+// 🔥 LOGOUT
 function logout(){
   localStorage.clear();
-  window.location.href = "./login.html";
+  window.location.href="./login.html";
 }
 
 </script>

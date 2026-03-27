@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Competencia - StorePulse</title>
+    <style>
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .header { display: flex; align-items: center; margin-bottom: 20px; }
+        .btn-back { background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 10px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input, textarea { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn-send { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <button class="btn-back" onclick="window.location.href='dashboard.html'">←</button>
+        <h2>Competencia</h2>
+    </div>
+
+    <div class="card">
+        <label>Marca de la Competencia</label>
+        <input type="text" id="marcaComp" placeholder="Ej. Marca X">
+        
+        <label>Actividad detectada</label>
+        <textarea id="actividadComp" rows="4" placeholder="Ej. Tienen una edecán, están dando una promoción de 2x1..."></textarea>
+        
+        <label>Precio detectado (Opcional)</label>
+        <input type="text" id="precioComp" placeholder="Ej. $45.00">
+
+        <button class="btn-send" onclick="enviarCompetencia()">ENVIAR REPORTE</button>
+    </div>
+
+    <script>
+        const BACKEND_URL = "https://storepulse.onrender.com";
+
+        // VERIFICACIÓN DE SESIÓN (Esto evita que se cierre)
+        const userId = localStorage.getItem('userId');
+        if (!userId || userId.length !== 24) {
+            window.location.href = 'login.html';
+        }
+
+        async function enviarCompetencia() {
+            const data = {
+                userId: userId,
+                storeId: localStorage.getItem('currentStoreId'),
+                reportType: 'competencia',
+                articulo: document.getElementById('marcaComp').value,
+                observaciones: document.getElementById('actividadComp').value,
+                precio: document.getElementById('precioComp').value,
+                timestamp: new Date().toISOString()
+            };
+
+            if(!data.articulo || !data.observaciones) return alert("Por favor llena los campos principales");
+
+            try {
+                const res = await fetch(`${BACKEND_URL}/reports`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if(res.ok) {
+                    alert("✅ Reporte de competencia enviado");
+                    window.location.href = 'dashboard.html';
+                }
+            } catch (err) {
+                alert("❌ Error de conexión");
+            }
+        }
+    </script>
+</body>
+</html>

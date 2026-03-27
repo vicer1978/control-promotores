@@ -7,31 +7,32 @@ const ReportSchema = new mongoose.Schema({
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency', required: true },
     
     // --- CLASIFICACIÓN ---
-    // Usamos 'reportType' para evitar conflictos con la palabra 'type' de Mongoose
     reportType: { 
         type: String, 
         required: true, 
+        // Agregamos 'degustacion' para que coincida con el mapeo del frontend
         enum: ['ventas', 'degustacion', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
     },
     
     // --- DATOS DEL PRODUCTO ---
-    articulo: { type: String },
-    cantidad: { type: Number, default: 0 }, // Ventas o unidades dadas
+    articulo: { type: String, default: "N/A" },
+    cantidad: { type: Number, default: 0 }, // Aquí se guardan las "Ventas Realizadas"
     precio: { type: Number, default: 0 },
     
-    // --- CONTROL DE INVENTARIO (Para Demoras/Promotores) ---
+    // --- CONTROL DE INVENTARIO (CORREGIDO) ---
     inv_inicial: { type: Number, default: 0 },
+    resurtido: { type: Number, default: 0 }, // <-- AGREGAR ESTO para el Reporte Diario
     inv_final: { type: Number, default: 0 },
     
     // --- DATOS DE DEGUSTACIÓN / CAMPO ---
     personas: { type: Number, default: 0 }, 
-    observaciones: { type: String }, // Aquí caerán los comentarios de "3 cajas y 2 piezas"
+    observaciones: { type: String }, 
     
     // --- EVIDENCIA Y TIEMPO ---
     foto_url: { type: String },
-    date: { type: Date, default: Date.now }
+    // Eliminamos 'date' manual porque 'timestamps: true' ya crea 'createdAt'
 }, { 
-    timestamps: true // Esto crea automáticamente 'createdAt' y 'updatedAt'
+    timestamps: true 
 });
 
 module.exports = mongoose.model('Report', ReportSchema);

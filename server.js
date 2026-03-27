@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// --- Configuración de Multer ---
+// --- Configuración de Multer (Para Fotos) ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, "uploads/"),
     filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
@@ -72,7 +72,6 @@ app.post("/login", async (req, res) => {
 
 // --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
 
-// Iniciar operación en una tienda (Check-in)
 app.post("/checkin", auth, async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
@@ -91,7 +90,6 @@ app.post("/checkin", auth, async (req, res) => {
     }
 });
 
-// Finalizar jornada (Check-out)
 app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng } = req.body;
@@ -99,7 +97,7 @@ app.post("/checkout", auth, async (req, res) => {
             userId: req.user._id,
             agencyId: req.user.agencyId,
             location: { lat, lng },
-            type: "checkout", // Identificador de salida
+            type: "checkout", 
             timestamp: new Date()
         });
         await newCheckout.save();
@@ -110,6 +108,7 @@ app.post("/checkout", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE REPORTES ---
+
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -124,19 +123,28 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
+        // Combinamos req.body con los datos de sesión y la foto
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            // Guardamos la URL de la foto si existe
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
+            // Normalizamos campos numéricos para evitar errores de tipo en la DB
+            cantidad: Number(req.body.cantidad) || 0,
+            inv_inicial: Number(req.body.inv_inicial) || 0,
+            resurtido: Number(req.body.resurtido) || 0,
+            inv_final: Number(req.body.inv_final) || 0,
+            precio: Number(req.body.precio) || 0,
             observaciones: req.body.observaciones || req.body.comentarios || ""
         };
+
         const report = new Report(reportData);
         await report.save();
         res.json({ message: "Reporte guardado con éxito", id: report._id });
     } catch (err) { 
         console.error("❌ Error al guardar reporte:", err);
-        res.status(500).json({ error: "Error interno al guardar el reporte" }); 
+        res.status(500).json({ error: "Error interno al guardar el reporte", detalles: err.message }); 
     }
 });
 
@@ -219,7 +227,7 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
-// --- MANEJO DE FRONTEND ---
+// --- MANEJO DE FRONTEND (Rutas de archivos) ---
 
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
@@ -241,6 +249,7 @@ app.get("/", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
+// Captura cualquier otra ruta y envía al login
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

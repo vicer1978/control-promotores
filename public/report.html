@@ -18,7 +18,6 @@
         input, textarea { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 16px; background: #f8fafc; transition: border 0.3s; }
         input:focus, textarea:focus { outline: none; border-color: var(--gold); background: white; }
         
-        /* FOTO MEJORADA */
         .photo-preview { 
             width: 100%; height: 200px; background: #f1f5f9; border-radius: 15px; 
             display: flex; align-items: center; justify-content: center; 
@@ -31,6 +30,7 @@
         .btn-main:disabled { background: #94a3b8; cursor: not-allowed; }
         
         .hidden { display: none !important; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     </style>
 </head>
 <body>
@@ -50,9 +50,14 @@
             </div>
 
             <div id="block-demo" class="hidden">
-                <div class="form-group"><label>Inv. Inicial</label><input type="number" id="inv_inicial" value="0"></div>
-                <div class="form-group"><label>Ventas Realizadas</label><input type="number" id="ventas" value="0"></div>
-                <div class="form-group"><label>Inv. Final</label><input type="number" id="inv_final" value="0"></div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Inv. Inicial</label><input type="number" id="inv_inicial" value="0"></div>
+                    <div class="form-group"><label>Resurtido</label><input type="number" id="resurtido" value="0"></div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Ventas Realizadas</label><input type="number" id="ventas" value="0"></div>
+                    <div class="form-group"><label>Inv. Final</label><input type="number" id="inv_final" value="0"></div>
+                </div>
                 <div class="form-group"><label>Precio de Venta ($)</label><input type="number" id="precio" value="0.00" step="0.01"></div>
             </div>
 
@@ -71,7 +76,7 @@
 
             <div class="form-group hidden" id="group-comentarios">
                 <label id="label-comentarios">Comentarios / Observaciones</label>
-                <textarea id="comentarios" rows="5" placeholder="Escribe aquí los detalles (ej: se dieron 3 cajas...)"></textarea>
+                <textarea id="comentarios" rows="5" placeholder="Escribe aquí los detalles..."></textarea>
             </div>
 
             <button type="button" id="btnSend" class="btn-main" onclick="saveReport()">ENVIAR REPORTE</button>
@@ -83,21 +88,31 @@
     const BACKEND_URL = "https://storepulse.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
     const typeFromUrl = urlParams.get('type');
-    const storeId = localStorage.getItem("activeStoreId");
+    
+    // VALIDACIÓN DE SESIÓN INMEDIATA
     const userId = localStorage.getItem("userId");
+    if (!userId || userId.length !== 24) {
+        window.location.href = "login.html";
+    }
+
+    const storeId = localStorage.getItem("activeStoreId") || localStorage.getItem("currentStoreId");
     const agencyId = localStorage.getItem("agencyId");
 
-    // CONFIGURACIÓN MEJORADA
     const config = {
-        'report': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad'] },
+        'report': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
         'ranking': { 
             title: 'Degustación', 
             fields: ['group-articulo', 'group-comentarios', 'group-foto'],
             labelArt: 'Producto Degustado',
-            labelObs: 'Detalle de la Degustación (Piezas/Cajas/Comentarios)'
+            labelObs: 'Detalle de la Degustación (Piezas/Comentarios)'
         },
-        'reporte_diario': { title: 'Reporte Diario', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
-        'competencia': { title: 'Precios Competencia', fields: ['group-articulo', 'group-foto', 'group-comentarios'] }
+        'reporte_diario': { title: 'Reporte Diario', fields: ['group-articulo', 'block-demo', 'group-comentarios', 'group-foto'] },
+        'competencia': { 
+            title: 'Precios Competencia', 
+            fields: ['group-articulo', 'group-foto', 'group-comentarios'],
+            labelArt: 'Marca de Competencia',
+            labelObs: 'Actividad detectada de la competencia'
+        }
     };
 
     window.onload = () => {
@@ -105,7 +120,11 @@
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
 
-        s.fields.forEach(id => document.getElementById(id).classList.remove("hidden"));
+        s.fields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.classList.remove("hidden");
+        });
+
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
         if(s.labelObs) document.getElementById("label-comentarios").innerText = s.labelObs;
     };
@@ -129,13 +148,17 @@
         formData.append("storeId", storeId);
         formData.append("userId", userId);
         
-        // Mapeo de reportType para el Admin
         const mappedType = (typeFromUrl === 'ranking') ? 'degustacion' : (typeFromUrl === 'report' ? 'ventas' : typeFromUrl);
         formData.append("reportType", mappedType);
 
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
-        formData.append("cantidad", document.getElementById("cantidad").value || document.getElementById("ventas").value || 0);
+        
+        // Cantidad unificada (si es reporte diario usa 'ventas', si no usa 'cantidad')
+        const cant = document.getElementById("cantidad").value || document.getElementById("ventas").value || 0;
+        formData.append("cantidad", cant);
+
         formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
+        formData.append("resurtido", document.getElementById("resurtido").value || 0);
         formData.append("inv_final", document.getElementById("inv_final").value || 0);
         formData.append("precio", document.getElementById("precio").value || 0);
         formData.append("observaciones", document.getElementById("comentarios").value || "");
@@ -154,14 +177,17 @@
                 alert("✅ Reporte guardado con éxito");
                 window.location.href = "./home.html";
             } else {
-                alert("❌ Error al enviar");
+                const errData = await res.json();
+                alert("❌ Error: " + (errData.message || "Error al enviar"));
             }
         } catch (err) {
-            alert("❌ Error de conexión");
+            console.error(err);
+            alert("❌ Error de conexión con el servidor");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>
+
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Sistema Validado</title>
+    <title>StorePulse Admin - Versión MEGA FILTRO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
@@ -54,6 +54,7 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
+// --- MEGA FILTRO DE REPORTES ---
 async function loadReports() {
     [cachedUsers, allStores, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -66,16 +67,16 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Reportes Realizados</h2>
+            <h2>📊 Mega Filtro de Reportes</h2>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
                 <input type="date" id="dateFrom">
                 <input type="date" id="dateTo">
-                <select id="fStore"><option value="all">Todas las Tiendas</option>${storeNames.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select>
-                <select id="fRole"><option value="all">Todos los Roles</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
-                <select id="fUser"><option value="all">Todos los Usuarios</option>${userNames.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select>
-                <button onclick="filterReports()" class="btn-action">Filtrar</button>
+                <select id="fStore"><option value="all">Tienda: Todas</option>${storeNames.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select>
+                <select id="fRole"><option value="all">Rol: Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
+                <select id="fUser"><option value="all">Usuario: Todos</option>${userNames.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select>
+                <button onclick="filterReports()" class="btn-action">APLICAR FILTRO</button>
             </div>
-            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">Excel</button>
+            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">EXCEL</button>
         </div>
         <div id="reportList"></div>`;
     renderList(allReportsRaw);
@@ -84,9 +85,9 @@ async function loadReports() {
 function renderList(data) {
     const container = document.getElementById("reportList");
     container.innerHTML = data.map(r => {
-        // Buscamos el rol real del usuario en la base de datos de usuarios
-        const userInDb = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const roleStr = userInDb ? userInDb.role : (r.userId?.role || "S/R");
+        // RESCATE DE ROL: Cruce con cachedUsers
+        const userFound = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const roleStr = userFound ? userFound.role : (r.userId?.role || "S/R");
 
         return `
         <div class="card">
@@ -94,9 +95,10 @@ function renderList(data) {
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <small>${roleStr.toUpperCase()}</small><br>
             <span>📍 ${r.storeId?.name || 'S/T'}</span>
             <div class="data-grid">
-                <div><b>Articulo:</b> ${r.articulo || '-'}</div>
+                <div><b>Producto:</b> ${r.articulo || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
-                <div><b>Inventario:</b> ${r.inventarioInicial || 0} / ${r.inventarioFinal || 0}</div>
+                <div><b>I. Inicial:</b> ${r.inventarioInicial || 0}</div>
+                <div><b>I. Final:</b> ${r.inventarioFinal || 0}</div>
                 <div><b>Precio:</b> $${r.precio || 0}</div>
                 <div style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 5px;"><b>Obs:</b> ${r.observaciones || ''}</div>
             </div>
@@ -107,46 +109,45 @@ function renderList(data) {
 function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
-    const storeSel = document.getElementById("fStore").value.toLowerCase();
-    const roleSel = document.getElementById("fRole").value.toLowerCase();
-    const userSel = document.getElementById("fUser").value.toLowerCase();
+    const sSel = document.getElementById("fStore").value.toLowerCase();
+    const rSel = document.getElementById("fRole").value.toLowerCase();
+    const uSel = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // Lógica de filtrado por Rol basada en la base de datos de usuarios
-        const userInDb = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const currentRole = (userInDb?.role || "").toLowerCase().trim();
+        // Lógica de cruce del Mega Filtro
+        const uFound = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const realRole = (uFound?.role || "").toLowerCase().trim();
 
-        const matchStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
-        const matchUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
-        const matchRole = (roleSel === "all" || currentRole === roleSel);
+        const matchS = (sSel === "all" || (r.storeId?.name || "").toLowerCase().includes(sSel));
+        const matchU = (uSel === "all" || (r.userId?.name || "").toLowerCase().includes(uSel));
+        const matchR = (rSel === "all" || realRole === rSel);
         
-        let matchDate = true;
+        let matchD = true;
         if(from && to) {
-            const d = new Date(r.createdAt).toISOString().split('T')[0];
-            matchDate = (d >= from && d <= to);
+            const dStr = new Date(r.createdAt).toISOString().split('T')[0];
+            matchD = (dStr >= from && dStr <= to);
         }
-        return matchStore && matchUser && matchRole && matchDate;
+        return matchS && matchU && matchR && matchD;
     });
     renderList(filtered);
 }
 
+// --- GESTIÓN DE RUTAS Y TIENDAS (SIN RECORTES) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Gestión de Usuarios</h2>`;
+    let html = `<h2>👥 Usuarios y Rutas</h2>`;
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
         html += `<div class="card">
-            <div style="display:flex; justify-content:space-between;">
-                <strong>${u.name.toUpperCase()}</strong>
-                <select onchange="updateUserRole('${u._id}', this.value)">
-                    <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-                    <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-                </select>
-            </div>
+            <strong>${u.name.toUpperCase()}</strong>
+            <select onchange="updateUserRole('${u._id}', this.value)">
+                <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+            </select>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>TIENDAS</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
                 <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
@@ -160,12 +161,9 @@ async function loadUsers() {
 
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>🏬 Nueva Tienda</h2>
-            <input id="sn" placeholder="Nombre"><input id="slat" placeholder="Lat"><input id="slon" placeholder="Lon">
-            <button onclick="saveStore()" class="btn-action">Guardar</button>
-        </div>
-        ${allStores.map(s => `<div class="card"><b>${s.name}</b> (${s.lat}, ${s.lon})</div>`).join('')}`;
+    document.getElementById("content").innerHTML = `<h2>🏬 Tiendas</h2>
+    <div class="card"><input id="sn" placeholder="Nombre"><input id="slat" placeholder="Lat"><input id="slon" placeholder="Lon"><button onclick="saveStore()" class="btn-action">Guardar</button></div>
+    ${allStores.map(s => `<div class="card"><b>${s.name}</b> (${s.lat || 0}, ${s.lon || 0})</div>`).join('')}`;
 }
 
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
@@ -189,7 +187,7 @@ function exportExcel() {
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
     XLSX.writeFile(wb, "Reporte.xlsx");
 }
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard</h1>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Panel de Administración</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 window.onload = loadReports;
 </script>

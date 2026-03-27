@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Sistema Completo</title>
+    <title>StorePulse Admin - Restauración Total</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -65,14 +65,14 @@ function changeTab(btn, callback) {
     callback();
 }
 
-// --- SECCIÓN REPORTES (CON FILTRO DE ROL REPARADO) ---
+// --- REPORTES ---
 async function loadReports() {
     document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
     allReportsRaw = reports || [];
 
-    const stores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
-    const users = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
+    const storeOptions = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
+    const userOptions = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
 
     document.getElementById("content").innerHTML = `
         <div class="card">
@@ -80,9 +80,9 @@ async function loadReports() {
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
                 <div><label>Desde:</label><input type="date" id="dateFrom"></div>
                 <div><label>Hasta:</label><input type="date" id="dateTo"></div>
-                <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${stores.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
+                <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${storeOptions.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
                 <div><label>Rol:</label><select id="fRole"><option value="all">Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select></div>
-                <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${users.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
+                <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${userOptions.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
                 <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button></div>
             </div>
             <div style="margin-top:15px; display:flex; gap:10px;">
@@ -96,42 +96,53 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron registros.</div>";
+    if(!data || data.length === 0) {
+        container.innerHTML = "<div class='card'>No se encontraron registros.</div>";
+        return;
+    }
     container.innerHTML = data.map(r => `
         <div class="card" style="border-left: 5px solid var(--primary);">
-            <b>${(r.userId?.name || '---').toUpperCase()}</b> (${r.userId?.role || 'S/R'})<br>
-            <span style="color:var(--primary); font-weight:bold;">📍 ${r.storeId?.name || '---'}</span><br>
+            <b>${(r.userId?.name || 'Usuario Desconocido').toUpperCase()}</b> (${r.userId?.role || 'S/R'})<br>
+            <span style="color:var(--primary); font-weight:bold;">📍 ${r.storeId?.name || 'Tienda no asignada'}</span><br>
             <small>${new Date(r.createdAt).toLocaleString()}</small>
-            <p>${(r.articulo || r.comentarios || '').toUpperCase()} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
+            <p>${(r.articulo || r.comentarios || 'SIN DETALLES').toUpperCase()} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
         </div>`).join('');
 }
 
 function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
-    const store = document.getElementById("fStore").value.toLowerCase().trim();
-    const role = document.getElementById("fRole").value.toLowerCase().trim();
-    const user = document.getElementById("fUser").value.toLowerCase().trim();
+    const fStore = document.getElementById("fStore").value.toLowerCase();
+    const fRole = document.getElementById("fRole").value.toLowerCase();
+    const fUser = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        let mDate = true;
+        // Validación de Fecha
+        let matchDate = true;
         if(from && to) {
             const reportDate = new Date(r.createdAt).toISOString().split('T')[0];
-            mDate = (reportDate >= from && reportDate <= to);
+            matchDate = (reportDate >= from && reportDate <= to);
         }
-        const mStore = store === "all" || (r.storeId?.name || "").toLowerCase().includes(store);
-        const mUser = user === "all" || (r.userId?.name || "").toLowerCase().includes(user);
-        
-        // CORRECCIÓN FINAL: Compara el rol del usuario del reporte con el valor del selector
-        const rRole = (r.userId?.role || "").toLowerCase().trim();
-        const mRole = role === "all" || rRole === role;
 
-        return mDate && mStore && mRole && mUser;
+        // Validación de Tienda
+        const rStore = (r.storeId?.name || "").toLowerCase();
+        const matchStore = fStore === "all" || rStore.includes(fStore);
+
+        // Validación de Usuario
+        const rUser = (r.userId?.name || "").toLowerCase();
+        const matchUser = fUser === "all" || rUser.includes(fUser);
+
+        // Validación de Rol (La corrección técnica)
+        const rRole = (r.userId?.role || "").toLowerCase();
+        const matchRole = fRole === "all" || rRole === fRole;
+
+        return matchDate && matchStore && matchUser && matchRole;
     });
+
     renderList(filtered);
 }
 
-// --- FUNCIONES DE EXPORTACIÓN ---
+// --- EXPORTACIÓN ---
 function exportExcel() {
     const data = allReportsRaw.map(r => ({ Fecha: new Date(r.createdAt).toLocaleDateString(), Usuario: r.userId?.name || '', Rol: r.userId?.role || '', Tienda: r.storeId?.name || '', Detalle: (r.articulo || r.comentarios || '').toUpperCase(), Cant: r.cantidad || 0 }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -148,7 +159,7 @@ function exportPDF() {
     doc.save("Reporte_StorePulse.pdf");
 }
 
-// --- GESTIÓN DE USUARIOS Y RUTAS ---
+// --- USUARIOS Y RUTAS ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -194,14 +205,18 @@ function loadCreateUser() {
 }
 
 async function saveUser() {
-    await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name: document.getElementById("un").value, email: document.getElementById("ue").value, password: document.getElementById("up").value, role: document.getElementById("ur").value, agencyId }) });
+    const name = document.getElementById("un").value;
+    const email = document.getElementById("ue").value;
+    const password = document.getElementById("up").value;
+    const role = document.getElementById("ur").value;
+    await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name, email, password, role, agencyId }) });
     alert("Usuario Creado"); loadUsers();
 }
 
 async function updateUserRole(uId, role) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({role}) }); loadUsers(); }
 async function deleteUser(uId) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"DELETE" }); loadUsers(); } }
 
-// --- GESTIÓN DE TIENDAS ---
+// --- TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
@@ -222,11 +237,13 @@ function showStoreForm() {
 }
 
 async function saveStore() {
-    await fetchAPI(`${BACKEND_URL}/stores`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:document.getElementById("sn").value, address:document.getElementById("sa").value, agencyId}) });
+    const name = document.getElementById("sn").value;
+    const address = document.getElementById("sa").value;
+    await fetchAPI(`${BACKEND_URL}/stores`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name, address, agencyId}) });
     loadStores();
 }
 
-// Lógica Drag & Drop
+// Drag & Drop
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -239,7 +256,7 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>Panel de Administración</h1><p>Selecciona una opción del menú.</p></div>`; }
+function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>StorePulse Admin</h1><p>Panel de control operativo.</p></div>`; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { 

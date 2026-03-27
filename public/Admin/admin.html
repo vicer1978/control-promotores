@@ -60,24 +60,18 @@ let draggedStore = null;
 let allStores = [];
 let cachedUsers = [];
 
-// fetchAPI mejorado para manejar errores de JSON y sesiones expiradas
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
-    
     try {
         const res = await fetch(url, options);
-        
         if (res.status === 401 || res.status === 403) {
-            alert("Sesión expirada o no autorizada");
             logout();
             return;
         }
-
         const contentType = res.headers.get("content-type");
         if (!res.ok || !contentType || !contentType.includes("application/json")) {
-            throw new Error("Respuesta inválida del servidor");
+            throw new Error("Respuesta inválida");
         }
-        
         return await res.json();
     } catch (error) {
         console.error("Error en fetchAPI:", error);
@@ -93,13 +87,6 @@ function changeTab(btn, callback) {
 
 async function loadUserInfo() {
     let text = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
-    if (agencyId && agencyId !== "null") {
-        try {
-            const agencies = await fetchAPI(`${BACKEND_URL}/agencies`);
-            const agency = agencies.find(a => a._id === agencyId);
-            if (agency) text += ` | 🏢 Agencia: ${agency.name}`;
-        } catch (e) { console.error("Error cargando agencia", e); }
-    }
     document.getElementById("userInfo").innerText = text;
 }
 
@@ -107,7 +94,7 @@ function loadDashboard() {
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>Bienvenido al Panel de Control</h2>
-            <p>Desde aquí puedes gestionar los promotores de tu agencia, supervisar los reportes en tiempo real y administrar tu catálogo de tiendas.</p>
+            <p>Gestiona promotores, supervisa reportes y administra el catálogo de tiendas.</p>
         </div>`;
 }
 
@@ -128,13 +115,14 @@ async function loadUsers() {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                     <div>
                         <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
-                        <small>${u.email}</small>
+                        <small>${u.email} | <b>Rol actual: ${u.role}</b></small>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
-                            <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
-                            <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
-                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Agencia</option>
+                            <option value="" disabled selected>Cambiar Rol...</option>
+                            <option value="promotor">Promotor (Ruta)</option>
+                            <option value="demostradora">Demostradora (Fijo)</option>
+                            <option value="admin">Admin Agencia</option>
                         </select>
                         <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
                     </div>
@@ -168,7 +156,6 @@ async function dropStore(e, targetUserId, type) {
     e.preventDefault();
     const user = cachedUsers.find(u => u._id === targetUserId);
     if(!user) return;
-
     let stores = (user.stores || []).map(s => s._id || s);
 
     if (type === "assigned") {
@@ -187,17 +174,19 @@ async function dropStore(e, targetUserId, type) {
     } catch(err) { alert("Error al actualizar la ruta"); }
 }
 
+// CORREGIDO: Ahora usa PATCH y la ruta correcta del server.js
 async function updateUserRole(userId, newRole) {
+    if(!newRole) return;
     try {
         await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, {
-            method: "PUT",
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ role: newRole })
         });
         alert("Rol actualizado ✅");
+        loadUsers();
     } catch (e) {
         alert("Error al cambiar rol");
-        loadUsers();
     }
 }
 
@@ -217,127 +206,64 @@ function loadCreateUser() {
         </div>`;
 }
 
+// CORREGIDO: Ahora apunta a /users (la ruta que definiste en server.js)
 async function createUser() {
     const data = {
         name: document.getElementById("new_name").value,
         email: document.getElementById("new_email").value,
         password: document.getElementById("new_pass").value,
-        role: document.getElementById("new_role").value,
-        agencyId: agencyId
+        role: document.getElementById("new_role").value
     };
     if(!data.name || !data.email || !data.password) return alert("Faltan datos");
     try {
-        await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
+        await fetchAPI(`${BACKEND_URL}/users`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
-        alert("Creado ✅");
+        alert("Usuario Creado ✅");
         loadUsers();
     } catch (err) { alert("Error al crear usuario"); }
 }
 
-// --- REPORTES ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-        
-        if (!agencyId || agencyId === "null") {
-            document.getElementById("content").innerHTML = "<p>⚠️ Error: AgencyID no encontrado. Por favor, reingresa al sistema.</p>";
-            return;
-        }
-
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
         let html = `<h2>📊 Reportes Recientes</h2>`;
-        
         if(!reports || reports.length === 0) {
-            html += "<p>No hay reportes registrados hoy.</p>";
+            html += "<p>No hay reportes hoy.</p>";
         } else {
             reports.slice().reverse().forEach(r => {
                 html += `
                 <div class="card">
-                    <div style="display:flex; justify-content:space-between;">
-                        <b>${r.userId?.name || 'Usuario'} - ${r.storeId?.name || 'Tienda'}</b>
-                        <small>${new Date(r.createdAt || r.date).toLocaleString()}</small>
-                    </div>
+                    <b>${r.userId?.name || 'User'} - ${r.storeId?.name || 'Tienda'}</b><br>
+                    <small>${new Date(r.createdAt).toLocaleString()}</small>
                     <p>Tipo: ${r.type} | Art: ${r.articulo || 'N/A'}</p>
-                    ${r.foto_url ? `<button class="btn-action" style="padding:5px 10px; font-size:0.7rem;" onclick="window.open('${BACKEND_URL}${r.foto_url}', '_blank')">Ver Foto 📸</button>` : ''}
                 </div>`;
             });
         }
         document.getElementById("content").innerHTML = html;
     } catch (error) {
-        document.getElementById("content").innerHTML = "<p style='color:red;'>❌ Error al cargar reportes. El servidor respondió con un formato inesperado.</p>";
+        document.getElementById("content").innerHTML = "Error al cargar reportes.";
     }
 }
 
-// --- TIENDAS ---
 async function loadStores() {
     try {
-        document.getElementById("content").innerHTML = "<h3>Cargando catálogo...</h3>";
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-        let html = `<div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>🏬 Catálogo</h2>
-            <button class="btn-action" onclick="showAddStore()">+ TIENDA</button>
-        </div><div id="form-store-container"></div><div class="grid-tiendas">`;
-        
+        let html = `<h2>🏬 Catálogo</h2><div class="grid-tiendas">`;
         stores.forEach(s => {
-            html += `<div class="card">
-                <strong>${s.name}</strong><br>
-                <small>${s.address || 'Sin dirección'}</small><br>
-                <small style="color: #64748b; font-size: 0.7rem;">📍 ${s.location?.lat || 0}, ${s.location?.lng || 0}</small><br>
-                <button class="btn-action btn-danger" onclick="deleteStore('${s._id}')" style="margin-top:10px; padding:5px; font-size:0.7rem;">Borrar</button>
-            </div>`;
+            html += `<div class="card"><strong>${s.name}</strong><br><small>${s.address}</small></div>`;
         });
         document.getElementById("content").innerHTML = html + `</div>`;
-    } catch (err) {
-        document.getElementById("content").innerHTML = "<h3>Error al cargar tiendas</h3>";
-    }
-}
-
-function showAddStore() {
-    document.getElementById("form-store-container").innerHTML = `
-        <div class="card" style="border: 1px solid var(--gold);">
-            <h3>📍 Nueva Tienda</h3>
-            <input id="st_name" placeholder="Nombre Tienda">
-            <input id="st_addr" placeholder="Dirección">
-            <div style="display: flex; gap: 10px;">
-                <input id="st_lat" type="number" step="any" placeholder="Latitud">
-                <input id="st_lng" type="number" step="any" placeholder="Longitud">
-            </div>
-            <button class="btn-action" onclick="saveStore()" style="width: 100%; margin-top: 10px;">GUARDAR</button>
-        </div>`;
-}
-
-async function saveStore() {
-    const name = document.getElementById("st_name").value;
-    const address = document.getElementById("st_addr").value;
-    const lat = document.getElementById("st_lat").value;
-    const lng = document.getElementById("st_lng").value;
-
-    if (!name || !lat || !lng) return alert("Faltan datos obligatorios (Nombre, Lat, Lng)");
-
-    try {
-        await fetchAPI(`${BACKEND_URL}/stores`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                name, 
-                address, 
-                location: { lat: parseFloat(lat), lng: parseFloat(lng) } 
-            })
-        });
-        loadStores();
-    } catch (err) { alert("Error al guardar tienda"); }
+    } catch (err) { alert("Error al cargar tiendas"); }
 }
 
 async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } }
-async function deleteStore(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:"DELETE"}); loadStores(); } }
-
-function logout() { localStorage.clear(); window.location.href = "../login.html"; }
+function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { loadUserInfo(); loadDashboard(); };
 </script>
-
 </body>
 </html>

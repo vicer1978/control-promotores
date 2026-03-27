@@ -144,19 +144,16 @@
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
     
-    // Función que se ejecuta cuando el HTML termina de cargar
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
         const name = localStorage.getItem("name") || "Usuario";
         const role = localStorage.getItem("userRole") || "Promotor";
 
-        // Protección de sesión
         if (!userId) {
             window.location.href = "./login.html";
             return;
         }
 
-        // Llenar datos del usuario con seguridad para evitar error de 'null'
         const elUserName = document.getElementById("userName");
         const elUserRole = document.getElementById("userRole");
         const elGreeting = document.getElementById("greeting");
@@ -165,7 +162,6 @@
         if (elUserRole) elUserRole.innerText = role.toUpperCase();
         if (elGreeting) elGreeting.innerText = `¡Hola, ${name.split(' ')[0]}!`;
 
-        // Cargar tiendas asignadas
         await loadStores(userId);
     };
 
@@ -181,14 +177,20 @@
         if (!container) return;
 
         try {
-            // Buscamos directamente el objeto del usuario que contiene sus tiendas
+            // Se asegura de enviar el userId tanto en la URL como en el Header para máxima compatibilidad
             const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
-                headers: { "userId": userId }
+                method: 'GET',
+                headers: { 
+                    "Content-Type": "application/json",
+                    "userId": userId 
+                }
             });
 
-            if (!res.ok) throw new Error("Fallo en servidor");
+            if (!res.ok) throw new Error(`Error ${res.status}: Fallo en servidor`);
             
             const userData = await res.json();
+            
+            // Verificamos si las tiendas vienen directamente o dentro de un objeto
             const stores = userData.stores || [];
 
             if (stores.length === 0) {
@@ -213,7 +215,7 @@
 
         } catch (err) {
             console.error("Error en loadStores:", err);
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>No pudimos cargar tus tiendas. Revisa tu internet y recarga.</p>";
+            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>No pudimos cargar tus tiendas. Revisa tu internet y recarga la página.</p>";
         }
     }
 
@@ -289,6 +291,5 @@
         window.location.href = "./login.html";
     }
 </script>
-
 </body>
 </html>

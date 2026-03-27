@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Admin PRO - StorePulse</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
@@ -31,9 +35,10 @@
         .btn-danger { background: var(--danger) !important; }
         
         .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        
-        /* Badge para tipos de reporte */
         .type-badge { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
+        
+        /* Estilos para controles de reporte */
+        .report-controls { background:#fff; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
@@ -62,15 +67,13 @@ const agencyId = localStorage.getItem("agencyId");
 let draggedStore = null;
 let allStores = [];
 let cachedUsers = [];
+let allReportsRaw = []; // Variable global para el historial
 
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
     try {
         const res = await fetch(url, options);
-        if (res.status === 401 || res.status === 403) {
-            logout();
-            return;
-        }
+        if (res.status === 401 || res.status === 403) { logout(); return; }
         if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
             throw new Error(errorData.message || "Error en la petición");
@@ -101,7 +104,7 @@ function loadDashboard() {
         </div>`;
 }
 
-// --- GESTIÓN DE USUARIOS ---
+// --- GESTIÓN DE USUARIOS (Sin cambios) ---
 async function loadUsers() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
@@ -130,7 +133,6 @@ async function loadUsers() {
                         <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
                     </div>
                 </div>
-                
                 <div class="store-list">
                     <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
                         <small><b>TIENDAS DISPONIBLES</b></small>
@@ -160,13 +162,11 @@ async function dropStore(e, targetUserId, type) {
     const user = cachedUsers.find(u => u._id === targetUserId);
     if(!user) return;
     let stores = (user.stores || []).map(s => s._id || s);
-
     if (type === "assigned") {
         if (!stores.includes(draggedStore)) stores.push(draggedStore);
     } else {
         stores = stores.filter(s => s !== draggedStore);
     }
-
     try {
         await fetchAPI(`${BACKEND_URL}/users/${targetUserId}/stores`, {
             method: "PUT",
@@ -187,9 +187,7 @@ async function updateUserRole(userId, newRole) {
         });
         alert("Rol actualizado ✅");
         loadUsers();
-    } catch (e) {
-        alert("Error al cambiar rol");
-    }
+    } catch (e) { alert("Error al cambiar rol"); }
 }
 
 function loadCreateUser() {
@@ -218,8 +216,6 @@ async function createUser() {
     const email = document.getElementById("new_email").value;
     const password = document.getElementById("new_pass").value;
     const role = document.getElementById("new_role").value;
-    
-    // Sincronizamos con el ID de agencia del storage que vimos en tus fotos
     const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
 
     if(!name || !email || !password) return alert("Por favor, llena todos los campos.");
@@ -228,91 +224,181 @@ async function createUser() {
     btn.innerText = "PROCESANDO...";
     btn.disabled = true;
 
-    const data = { 
-        name: name.trim(), 
-        email: email.trim().toLowerCase(), 
-        password: password, 
-        role: role, 
-        agencyId: currentAgencyId 
-    };
+    const data = { name: name.trim(), email: email.trim().toLowerCase(), password: password, role: role, agencyId: currentAgencyId };
 
     try {
         const response = await fetch(`${BACKEND_URL}/users`, {
             method: "POST",
-            headers: { 
-                "Content-Type": "application/json",
-                "userId": userId 
-            },
+            headers: { "Content-Type": "application/json", "userId": userId },
             body: JSON.stringify(data)
         });
-
         const result = await response.json();
-
         if (!response.ok) throw new Error(result.message || "Error al crear");
-
         alert("Usuario Creado ✅");
-        
-        // Regresar a la lista de usuarios
         const btnUsers = document.getElementById("btnUsers");
         changeTab(btnUsers, loadUsers);
-
     } catch (err) { 
         alert("❌ Error: " + err.message); 
-        btn.innerText = "REGISTRAR USUARIO";
-        btn.disabled = false;
+        btn.innerText = "REGISTRAR USUARIO"; btn.disabled = false;
     }
 }
 
+// --- SECCIÓN DE REPORTES CON FILTROS Y EXPORTACIÓN (MODIFICADA) ---
 async function loadReports() {
     try {
-        document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-        
+        document.getElementById("content").innerHTML = "<h3>Cargando historial de reportes...</h3>";
         const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
         if(!currentAgencyId) throw new Error("ID de Agencia no encontrado");
 
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
-        let html = `<h2>📊 Reportes Recientes</h2>`;
+        allReportsRaw = reports; // Guardar para filtros
         
-        if(!reports || reports.length === 0) {
-            html += `
-                <div class="card" style="text-align:center; padding: 40px;">
-                    <p style="color:#64748b">No se encontraron reportes registrados para esta agencia.</p>
-                </div>`;
-        } else {
-            reports.slice().reverse().forEach(r => {
-                const user = r.userId?.name || 'Usuario desconocido';
-                const store = r.storeId?.name || 'Tienda no especificada';
-                const date = new Date(r.createdAt).toLocaleString();
-                const tipo = r.type || 'General';
-                
-                // Prioridad de campos para mostrar según el rol (Demostradora usa comentarios/observaciones)
-                const detalle = r.articulo || r.comentarios || r.observaciones || 'Reporte de actividad enviado';
-
-                html += `
-                <div class="card" style="border-left: 5px solid ${tipo === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
-                    <div style="display:flex; justify-content:space-between;">
-                        <b>${user}</b>
-                        <span class="type-badge">${tipo}</span>
-                    </div>
-                    <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${store}</div>
-                    <small style="color:#94a3b8">${date}</small>
-                    <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
-                    <p style="margin:0; font-size:0.9rem; color:#475569">
-                        <strong>Detalle:</strong> ${detalle}
-                    </p>
-                </div>`;
-            });
-        }
-        document.getElementById("content").innerHTML = html;
+        renderReportInterface(reports);
     } catch (error) {
-        document.getElementById("content").innerHTML = `
-            <div class="card" style="border-left: 5px solid var(--danger);">
-                <h3>⚠️ Error al cargar reportes</h3>
-                <p>${error.message}</p>
-            </div>`;
+        document.getElementById("content").innerHTML = `<div class="card" style="border-left: 5px solid var(--danger);"><h3>⚠️ Error</h3><p>${error.message}</p></div>`;
     }
 }
 
+function renderReportInterface(reportsToShow) {
+    const content = document.getElementById("content");
+    
+    let html = `
+        <div class="report-controls">
+            <h2 style="margin-top:0;">📊 Historial de Reportes</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; align-items: end;">
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:bold; color:var(--primary);">Desde:</label>
+                    <input type="date" id="dateFrom" style="margin:0;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:bold; color:var(--primary);">Hasta:</label>
+                    <input type="date" id="dateTo" style="margin:0;">
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="filterReports()" class="btn-action" style="flex:1;">Filtrar</button>
+                    <button onclick="resetFilters()" class="btn-action" style="background:#64748b; flex:1;">Limpiar</button>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="exportToExcel()" class="btn-action" style="background:#16a34a; flex:1;">Excel 📗</button>
+                    <button onclick="exportToPDF()" class="btn-action" style="background:#dc2626; flex:1;">PDF 📕</button>
+                </div>
+            </div>
+        </div>
+        <div id="reportsContainer">`;
+
+    if(!reportsToShow || reportsToShow.length === 0) {
+        html += `<div class="card" style="text-align:center;"><p style="color:#64748b">No se encontraron registros.</p></div>`;
+    } else {
+        // Mostrar del más nuevo al más viejo
+        [...reportsToShow].reverse().forEach(r => {
+            const user = r.userId?.name || 'Usuario desconocido';
+            const store = r.storeId?.name || 'Tienda no especificada';
+            const date = new Date(r.createdAt).toLocaleString();
+            const tipo = r.type || 'General';
+            const detalle = r.articulo || r.comentarios || r.observaciones || 'Actividad enviada';
+
+            html += `
+            <div class="card" style="border-left: 5px solid ${tipo === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
+                <div style="display:flex; justify-content:space-between;">
+                    <b>${user}</b>
+                    <span class="type-badge">${tipo}</span>
+                </div>
+                <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${store}</div>
+                <small style="color:#94a3b8">${date}</small>
+                <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+                <p style="margin:0; font-size:0.9rem; color:#475569">
+                    <strong>Detalle/Notas:</strong> ${detalle} ${r.cantidad ? '(Cant: '+r.cantidad+')' : ''}
+                </p>
+                ${r.foto_url ? `<br><a href="${BACKEND_URL}${r.foto_url}" target="_blank" style="font-size:0.8rem; color:var(--gold); text-decoration:none; font-weight:bold;">🖼️ Ver Evidencia Fotográfica</a>` : ''}
+            </div>`;
+        });
+    }
+    html += `</div>`;
+    content.innerHTML = html;
+}
+
+// --- LÓGICA DE FILTRADO Y EXPORTACIÓN ---
+function filterReports() {
+    const from = document.getElementById("dateFrom").value;
+    const to = document.getElementById("dateTo").value;
+    if (!from || !to) return alert("Selecciona ambas fechas");
+
+    const start = new Date(from); start.setHours(0,0,0,0);
+    const end = new Date(to); end.setHours(23,59,59,999);
+
+    const filtered = allReportsRaw.filter(r => {
+        const d = new Date(r.createdAt);
+        return d >= start && d <= end;
+    });
+    renderReportInterface(filtered);
+}
+
+function resetFilters() { renderReportInterface(allReportsRaw); }
+
+function getCurrentData() {
+    const from = document.getElementById("dateFrom")?.value;
+    const to = document.getElementById("dateTo")?.value;
+    if(!from || !to) return allReportsRaw;
+    const start = new Date(from); start.setHours(0,0,0,0);
+    const end = new Date(to); end.setHours(23,59,59,999);
+    return allReportsRaw.filter(r => {
+        const d = new Date(r.createdAt);
+        return d >= start && d <= end;
+    });
+}
+
+function exportToExcel() {
+    const dataToExport = getCurrentData();
+    if (dataToExport.length === 0) return alert("No hay datos");
+
+    const rows = dataToExport.map(r => ({
+        "Fecha/Hora": new Date(r.createdAt).toLocaleString(),
+        "Colaborador": r.userId?.name || "N/A",
+        "Tienda": r.storeId?.name || "N/A",
+        "Tipo": (r.type || "General").toUpperCase(),
+        "Artículo/Concepto": r.articulo || "---",
+        "Cantidad": r.cantidad || 0,
+        "Comentarios y Notas": r.comentarios || r.observaciones || "---"
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Reportes");
+    XLSX.writeFile(wb, `StorePulse_Reporte_${new Date().toLocaleDateString()}.xlsx`);
+}
+
+function exportToPDF() {
+    const dataToExport = getCurrentData();
+    if (dataToExport.length === 0) return alert("No hay datos");
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'pt', 'a4');
+
+    const tableRows = dataToExport.map(r => [
+        new Date(r.createdAt).toLocaleString(),
+        r.userId?.name || "N/A",
+        r.storeId?.name || "N/A",
+        (r.type || "Gral").toUpperCase(),
+        r.articulo || "---",
+        r.cantidad || 0,
+        r.comentarios || r.observaciones || "---"
+    ]);
+
+    doc.setFontSize(18);
+    doc.text("Historial de Actividades StorePulse", 40, 40);
+    
+    doc.autoTable({
+        head: [['Fecha/Hora', 'Colaborador', 'Tienda', 'Tipo', 'Artículo', 'Cant.', 'Notas']],
+        body: tableRows,
+        startY: 60,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [11, 31, 58] }
+    });
+
+    doc.save(`StorePulse_PDF_${new Date().toLocaleDateString()}.pdf`);
+}
+
+// --- OTROS (Sin cambios) ---
 async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -325,7 +411,7 @@ async function loadStores() {
 }
 
 async function deleteUser(id) { 
-    if(confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) { 
+    if(confirm("¿Estás seguro de eliminar este usuario?")) { 
         try {
             await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); 
             loadUsers(); 
@@ -341,6 +427,5 @@ window.onload = () => {
     loadDashboard(); 
 };
 </script>
-
 </body>
 </html>

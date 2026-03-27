@@ -70,6 +70,45 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
+// --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
+
+// Iniciar operación en una tienda (Check-in)
+app.post("/checkin", auth, async (req, res) => {
+    try {
+        const { storeId, lat, lng } = req.body;
+        const newCheckin = new Checkin({
+            userId: req.user._id,
+            agencyId: req.user.agencyId,
+            storeId: storeId,
+            location: { lat, lng },
+            type: "checkin",
+            timestamp: new Date()
+        });
+        await newCheckin.save();
+        res.json({ message: "Entrada registrada", checkin: newCheckin });
+    } catch (err) {
+        res.status(500).json({ error: "Error al registrar entrada" });
+    }
+});
+
+// Finalizar jornada (Check-out)
+app.post("/checkout", auth, async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+        const newCheckout = new Checkin({
+            userId: req.user._id,
+            agencyId: req.user.agencyId,
+            location: { lat, lng },
+            type: "checkout", // Identificador de salida
+            timestamp: new Date()
+        });
+        await newCheckout.save();
+        res.json({ message: "Salida registrada con éxito", checkout: newCheckout });
+    } catch (err) {
+        res.status(500).json({ error: "Error al registrar salida" });
+    }
+});
+
 // --- GESTIÓN DE REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
@@ -110,7 +149,6 @@ app.delete("/reports/:id", auth, async (req, res) => {
 
 // --- GESTIÓN DE USUARIOS Y RUTAS ---
 
-// Obtener todos los usuarios de la agencia (Filtro para Admin)
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -119,7 +157,6 @@ app.get("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener usuarios" }); }
 });
 
-// Obtener un usuario específico (Para el Dashboard del promotor/demostradora)
 app.get("/users/:id", auth, async (req, res) => {
     try {
         const user = await User.findById(req.params.id).populate('stores');
@@ -128,7 +165,6 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener perfil" }); }
 });
 
-// Crear nuevo usuario (Admin)
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId } = req.body;
@@ -147,7 +183,6 @@ app.post("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
 });
 
-// Actualizar ROL de usuario
 app.put("/users/:id", auth, async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.params.id, { role: req.body.role });
@@ -155,7 +190,6 @@ app.put("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al actualizar rol" }); }
 });
 
-// Actualizar ASIGNACIÓN de tiendas (Rutas)
 app.put("/users/:userId/stores", auth, async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
@@ -175,7 +209,6 @@ app.get("/stores", auth, async (req, res) => {
 app.post("/stores", auth, async (req, res) => {
     try {
         const { name, address } = req.body;
-        // Se agrega la asignación automática de agencyId basada en el Admin que crea la tienda
         const newStore = new Store({ 
             name, 
             address, 
@@ -204,8 +237,11 @@ app.get("/home", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "home.html"));
 });
 
-// RUTA RAIZ Y COMODÍN (Unificado)
-app.get(/.*/, (req, res) => {
+app.get("/", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "login.html"));
+});
+
+app.get("*", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 

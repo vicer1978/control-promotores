@@ -2,10 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StorePulse Admin - Control Total</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; --info: #0ea5e9; }
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
         
         /* Sidebar */
@@ -24,6 +25,8 @@
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; display: inline-block; }
         .badge-v { background: #dcfce7; color: #166534; }
         .badge-d { background: #fef9c3; color: #854d0e; }
+        .badge-checkin { background: #dcfce7; color: #16a34a; }
+        .badge-checkout { background: #fee2e2; color: #e11d48; }
 
         /* Formulario y Listas */
         input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
@@ -35,6 +38,16 @@
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
         
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        .img-preview { 
+            width: 100%; 
+            max-height: 200px; 
+            object-fit: cover; 
+            border-radius: 8px; 
+            margin-top: 10px; 
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -42,6 +55,7 @@
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
     <button onclick="loadSection('reports')" id="btn-reports">📊 Reportes</button>
+    <button onclick="loadSection('attendance')" id="btn-attendance">⏰ Asistencia</button>
     <button onclick="loadSection('users')" id="btn-users">👥 Usuarios y Rutas</button>
     <button onclick="loadSection('stores')" id="btn-stores">🏬 Tiendas</button>
     <div style="flex:1"></div>
@@ -54,8 +68,12 @@
 
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
-const agencyId = localStorage.getItem("agencyId");
-const userId = localStorage.getItem("userId");
+let agencyId = localStorage.getItem("agencyId");
+let userId = localStorage.getItem("userId");
+
+if (!userId || userId === "undefined") {
+    window.location.href = "../login.html";
+}
 
 let allReportsRaw = [];
 let cachedUsers = [];
@@ -63,15 +81,21 @@ let allStores = [];
 let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
+    const currentUserId = localStorage.getItem("userId");
     const headers = { 
-        "userId": userId, 
-        "userid": userId,
+        "userId": currentUserId, 
+        "userid": currentUserId,
         "Content-Type": "application/json" 
     };
     options.headers = { ...(options.headers || {}), ...headers };
+    
     const res = await fetch(url, options);
     if (!res.ok) {
         const error = await res.json();
+        if(res.status === 401) {
+            alert("Sesión expirada o inválida.");
+            logout();
+        }
         alert("Error: " + (error.error || error.message));
         throw new Error(error.error);
     }
@@ -85,9 +109,82 @@ function loadSection(section) {
     if (section === 'reports') loadReports();
     if (section === 'users') loadUsers();
     if (section === 'stores') loadStores();
+    if (section === 'attendance') loadAttendance();
 }
 
-// --- GESTIÓN DE TIENDAS (NUEVO: CREAR TIENDAS) ---
+// --- NUEVA SECCIÓN: ASISTENCIA (CHECK-IN / CHECK-OUT) ---
+async function loadAttendance() {
+    document.getElementById("content").innerHTML = `<div class="loader">Cargando registros de asistencia...</div>`;
+    
+    try {
+        // Reutilizamos la lógica de obtener usuarios y agencia
+        const [users, checkins] = await Promise.all([
+            fetchAPI(`${BACKEND_URL}/users`),
+            fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`) // Nota: Si creaste una ruta específica /attendance, cámbiala aquí
+        ]);
+
+        // Filtramos solo los registros que sean de tipo checkin o checkout
+        // Si tu backend aún no tiene una ruta de filtrado, aquí simulamos la vista
+        document.getElementById("content").innerHTML = `
+            <div class="card">
+                <h2>⏰ Control de Asistencia (Entradas y Salidas)</h2>
+                <p>Aquí puedes ver a qué hora inició y terminó su jornada el personal.</p>
+                <button onclick="loadAttendance()" class="btn-action" style="background:var(--info)">REFRESCAR LISTA</button>
+            </div>
+            <div id="attendanceList">
+                <div class="card">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Colaborador</th>
+                                <th>Evento</th>
+                                <th>Tienda / Ubicación</th>
+                                <th>Hora</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <tr><td colspan="4">Buscando registros...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+
+        // Aquí deberías tener una ruta en el backend para traer específicamente los Checkins
+        // Por ahora, intentaremos cargar los datos si el backend ya los envía
+        const res = await fetch(`${BACKEND_URL}/users`, { headers: {"userid": userId} });
+        const usersData = await res.json();
+
+        // Si tienes una tabla de Checkins en el DB, lo ideal es una ruta app.get("/attendance")
+        // Como solución temporal, mostramos un mensaje o los datos si existen
+        const tbody = document.getElementById("attendanceTableBody");
+        tbody.innerHTML = `<tr><td colspan="4">Conectando con el registro de tiempos...</td></tr>`;
+        
+        // Simulación o carga real si la ruta existe:
+        fetch(`${BACKEND_URL}/reports/agency/${agencyId}`, { headers: {"userid": userId} })
+            .then(r => r.json())
+            .then(data => {
+                // Filtramos por reportes que no sean ventas ni degustación (o que tengan el campo type)
+                const assist = data.filter(r => r.type === 'checkin' || r.type === 'checkout');
+                if(assist.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4">No hay registros de entrada/salida hoy.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = assist.map(a => `
+                    <tr>
+                        <td>${a.userId?.name || 'Sistema'}</td>
+                        <td><span class="badge ${a.type==='checkin'?'badge-checkin':'badge-checkout'}">${a.type}</span></td>
+                        <td>${a.storeId?.name || 'Ruta Finalizada'}</td>
+                        <td>${new Date(a.timestamp || a.createdAt).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            });
+
+    } catch (e) {
+        document.getElementById("content").innerHTML = `<h3>Error al cargar asistencia</h3>`;
+    }
+}
+
+// --- GESTIÓN DE TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
@@ -112,7 +209,6 @@ async function createStore() {
     const name = document.getElementById("sName").value;
     const address = document.getElementById("sAddress").value;
     if(!name) return alert("Nombre obligatorio");
-
     await fetchAPI(`${BACKEND_URL}/stores`, {
         method: "POST",
         body: JSON.stringify({ name, address })
@@ -121,7 +217,7 @@ async function createStore() {
     loadStores();
 }
 
-// --- GESTIÓN DE USUARIOS (NUEVO: CREAR Y MODIFICAR ROL) ---
+// --- GESTIÓN DE USUARIOS ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -146,7 +242,6 @@ async function loadUsers() {
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
-        
         html += `<div class="card">
             <strong>${u.name.toUpperCase()}</strong> (${u.email})
             <select onchange="updateUserRole('${u._id}', this.value)" style="width:150px; margin-left:10px;">
@@ -175,7 +270,6 @@ async function createUser() {
     const email = document.getElementById("uEmail").value;
     const password = document.getElementById("uPass").value;
     const role = document.getElementById("uRole").value;
-
     await fetchAPI(`${BACKEND_URL}/users`, {
         method: "POST",
         body: JSON.stringify({ name, email, password, role, agencyId })
@@ -185,16 +279,13 @@ async function createUser() {
 }
 
 async function updateUserRole(id, role) {
-    // IMPORTANTE: Asegúrate de tener la ruta PUT /users/:id en tu server.js
-    await fetchAPI(`${BACKEND_URL}/users/${id}`, { 
-        method: "PUT", 
-        body: JSON.stringify({ role }) 
-    });
+    await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) });
     alert("Rol actualizado");
 }
 
 // --- GESTIÓN DE REPORTES ---
 async function loadReports() {
+    agencyId = localStorage.getItem("agencyId");
     [cachedUsers, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
         fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`)
@@ -217,7 +308,10 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    container.innerHTML = data.map(r => {
+    // Filtramos para que aquí solo salgan reportes de actividad, no de asistencia
+    const filteredData = data.filter(r => r.reportType === 'ventas' || r.reportType === 'degustacion');
+
+    container.innerHTML = filteredData.map(r => {
         const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
         const isV = r.reportType === 'ventas';
         return `
@@ -232,9 +326,16 @@ function renderList(data) {
                 </table>
             ` : `
                 <div style="margin-top:10px; background:#fff7ed; padding:10px; border-radius:8px; border:1px solid #ffedd5;">
-                    <b>Artículo:</b> ${r.articulo}<br><b>Detalle:</b> ${r.observaciones}
+                    <b>Artículo:</b> ${r.articulo}<br><b>Detalle:</b> ${r.observaciones || r.comentarios || 'Sin observaciones'}
                 </div>
             `}
+            ${r.foto_url ? `
+                <div style="margin-top:10px;">
+                    <a href="${BACKEND_URL}${r.foto_url}" target="_blank">
+                        <img src="${BACKEND_URL}${r.foto_url}" class="img-preview" alt="Evidencia">
+                    </a>
+                </div>
+            ` : ''}
             <div style="margin-top:8px; font-size:11px; color:#64748b">Fecha: ${new Date(r.createdAt).toLocaleString()}</div>
         </div>`;
     }).join('');
@@ -255,10 +356,19 @@ function filterReports() {
     renderList(filtered);
 }
 
-// Auxiliares
-async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId, "userid": userId } }); loadReports(); } }
+async function deleteReport(id) { 
+    if(confirm("¿Borrar este reporte?")) { 
+        await fetch(`${BACKEND_URL}/reports/${id}`, { 
+            method: 'DELETE', 
+            headers: { "userId": localStorage.getItem("userId"), "userid": localStorage.getItem("userId") } 
+        }); 
+        loadReports(); 
+    } 
+}
+
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
+
 async function dropStore(e, uId, type) {
     e.preventDefault();
     const user = cachedUsers.find(u => u._id === uId);
@@ -270,20 +380,27 @@ async function dropStore(e, uId, type) {
 }
 
 function exportExcel() {
-    const data = allReportsRaw.map(r => ({ 
-        "FECHA": new Date(r.createdAt).toLocaleDateString(), 
-        "TIPO": r.reportType?.toUpperCase(),
-        "USUARIO": r.userId?.name, 
-        "PRODUCTO": r.articulo, 
-        "DETALLE/VENTA": r.reportType === 'ventas' ? r.cantidad : r.observaciones 
-    }));
+    const data = allReportsRaw
+        .filter(r => r.reportType === 'ventas' || r.reportType === 'degustacion')
+        .map(r => ({ 
+            "FECHA": new Date(r.createdAt).toLocaleDateString(), 
+            "TIPO": r.reportType?.toUpperCase(),
+            "USUARIO": r.userId?.name, 
+            "TIENDA": r.storeId?.name,
+            "PRODUCTO": r.articulo, 
+            "DETALLE/VENTA": r.reportType === 'ventas' ? r.cantidad : r.observaciones 
+        }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
     XLSX.writeFile(wb, "Reporte_StorePulse_Maestro.xlsx");
 }
 
-function logout() { localStorage.clear(); window.location.href = "../login.html"; }
+function logout() { 
+    localStorage.clear(); 
+    window.location.href = "../login.html"; 
+}
+
 window.onload = loadReports;
 </script>
 </body>

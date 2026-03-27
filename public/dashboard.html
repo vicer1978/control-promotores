@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StorePulse - Inicio</title>
     <style>
-        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; --danger: #ef4444; }
         body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
 
         /* HEADER */
@@ -46,6 +46,29 @@
         .store-info b { font-size: 1.1rem; color: var(--primary); display: block; margin-bottom: 4px; }
         .store-info small { color: #94a3b8; font-size: 0.85rem; }
         .arrow { color: var(--gold); font-size: 1.2rem; }
+
+        /* SECCIÓN CERRAR TURNO (NUEVO) */
+        .checkout-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fee2e2;
+            border-radius: 15px;
+            border: 2px dashed var(--danger);
+            text-align: center;
+        }
+        .btn-checkout {
+            background: var(--danger);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            width: 100%;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
 
         /* DRAWER */
         .drawer {
@@ -130,6 +153,12 @@
     <div id="storesContainer" class="stores-list">
         <div class="loader">Buscando tus tiendas asignadas...</div>
     </div>
+
+    <div class="checkout-container">
+        <b style="color: var(--danger);">🏁 FINALIZAR JORNADA</b>
+        <p style="font-size: 0.85rem; color: #64748b; margin: 5px 0;">Presiona aquí solo cuando hayas terminado toda tu ruta del día.</p>
+        <button class="btn-checkout" id="btnCheckout" onclick="finalizarTurno()">CERRAR TURNO / SALIDA</button>
+    </div>
 </div>
 
 <div class="modal" id="modal">
@@ -142,7 +171,6 @@
 </div>
 
 <script>
-    // Detecta automáticamente si usa la URL de Render o local
     const BACKEND_URL = window.location.hostname === 'localhost' 
         ? 'http://localhost:3000' 
         : 'https://storepulse.onrender.com';
@@ -179,7 +207,6 @@
     async function loadStores(userId) {
         const container = document.getElementById("storesContainer");
         try {
-            // Intentamos obtener el usuario (que ya incluye las tiendas "populadas")
             const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
                 method: 'GET',
                 headers: { 
@@ -191,8 +218,6 @@
             if (!res.ok) throw new Error("No se pudo conectar con el servidor");
             
             const userData = await res.json();
-            // Verificamos si las tiendas vienen en userData.stores (si es un objeto usuario)
-            // o si vienen directamente (si usaste la ruta /my-stores)
             const stores = userData.stores || (Array.isArray(userData) ? userData : []);
 
             if (stores.length === 0) {
@@ -275,6 +300,52 @@
         }, { enableHighAccuracy: true });
     }
 
+    // --- NUEVA FUNCIÓN: FINALIZAR TURNO ---
+    async function finalizarTurno() {
+        if (!confirm("¿Deseas cerrar tu turno por hoy? Esto marcará tu hora de salida oficial.")) return;
+
+        const btn = document.getElementById("btnCheckout");
+        const userId = localStorage.getItem("userId");
+
+        btn.innerText = "REGISTRANDO SALIDA...";
+        btn.disabled = true;
+
+        // Pedimos ubicación para asegurar que están en el punto o al menos registrar dónde cerraron
+        navigator.geolocation.getCurrentPosition(async pos => {
+            try {
+                const res = await fetch(`${BACKEND_URL}/checkout`, {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "userid": userId 
+                    },
+                    body: JSON.stringify({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    })
+                });
+
+                if (res.ok) {
+                    alert("✅ Turno cerrado con éxito. ¡Buen trabajo!");
+                    logout(); // Cerramos sesión automáticamente al terminar jornada
+                } else {
+                    const data = await res.json();
+                    alert("❌ Error: " + data.error);
+                    btn.innerText = "CERRAR TURNO / SALIDA";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert("Error de conexión.");
+                btn.innerText = "CERRAR TURNO / SALIDA";
+                btn.disabled = false;
+            }
+        }, () => {
+            alert("Es necesario el GPS para registrar tu salida.");
+            btn.innerText = "CERRAR TURNO / SALIDA";
+            btn.disabled = false;
+        });
+    }
+
     function resetBtn(btn) {
         btn.innerText = "INICIAR OPERACIÓN";
         btn.disabled = false;
@@ -285,5 +356,6 @@
         window.location.href = "./login.html";
     }
 </script>
+
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Sistema Integral</title>
+    <title>StorePulse Admin - Sistema Robusto</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
@@ -55,9 +55,23 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- SECCIÓN DE REPORTES (FILTROS BLINDADOS) ---
+// --- FUNCIÓN PARA OBTENER EL ROL REAL (RESCATE DE BASE DE DATOS) ---
+function getEffectiveRole(report) {
+    // 1. Intentar obtener del reporte directamente
+    let role = (report.userId?.role || "").toLowerCase().trim();
+    
+    // 2. Si es nulo, vacío o dice "sin rol", buscar en la base de datos de usuarios
+    if (!role || role === "sin rol") {
+        const userInDb = cachedUsers.find(u => u._id === (report.userId?._id || report.userId));
+        if (userInDb && userInDb.role) {
+            role = userInDb.role.toLowerCase().trim();
+        }
+    }
+    return role || "s/r";
+}
+
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando datos...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Sincronizando registros...</h3>";
     
     [cachedUsers, allStores, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -71,7 +85,7 @@ async function loadReports() {
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>📊 Filtro de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
                 <div><label>Desde:</label><input type="date" id="dateFrom"></div>
                 <div><label>Hasta:</label><input type="date" id="dateTo"></div>
                 <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${storeNames.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
@@ -87,25 +101,20 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron registros.</div>";
+    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron datos.</div>";
 
     container.innerHTML = data.map(r => {
-        let role = (r.userId?.role || "").toLowerCase().trim();
-        if(!role || role === "sin rol") {
-            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
-            role = u ? u.role : "S/R";
-        }
-
+        const role = getEffectiveRole(r);
         return `
         <div class="card" style="border-left: 5px solid var(--primary);">
             <button class="btn-delete-report" onclick="deleteReport('${r._id}')">ELIMINAR</button>
-            <div style="display:flex; justify-content:space-between; margin-right: 80px;">
+            <div style="display:flex; justify-content:space-between; margin-right: 90px;">
                 <b>${(r.userId?.name || 'S/N').toUpperCase()}</b>
                 <span style="background:#eee; padding:2px 8px; border-radius:4px; font-size:10px;">${role.toUpperCase()}</span>
             </div>
             <div style="margin:5px 0;">📍 <b>${r.storeId?.name || 'TIENDA NO ASIGNADA'}</b></div>
             <div class="data-grid">
-                <div><b>Producto:</b> ${r.articulo || r.comentarios || '-'}</div>
+                <div><b>Articulo:</b> ${r.articulo || r.comentarios || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
                 <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
                 <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
@@ -127,12 +136,8 @@ function filterReports() {
     const userSel = document.getElementById("fUser").value.toLowerCase().trim();
 
     const filtered = allReportsRaw.filter(r => {
-        let currentRole = (r.userId?.role || "").toLowerCase().trim();
-        if (!currentRole || currentRole === "sin rol") {
-            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
-            currentRole = u ? u.role.toLowerCase().trim() : "";
-        }
-
+        const currentRole = getEffectiveRole(r);
+        
         const mStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
         const mUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
         const mRole = (roleSel === "all" || currentRole === roleSel);
@@ -147,9 +152,8 @@ function filterReports() {
     renderList(filtered);
 }
 
-// --- FUNCIONES DE MANTENIMIENTO ---
 async function deleteReport(id) {
-    if(confirm("¿Eliminar este reporte permanentemente?")) {
+    if(confirm("¿Eliminar reporte?")) {
         await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } });
         loadReports();
     }
@@ -157,19 +161,13 @@ async function deleteReport(id) {
 
 function exportExcel() {
     const excelData = allReportsRaw.map(r => {
-        let role = (r.userId?.role || "").toLowerCase();
-        if(!role || role === "sin rol") {
-            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
-            role = u ? u.role : "S/R";
-        }
         return {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
-            "HORA": new Date(r.createdAt).toLocaleTimeString(),
             "USUARIO": (r.userId?.name || '').toUpperCase(),
-            "ROL": role.toUpperCase(),
+            "ROL": getEffectiveRole(r).toUpperCase(),
             "TIENDA": (r.storeId?.name || '').toUpperCase(),
             "PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
-            "VENTA": r.cantidad || 0,
+            "CANTIDAD": r.cantidad || 0,
             "INV INICIAL": r.inventarioInicial || 0,
             "INV FINAL": r.inventarioFinal || 0,
             "PRECIO": r.precio || 0,
@@ -179,10 +177,10 @@ function exportExcel() {
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, "Reporte_Completo_StorePulse.xlsx");
+    XLSX.writeFile(wb, "Reporte_StorePulse.xlsx");
 }
 
-// --- MÓDULOS DE GESTIÓN (USUARIOS Y TIENDAS) ---
+// --- GESTIÓN DE USUARIOS Y TIENDAS (SIN CAMBIOS) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -190,8 +188,7 @@ async function loadUsers() {
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
-        html += `
-        <div class="card">
+        html += `<div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong>${u.name.toUpperCase()}</strong>
                 <div>
@@ -229,9 +226,8 @@ async function loadStores() {
         </div>`;
 }
 
-// Funciones lógicas
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
-async function deleteUser(id) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
+async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
 async function saveStore() { await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name: document.getElementById("sn").value, lat: document.getElementById("slat").value, lon: document.getElementById("slon").value, agencyId }) }); loadStores(); }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
@@ -246,10 +242,7 @@ async function dropStore(e, uId, type) {
 }
 function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Bienvenido Admin</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
-window.onload = () => { 
-    document.getElementById("userInfo").innerText = `Admin: ${localStorage.getItem("userName")}`;
-    loadReports(); 
-};
+window.onload = () => { loadReports(); };
 </script>
 </body>
 </html>

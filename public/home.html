@@ -8,7 +8,6 @@
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
         body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: #1a202c; }
         
-        /* BANNER SUPERIOR */
         .store-info { 
             background: var(--primary); 
             color: white; 
@@ -42,7 +41,6 @@
             box-shadow: 0 0 8px #22c55e;
         }
         
-        /* GRID DE TAREAS */
         .task-grid { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
@@ -67,15 +65,10 @@
             justify-content: center;
         }
         
-        .task-card:active { 
-            transform: scale(0.92); 
-            background: #f8fafc; 
-        }
-        
+        .task-card:active { transform: scale(0.92); background: #f8fafc; }
         .task-card .icon { font-size: 35px; margin-bottom: 12px; }
         .task-card span { font-size: 0.85rem; font-weight: 700; color: #475569; }
         
-        /* FOOTER */
         .footer-actions { padding: 10px 20px 40px; text-align: center; }
         .btn-finish { 
             width: 100%; 
@@ -91,7 +84,6 @@
             box-shadow: 0 4px 14px rgba(225, 29, 72, 0.3);
             transition: 0.2s;
         }
-        .btn-finish:active { transform: translateY(2px); opacity: 0.9; }
     </style>
 </head>
 <body>
@@ -104,8 +96,7 @@
         </p>
     </div>
 
-    <div class="task-grid" id="taskContainer">
-        </div>
+    <div class="task-grid" id="taskContainer"></div>
 
     <div class="footer-actions">
         <button id="btnFinish" onclick="finishDay()" class="btn-finish">
@@ -114,88 +105,58 @@
     </div>
 
     <script>
-        const BACKEND_URL = "https://storepulse.onrender.com";
-        
-        // 1. Datos de sesión mejorados para detectar el rol
         const userId = localStorage.getItem("userId");
-        const role = localStorage.getItem("role") || localStorage.getItem("userRole") || "promotor";
+        const role = localStorage.getItem("role") || "promotor";
         const storeName = localStorage.getItem("activeStoreName");
         const activeStoreId = localStorage.getItem("activeStoreId");
 
-        // Seguridad
         if (!userId) window.location.href = "./login.html";
         if (!activeStoreId) window.location.href = "./dashboard.html";
 
-        // Actualizar UI básica
         document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
-        
-        // CORRECCIÓN DE ETIQUETA: Mostramos el rol real del usuario
-        const badge = document.getElementById("userRoleBadge");
-        if (badge) {
-            badge.innerText = role.replace('-', ' ').toUpperCase();
-        }
+        document.getElementById("userRoleBadge").innerText = role.toUpperCase();
 
-        // 2. Diccionario de Tareas (Roles sincronizados)
+        // DICCIONARIO ACTUALIZADO: Apunta a los archivos correctos
         const tasks = {
             'demostradora': [
-                { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
-                { id: 'degustacion', label: 'Degustación', icon: '🍷' },
+                { id: 'report', label: 'Reporte Diario', icon: '📋' },
+                { id: 'ranking', label: 'Degustación', icon: '🍷' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ],
             'promotor': [
-                { id: 'ventas', label: 'Ventas', icon: '📈' },
+                { id: 'report', label: 'Ventas', icon: '📈' },
                 { id: 'precios', label: 'Precios Propios', icon: '💰' },
-                { id: 'agotados', label: 'Agotados', icon: '❌' },
-                { id: 'inventario', label: 'Inventarios', icon: '📦' },
-                { id: 'exhibicion', label: 'Exhib. Adicional', icon: '✨' },
-                { id: 'competencia', label: 'Competencia', icon: '🏁' },
-                { id: 'fotos_anaquel', label: 'Fotos Anaquel', icon: '📸' },
-                { id: 'fotos_exhibicion', label: 'Fotos Exhibición', icon: '🖼️' }
+                { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ]
         };
 
-        // 3. Renderizado dinámico según el rol
         function renderTasks() {
             const container = document.getElementById("taskContainer");
-            if (!container) return;
-
-            // Normalizamos el rol a minúsculas para comparar con el diccionario
             const currentRole = role.toLowerCase().trim();
             const userTasks = tasks[currentRole] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
-                <div class="task-card" onclick="goToReport('${task.id}')">
+                <div class="task-card" onclick="goTo('${task.id}')">
                     <span class="icon">${task.icon}</span>
                     <span>${task.label}</span>
                 </div>
             `).join('');
         }
 
-        function goToReport(type) {
-            window.location.href = `./report.html?type=${type}&storeId=${activeStoreId}`;
+        // REDIRECCIÓN INTELIGENTE
+        function goTo(pageId) {
+            // Ejemplo: si es 'report', va a report.html
+            // Si es 'ranking', va a ranking.html (nuestro nuevo form de degustación)
+            window.location.href = `./${pageId}.html`;
         }
 
-        async function finishDay() {
-            if(!confirm("¿Deseas registrar tu salida y finalizar el turno?")) return;
-
-            const btn = document.getElementById("btnFinish");
-            btn.innerText = "REGISTRANDO SALIDA...";
-            btn.disabled = true;
-
-            try {
-                localStorage.removeItem("activeStoreId");
-                localStorage.removeItem("activeStoreName");
-                
-                alert("Salida registrada con éxito. ¡Buen descanso!");
-                window.location.href = "./dashboard.html";
-            } catch (err) {
-                alert("Hubo un problema al cerrar sesión.");
-                btn.innerText = "FINALIZAR DÍA / SALIDA";
-                btn.disabled = false;
-            }
+        function finishDay() {
+            if(!confirm("¿Deseas finalizar la salida?")) return;
+            localStorage.removeItem("activeStoreId");
+            localStorage.removeItem("activeStoreName");
+            window.location.href = "./dashboard.html";
         }
 
-        // Ejecutar al cargar
         renderTasks();
     </script>
 </body>

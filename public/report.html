@@ -16,22 +16,14 @@
         .form-group { margin-bottom: 18px; }
         label { display: block; font-size: 13px; font-weight: 800; margin-bottom: 8px; color: #4a5568; text-transform: uppercase; }
         input, textarea { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; box-sizing: border-box; font-size: 16px; background: #f8fafc; transition: border 0.3s; }
-        input:focus { outline: none; border-color: var(--gold); background: white; }
+        input:focus, textarea:focus { outline: none; border-color: var(--gold); background: white; }
         
         /* FOTO MEJORADA */
         .photo-preview { 
-            width: 100%; 
-            height: 200px; 
-            background: #f1f5f9; 
-            border-radius: 15px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            margin-top: 10px; 
-            overflow: hidden; 
-            border: 2px dashed #cbd5e1; 
-            position: relative; 
-            cursor: pointer;
+            width: 100%; height: 200px; background: #f1f5f9; border-radius: 15px; 
+            display: flex; align-items: center; justify-content: center; 
+            margin-top: 10px; overflow: hidden; border: 2px dashed #cbd5e1; 
+            position: relative; cursor: pointer;
         }
         .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -44,7 +36,7 @@
 <body>
 
 <header>
-    <button class="back-btn" onclick="history.back()">✕</button>
+    <button class="back-btn" onclick="location.href='./home.html'">✕</button>
     <span id="headerTitle">Nuevo Reporte</span>
 </header>
 
@@ -53,8 +45,8 @@
         <h3 id="formTitle">Cargando...</h3>
         <form id="reportForm">
             <div class="form-group" id="group-articulo">
-                <label>Nombre del Artículo / Marca</label>
-                <input type="text" id="articulo" placeholder="Ej. Producto X 500ml">
+                <label id="label-articulo">Nombre del Artículo / Marca</label>
+                <input type="text" id="articulo" placeholder="Ej. Barritas Empanizadas Almos">
             </div>
 
             <div id="block-demo" class="hidden">
@@ -68,11 +60,6 @@
                 <label id="label-cantidad">Cantidad</label>
                 <input type="number" id="cantidad" value="0">
             </div>
-            
-            <div class="form-group hidden" id="group-precio-simple">
-                <label>Precio Unitario ($)</label>
-                <input type="number" id="precio_simple" value="0.00" step="0.01">
-            </div>
 
             <div class="form-group hidden" id="group-foto">
                 <label>Foto de Evidencia</label>
@@ -83,8 +70,8 @@
             </div>
 
             <div class="form-group hidden" id="group-comentarios">
-                <label>Comentarios / Observaciones</label>
-                <textarea id="comentarios" rows="3" placeholder="Detalles adicionales..."></textarea>
+                <label id="label-comentarios">Comentarios / Observaciones</label>
+                <textarea id="comentarios" rows="5" placeholder="Escribe aquí los detalles (ej: se dieron 3 cajas...)"></textarea>
             </div>
 
             <button type="button" id="btnSend" class="btn-main" onclick="saveReport()">ENVIAR REPORTE</button>
@@ -95,33 +82,32 @@
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
-    const type = urlParams.get('type');
+    const typeFromUrl = urlParams.get('type');
     const storeId = localStorage.getItem("activeStoreId");
     const userId = localStorage.getItem("userId");
+    const agencyId = localStorage.getItem("agencyId");
 
+    // CONFIGURACIÓN MEJORADA
     const config = {
-        'reporte_diario': { title: 'Reporte Diario', fields: ['block-demo', 'group-comentarios'] },
-        'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', 'group-foto'], labelQty: 'Degustaciones dadas' },
-        'ventas': { title: 'Ventas de Turno', fields: ['group-articulo', 'group-cantidad'], labelQty: 'Unidades vendidas' },
-        'precios': { title: 'Check de Precios', fields: ['group-articulo', 'group-precio-simple'] },
-        'competencia': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precio-simple', 'group-foto'] },
-        'agotados': { title: 'Reporte Agotados', fields: ['group-articulo', 'group-foto'] },
-        'inventario': { title: 'Inventario Físico', fields: ['group-articulo', 'group-cantidad'], labelQty: 'Cantidad en estante' },
-        'exhibicion': { title: 'Exhibición Adicional', fields: ['group-foto', 'group-comentarios'], hideArt: true },
-        'fotos_anaquel': { title: 'Foto de Anaquel', fields: ['group-foto'], hideArt: true },
-        'fotos_exhibicion': { title: 'Foto de Exhibición', fields: ['group-foto'], hideArt: true }
+        'report': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad'] },
+        'ranking': { 
+            title: 'Degustación', 
+            fields: ['group-articulo', 'group-comentarios', 'group-foto'],
+            labelArt: 'Producto Degustado',
+            labelObs: 'Detalle de la Degustación (Piezas/Cajas/Comentarios)'
+        },
+        'reporte_diario': { title: 'Reporte Diario', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
+        'competencia': { title: 'Precios Competencia', fields: ['group-articulo', 'group-foto', 'group-comentarios'] }
     };
 
     window.onload = () => {
-        if(!type || !config[type]) return window.location.href = "./home.html";
-        
-        const s = config[type];
+        const s = config[typeFromUrl] || config['report'];
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
 
         s.fields.forEach(id => document.getElementById(id).classList.remove("hidden"));
-        if(s.labelQty) document.getElementById("label-cantidad").innerText = s.labelQty;
-        if(s.hideArt) document.getElementById("group-articulo").classList.add("hidden");
+        if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
+        if(s.labelObs) document.getElementById("label-comentarios").innerText = s.labelObs;
     };
 
     function previewImage(input) {
@@ -136,48 +122,44 @@
 
     async function saveReport() {
         const btn = document.getElementById("btnSend");
-        btn.disabled = true;
-        btn.innerText = "ENVIANDO...";
+        btn.disabled = true; btn.innerText = "ENVIANDO...";
 
         const formData = new FormData();
+        formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
-        formData.append("type", type);
+        formData.append("userId", userId);
+        
+        // Mapeo de reportType para el Admin
+        const mappedType = (typeFromUrl === 'ranking') ? 'degustacion' : (typeFromUrl === 'report' ? 'ventas' : typeFromUrl);
+        formData.append("reportType", mappedType);
+
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
-        formData.append("cantidad", document.getElementById("cantidad").value || 0);
-        
-        // Unificar precio
-        const priceVal = document.getElementById("precio").value || document.getElementById("precio_simple").value || 0;
-        formData.append("precio", priceVal);
-        
+        formData.append("cantidad", document.getElementById("cantidad").value || document.getElementById("ventas").value || 0);
         formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
         formData.append("inv_final", document.getElementById("inv_final").value || 0);
-        formData.append("comentarios", document.getElementById("comentarios").value || "");
-        
-        // Foto (Asegúrate que el backend busque el campo "photo")
+        formData.append("precio", document.getElementById("precio").value || 0);
+        formData.append("observaciones", document.getElementById("comentarios").value || "");
+
         const fotoInput = document.getElementById("foto");
-        if(fotoInput.files[0]) {
-            formData.append("photo", fotoInput.files[0]);
-        }
+        if(fotoInput.files[0]) formData.append("photo", fotoInput.files[0]);
 
         try {
             const res = await fetch(`${BACKEND_URL}/reports`, {
                 method: "POST",
-                headers: { "userId": userId }, // Enviamos el ID por header
-                body: formData // Importante: FormData no lleva "Content-Type" manual
+                headers: { "userId": userId },
+                body: formData
             });
 
             if(res.ok) {
-                alert("✅ Enviado correctamente");
+                alert("✅ Reporte guardado con éxito");
                 window.location.href = "./home.html";
             } else {
-                const errData = await res.json();
-                alert("❌ Error: " + (errData.message || "Fallo al enviar"));
+                alert("❌ Error al enviar");
             }
         } catch (err) {
             alert("❌ Error de conexión");
         } finally {
-            btn.disabled = false;
-            btn.innerText = "ENVIAR REPORTE";
+            btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>

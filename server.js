@@ -112,6 +112,28 @@ app.get("/super/users", authSuper, async (req, res) => {
 
 // --- RUTAS DE USUARIOS Y TIENDAS ---
 
+// NUEVA RUTA: CREAR USUARIO (CORRIGE ERROR AL CREAR USUARIO EN PANEL ADMIN)
+app.post("/users", auth, async (req, res) => {
+    try {
+        const { name, email, password, role } = req.body;
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) return res.status(400).json({ error: "El correo ya existe" });
+
+        const newUser = new User({
+            name,
+            email: email.toLowerCase(),
+            password,
+            role,
+            agencyId: req.user.agencyId // Se asigna la agencia del admin que lo crea
+        });
+
+        await newUser.save();
+        res.status(201).json({ message: "Usuario creado con éxito" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al crear usuario" });
+    }
+});
+
 // *** NUEVA RUTA: ACTUALIZAR ROL (CORRIGE EL ERROR DE TUS CAPTURAS) ***
 app.patch("/users/:id/role", auth, async (req, res) => {
     try {

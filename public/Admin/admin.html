@@ -2,30 +2,37 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse - Panel de Administración</title>
+    <title>StorePulse Admin - Versión Restaurada</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     
     <style>
-        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
-        body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
+        body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; color: #334155; }
+        
+        /* Sidebar mejorada */
         .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
         .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; color: var(--gold); }
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; transition: 0.3s; font-size: 0.9rem; }
         .sidebar button:hover { background: #1e293b; }
         .sidebar button.active { background: var(--gold); color: var(--primary); font-weight: bold; }
-        .main { flex:1; padding:20px; overflow-y: auto; }
+        
+        .main { flex:1; padding:25px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
         
+        /* Rutas Drag & Drop */
         .store-list { display:flex; gap:10px; margin-top: 15px; }
         .store-column { flex:1; min-height:150px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-column.assigned { background:#e0f2fe; border-color: #7dd3fc; }
-        .store-item { background:white; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; border: 1px solid #e2e8f0; font-size: 0.85rem; }
+        .store-item { background:white; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; border: 1px solid #e2e8f0; font-size: 0.85rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         
-        input, select { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
-        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-danger { background: var(--danger); }
+        .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
+        
+        .user-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -38,11 +45,11 @@
     <button onclick="changeTab(this, loadCreateUser)">➕ Crear Usuario</button>
     <button onclick="changeTab(this, loadStores)">🏬 Tiendas</button>
     <div style="flex:1"></div>
-    <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
+    <button onclick="logout()" style="color: #fda4af; font-weight: bold;">🚪 Cerrar Sesión</button>
 </div>
 
 <div class="main">
-    <div id="userInfo" style="margin-bottom:20px; color: #64748b; font-weight: bold; font-size: 1.1rem;"></div>
+    <div id="userInfo" style="margin-bottom:20px; color: #1e293b; font-weight: 800; font-size: 1.2rem; border-left: 4px solid var(--gold); padding-left: 10px;"></div>
     <div id="content"></div>
 </div>
 
@@ -60,6 +67,7 @@ let draggedStore = null;
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
     const res = await fetch(url, options);
+    if (!res.ok) return null;
     return res.json();
 }
 
@@ -80,20 +88,14 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Reporte de Actividades</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
+            <h2>📊 Filtro de Reportes</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
                 <div><label>Desde:</label><input type="date" id="dateFrom"></div>
                 <div><label>Hasta:</label><input type="date" id="dateTo"></div>
                 <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${stores.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
                 <div><label>Rol:</label><select id="fRole"><option value="all">Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select></div>
                 <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${users.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
-                <div style="display:flex; align-items:flex-end; gap:5px;">
-                    <button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button>
-                </div>
-            </div>
-            <div style="margin-top:15px; display:flex; gap:10px;">
-                <button onclick="exportData('excel')" class="btn-action" style="background:#16a34a;">Excel</button>
-                <button onclick="exportData('pdf')" class="btn-action" style="background:#dc2626;">PDF</button>
+                <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button></div>
             </div>
         </div>
         <div id="reportList"></div>`;
@@ -102,13 +104,15 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron registros.</div>";
+    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron registros con estos filtros.</div>";
     container.innerHTML = data.map(r => `
-        <div class="card" style="border-left: 5px solid var(--primary);">
-            <b>${(r.userId?.name || '---').toUpperCase()}</b> (${r.userId?.role || 'S/R'})<br>
+        <div class="card" style="border-left: 5px solid ${r.userId?.role === 'demostradora' ? '#8b5cf6' : '#0ea5e9'};">
+            <b>${(r.userId?.name || '---').toUpperCase()}</b> | <span style="text-transform: capitalize;">${r.userId?.role || ''}</span><br>
             <span style="color:var(--primary); font-weight:bold;">📍 ${r.storeId?.name || '---'}</span><br>
             <small>${new Date(r.createdAt).toLocaleString()}</small>
-            <p style="margin-top:10px;">${(r.articulo || r.comentarios || '').toUpperCase()} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
+            <p style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #f1f5f9;">
+                ${(r.articulo || r.comentarios || '').toUpperCase()} ${r.cantidad ? `<b>(Cant: ${r.cantidad})</b>` : ''}
+            </p>
         </div>`).join('');
 }
 
@@ -122,8 +126,8 @@ function filterReports() {
     const filtered = allReportsRaw.filter(r => {
         let mDate = true;
         if(from && to) {
-            const reportDate = new Date(r.createdAt).toISOString().split('T')[0];
-            mDate = (reportDate >= from && reportDate <= to);
+            const rDate = new Date(r.createdAt).toISOString().split('T')[0];
+            mDate = (rDate >= from && rDate <= to);
         }
         const mStore = store === "all" || (r.storeId?.name||"").toLowerCase().includes(store);
         const mRole = role === "all" || (r.userId?.role||"").toLowerCase() === role;
@@ -133,72 +137,36 @@ function filterReports() {
     renderList(filtered);
 }
 
-// --- TIENDAS ---
-async function loadStores() {
-    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    document.getElementById("content").innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h2>🏬 Gestión de Tiendas</h2>
-            <button class="btn-action" onclick="showStoreForm()">+ Nueva Tienda</button>
-        </div>
-        <div id="storeFormArea"></div>
-        <div class="grid-tiendas">${allStores.map(s => `
-            <div class="card">
-                <strong>${s.name}</strong><br>
-                <small>${s.address || 'Sin dirección'}</small><br>
-                <div style="margin-top:5px; font-size:0.75rem; color:#64748b;">
-                    Lat: ${s.lat || 0} | Lng: ${s.lng || 0}
-                </div>
-            </div>`).join('')}</div>`;
-}
-
-function showStoreForm() {
-    document.getElementById("storeFormArea").innerHTML = `
-        <div class="card" style="border: 2px solid var(--gold);">
-            <h3>Registrar Tienda</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <input id="sn" placeholder="Nombre de la Tienda">
-                <input id="sa" placeholder="Dirección">
-                <input id="slat" placeholder="Latitud">
-                <input id="slng" placeholder="Longitud">
-            </div>
-            <button class="btn-action" onclick="saveStore()" style="margin-top:10px;">Guardar Tienda</button>
-        </div>`;
-}
-
-async function saveStore() {
-    await fetchAPI(`${BACKEND_URL}/stores`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({
-            name: document.getElementById("sn").value, 
-            address: document.getElementById("sa").value, 
-            lat: document.getElementById("slat").value, 
-            lng: document.getElementById("slng").value, 
-            agencyId
-        })
-    });
-    loadStores();
-}
-
-// --- USUARIOS Y RUTAS ---
+// --- GESTIÓN DE USUARIOS (ELIMINAR Y ROL RESTAURADO) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Usuarios y Rutas</h2>`;
+    let html = `<h2>👥 Gestión de Usuarios y Rutas</h2>`;
+    
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
+        
         html += `
         <div class="card">
-            <strong>${u.name.toUpperCase()}</strong> - <span class="type-badge">${u.role}</span>
+            <div class="user-header">
+                <div>
+                    <strong style="font-size: 1.1rem;">${u.name.toUpperCase()}</strong> 
+                    <select onchange="updateUserRole('${u._id}', this.value)" style="width: auto; margin-left: 10px; padding: 4px;">
+                        <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                        <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+                        <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                    </select>
+                </div>
+                <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 5px 10px; font-size: 0.8rem;">Eliminar</button>
+            </div>
             <div class="store-list">
                 <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)">
-                    <small><b>DISPONIBLES</b></small>
+                    <small><b>TIENDAS DISPONIBLES</b></small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
                 <div class="store-column assigned" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)">
-                    <small><b>EN RUTA</b></small>
+                    <small><b>RUTA ASIGNADA</b></small>
                     ${assigned.map(id => {
                         const s = allStores.find(x => x._id === id);
                         return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : '';
@@ -210,6 +178,56 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+async function updateUserRole(uId, newRole) {
+    if(!confirm("¿Cambiar el rol de este usuario?")) return loadUsers();
+    await fetchAPI(`${BACKEND_URL}/users/${uId}`, {
+        method: "PUT",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({role: newRole})
+    });
+    loadUsers();
+}
+
+async function deleteUser(uId) {
+    if(!confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) return;
+    await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method: "DELETE" });
+    loadUsers();
+}
+
+// --- TIENDAS CON COORDENADAS ---
+async function loadStores() {
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+    document.getElementById("content").innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>🏬 Tiendas</h2>
+            <button class="btn-action" onclick="showStoreForm()">+ Nueva Tienda</button>
+        </div>
+        <div id="storeFormArea"></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
+            ${allStores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.address||''}</small><br><code style="font-size: 10px; color: #64748b;">${s.lat||0}, ${s.lng||0}</code></div>`).join('')}
+        </div>`;
+}
+
+function showStoreForm() {
+    document.getElementById("storeFormArea").innerHTML = `
+        <div class="card" style="border: 2px solid var(--gold);">
+            <h3>Nueva Tienda</h3>
+            <input id="sn" placeholder="Nombre"> <input id="sa" placeholder="Dirección">
+            <div style="display:flex; gap:10px;"><input id="slat" placeholder="Latitud"> <input id="slng" placeholder="Longitud"></div>
+            <button class="btn-action" onclick="saveStore()" style="margin-top:10px;">Guardar</button>
+        </div>`;
+}
+
+async function saveStore() {
+    await fetchAPI(`${BACKEND_URL}/stores`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({name: document.getElementById("sn").value, address: document.getElementById("sa").value, lat: document.getElementById("slat").value, lng: document.getElementById("slng").value, agencyId})
+    });
+    loadStores();
+}
+
+// Drag & Drop Helpers
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -217,51 +235,21 @@ async function dropStore(e, uId, type) {
     const user = cachedUsers.find(u => u._id === uId);
     let stores = (user.stores || []).map(s => s._id || s);
     if(type === 'assign') { if(!stores.includes(draggedStore)) stores.push(draggedStore); }
-    else { stores = stores.filter(s => s !== draggedStore); }
+    else { stores = stores.filter(id => id !== draggedStore); }
     await fetchAPI(`${BACKEND_URL}/users/${uId}/stores`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({stores}) });
     loadUsers();
 }
 
 function loadCreateUser() {
-    document.getElementById("content").innerHTML = `
-        <div class="card" style="max-width:500px;">
-            <h2>➕ Crear Nuevo Usuario</h2>
-            <input id="un" placeholder="Nombre completo">
-            <input id="ue" placeholder="Correo electrónico">
-            <input id="up" type="password" placeholder="Contraseña">
-            <select id="ur">
-                <option value="promotor">Promotor</option>
-                <option value="demostradora">Demostradora</option>
-                <option value="admin">Administrador</option>
-            </select>
-            <button class="btn-action" onclick="saveUser()" style="width:100%; margin-top:10px;">Registrar Usuario</button>
-        </div>`;
+    document.getElementById("content").innerHTML = `<div class="card" style="max-width:400px;"><h2>Crear Usuario</h2><input id="un" placeholder="Nombre"><input id="ue" placeholder="Email"><input id="up" type="password" placeholder="Clave"><select id="ur"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option></select><button class="btn-action" onclick="saveUser()" style="width:100%; margin-top:10px;">Crear</button></div>`;
 }
 
 async function saveUser() {
-    await fetchAPI(`${BACKEND_URL}/users`, { 
-        method: "POST", 
-        headers: {"Content-Type":"application/json"}, 
-        body: JSON.stringify({
-            name: document.getElementById("un").value, 
-            email: document.getElementById("ue").value, 
-            password: document.getElementById("up").value, 
-            role: document.getElementById("ur").value, 
-            agencyId
-        }) 
-    });
-    alert("Usuario creado con éxito");
-    loadUsers();
+    const res = await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({name:document.getElementById("un").value, email:document.getElementById("ue").value, password:document.getElementById("up").value, role:document.getElementById("ur").value, agencyId}) });
+    if(res) { alert("Usuario creado"); loadUsers(); }
 }
 
-function loadDashboard() { 
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h1>Bienvenido, ${userName}</h1>
-            <p>Selecciona una opción en el menú lateral para gestionar la agencia.</p>
-        </div>`; 
-}
-
+function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>Panel de Control</h1><p>Bienvenido al sistema de gestión de StorePulse. Utilice el menú de la izquierda para navegar.</p></div>`; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { 

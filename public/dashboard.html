@@ -1,37 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StorePulse - Inicio</title>
+    <style>
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; }
+        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
+
+        /* HEADER */
+        .header {
+            display:flex;
+            align-items:center;
+            padding:15px 20px;
+            background:white;
+            box-shadow:0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .menu-btn { font-size:24px; cursor:pointer; margin-right:15px; color: var(--primary); }
+        .title { font-weight:bold; font-size:20px; color: var(--primary); flex: 1; }
+
+        /* CONTAINER */
+        .container { padding:20px; max-width: 600px; margin: auto; }
+        .welcome-msg { margin-bottom: 25px; }
+        .welcome-msg h1 { font-size: 1.5rem; margin: 0; color: var(--primary); }
+        .welcome-msg p { margin: 5px 0 0; color: #64748b; }
+
+        /* STORE CARDS */
+        .stores-list { display: flex; flex-direction: column; gap: 15px; }
+        .store-card {
+            background:white;
+            padding:20px;
+            border-radius:15px;
+            cursor:pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+            border-left: 6px solid var(--gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .store-card:active { transform: scale(0.97); background: #f8fafc; }
+        .store-info b { font-size: 1.1rem; color: var(--primary); display: block; margin-bottom: 4px; }
+        .store-info small { color: #94a3b8; font-size: 0.85rem; }
+        .arrow { color: var(--gold); font-size: 1.2rem; }
+
+        /* DRAWER (Menú lateral) */
+        .drawer {
+            position:fixed;
+            top:0;
+            left:-280px;
+            width:280px;
+            height:100%;
+            background: var(--primary);
+            color:white;
+            padding:40px 25px;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            box-sizing: border-box;
+        }
+        .drawer.open { left:0; box-shadow: 10px 0 30px rgba(0,0,0,0.3); }
+        .drawer h3 { margin: 0; color: var(--gold); font-size: 1.4rem; }
+        .drawer p { font-size: 0.9rem; opacity: 0.7; margin: 5px 0 30px; }
+        .drawer-nav button {
+            width:100%;
+            padding:15px;
+            background: rgba(255,255,255,0.05);
+            border:none;
+            border-radius:10px;
+            color:white;
+            text-align: left;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        .logout-btn { background: #ef4444 !important; font-weight: bold; margin-top: 20px; text-align: center !important; }
+
+        /* MODAL */
+        .modal {
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:rgba(11, 31, 58, 0.8);
+            display:none;
+            justify-content:center;
+            align-items:center;
+            z-index: 200;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background:white;
+            padding:30px;
+            border-radius:20px;
+            text-align:center;
+            width:85%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .btn-checkin { background: #22c55e; color:white; padding:18px; border:none; border-radius:12px; width:100%; margin-top:20px; font-weight:bold; font-size:1rem; cursor:pointer; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
+        .btn-cancel { background:none; color: #94a3b8; padding:12px; border:none; width:100%; margin-top:10px; cursor:pointer; font-weight: 500; }
+        .loader { text-align: center; padding: 50px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="drawer" id="drawer">
+    <h3 id="userName">Cargando...</h3>
+    <p id="userRole">Cargando...</p>
+    <div class="drawer-nav">
+        <button onclick="toggleMenu()">🏠 Inicio</button>
+        <button onclick="logout()" class="logout-btn">🚪 Cerrar Sesión</button>
+    </div>
+</div>
+
+<div class="header">
+    <div class="menu-btn" onclick="toggleMenu()">☰</div>
+    <div class="title">StorePulse</div>
+</div>
+
+<div class="container">
+    <div class="welcome-msg">
+        <h1 id="greeting">Hola...</h1>
+        <p>Selecciona tu tienda para comenzar el turno.</p>
+    </div>
+
+    <div id="storesContainer" class="stores-list">
+        <div class="loader">Buscando tus tiendas asignadas...</div>
+    </div>
+</div>
+
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
+        <p style="color: #64748b; line-height: 1.5;">Para iniciar operación, el sistema validará tu ubicación GPS actual.</p>
+        <button class="btn-checkin" id="btnCheckin" onclick="startCheckin()">INICIAR OPERACIÓN</button>
+        <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
+    </div>
+</div>
+
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
-    const userId = localStorage.getItem("userId");
-    // Cambiado a 'name' y 'userRole' para coincidir con tu login corregido
-    const name = localStorage.getItem("name") || "Usuario";
-    const role = localStorage.getItem("userRole") || "Promotor";
+    
+    // Función que se ejecuta cuando el HTML termina de cargar
+    window.onload = async function() {
+        const userId = localStorage.getItem("userId");
+        const name = localStorage.getItem("name") || "Usuario";
+        const role = localStorage.getItem("userRole") || "Promotor";
+
+        // Protección de sesión
+        if (!userId) {
+            window.location.href = "./login.html";
+            return;
+        }
+
+        // Llenar datos del usuario con seguridad para evitar error de 'null'
+        const elUserName = document.getElementById("userName");
+        const elUserRole = document.getElementById("userRole");
+        const elGreeting = document.getElementById("greeting");
+
+        if (elUserName) elUserName.innerText = name;
+        if (elUserRole) elUserRole.innerText = role.toUpperCase();
+        if (elGreeting) elGreeting.innerText = `¡Hola, ${name.split(' ')[0]}!`;
+
+        // Cargar tiendas asignadas
+        await loadStores(userId);
+    };
 
     let selectedStore = null;
 
-    // Protección de sesión
-    if(!userId) window.location.href="./login.html";
-
-    // UI Inicial
-    document.getElementById("userName").innerText = name;
-    document.getElementById("userRole").innerText = role.toUpperCase();
-    document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
-
-    function toggleMenu(){
-        document.getElementById("drawer").classList.toggle("open");
+    function toggleMenu() {
+        const drawer = document.getElementById("drawer");
+        if (drawer) drawer.classList.toggle("open");
     }
 
-    async function loadStores(){
+    async function loadStores(userId) {
         const container = document.getElementById("storesContainer");
+        if (!container) return;
+
         try {
-            // CORRECCIÓN CRÍTICA: Cambié la ruta de /users/${userId}/stores a solo /users/${userId}
-            // para que traiga el objeto de usuario completo que ya tiene las tiendas adentro.
+            // Buscamos directamente el objeto del usuario que contiene sus tiendas
             const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
                 headers: { "userId": userId }
             });
 
-            if(!res.ok) throw new Error("Fallo en servidor");
-            const userData = await res.json();
+            if (!res.ok) throw new Error("Fallo en servidor");
             
-            // Extraemos el array de tiendas del usuario
+            const userData = await res.json();
             const stores = userData.stores || [];
 
             if (stores.length === 0) {
@@ -55,25 +212,30 @@
             `).join("");
 
         } catch (err) {
-            console.error(err);
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>No pudimos cargar tus tiendas. Revisa tu internet.</p>";
+            console.error("Error en loadStores:", err);
+            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>No pudimos cargar tus tiendas. Revisa tu internet y recarga.</p>";
         }
     }
 
-    function openModal(store){
+    function openModal(store) {
         selectedStore = store;
-        document.getElementById("storeNameDisplay").innerText = store.name;
-        document.getElementById("modal").style.display = "flex";
-    }
-
-    function closeModal(){
-        document.getElementById("modal").style.display = "none";
-    }
-
-    function startCheckin(){
-        const btn = document.getElementById("btnCheckin");
+        const modal = document.getElementById("modal");
+        const displayName = document.getElementById("storeNameDisplay");
         
-        if(!navigator.geolocation){
+        if (displayName) displayName.innerText = store.name;
+        if (modal) modal.style.display = "flex";
+    }
+
+    function closeModal() {
+        const modal = document.getElementById("modal");
+        if (modal) modal.style.display = "none";
+    }
+
+    function startCheckin() {
+        const btn = document.getElementById("btnCheckin");
+        const userId = localStorage.getItem("userId");
+        
+        if (!navigator.geolocation) {
             return alert("GPS no disponible en este navegador.");
         }
 
@@ -96,12 +258,10 @@
 
                 const data = await res.json();
 
-                if(res.ok){
+                if (res.ok) {
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
-                    
                     alert(`✅ ¡Entrada exitosa en ${selectedStore.name}!`);
-                    // Asegúrate de que home.html exista, si no, cámbialo a donde quieras que vaya el usuario
                     window.location.href = "./home.html"; 
                 } else {
                     alert("❌ " + (data.error || data.message || "Error al marcar entrada"));
@@ -117,15 +277,18 @@
         }, { enableHighAccuracy: true });
     }
 
-    function resetBtn(btn){
-        btn.innerText = "INICIAR OPERACIÓN";
-        btn.disabled = false;
+    function resetBtn(btn) {
+        if (btn) {
+            btn.innerText = "INICIAR OPERACIÓN";
+            btn.disabled = false;
+        }
     }
 
-    function logout(){
+    function logout() {
         localStorage.clear();
-        window.location.href="./login.html";
+        window.location.href = "./login.html";
     }
-
-    window.onload = loadStores;
 </script>
+
+</body>
+</html>

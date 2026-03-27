@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Filtro de Rol Estricto</title>
+    <title>StorePulse Admin - Corrección Filtro Rol</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -67,7 +67,7 @@ function changeTab(btn, callback) {
 
 // --- REPORTES ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando datos...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
     allReportsRaw = reports || [];
 
@@ -81,9 +81,15 @@ async function loadReports() {
                 <div><label>Desde:</label><input type="date" id="dateFrom"></div>
                 <div><label>Hasta:</label><input type="date" id="dateTo"></div>
                 <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${stores.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
-                <div><label>Rol:</label><select id="fRole"><option value="all">Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select></div>
+                <div><label>Rol:</label>
+                    <select id="fRole">
+                        <option value="all">Todos</option>
+                        <option value="promotor">Promotor</option>
+                        <option value="demostradora">Demostradora</option>
+                    </select>
+                </div>
                 <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${users.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
-                <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button></div>
+                <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar Ahora</button></div>
             </div>
             <div style="margin-top:15px; display:flex; gap:10px;">
                 <button onclick="exportExcel()" class="btn-action" style="background:#16a34a;">Excel</button>
@@ -96,25 +102,30 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    if(!data.length) return container.innerHTML = "<div class='card'>No hay registros coincidentes.</div>";
-    container.innerHTML = data.map(r => `
+    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron resultados para esta búsqueda.</div>";
+    container.innerHTML = `<div style="padding:10px;"><b>Mostrando ${data.length} registros</b></div>` + 
+    data.map(r => `
         <div class="card" style="border-left: 5px solid var(--primary);">
-            <b>${(r.userId?.name || '---').toUpperCase()}</b> <span style="color:#64748b;">(${r.userId?.role || 'S/R'})</span><br>
+            <b>${(r.userId?.name || '---').toUpperCase()}</b> 
+            <span style="background:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:11px; margin-left:10px;">
+                ${(r.userId?.role || 'SIN ROL').toUpperCase()}
+            </span><br>
             <span style="color:var(--primary); font-weight:bold;">📍 ${r.storeId?.name || '---'}</span><br>
             <small>${new Date(r.createdAt).toLocaleString()}</small>
             <p>${(r.articulo || r.comentarios || '').toUpperCase()} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
         </div>`).join('');
 }
 
-// FILTRO CORREGIDO: VALIDACIÓN ESTRICTA DE ROL
+// --- FILTRADO ROBUSTO (CORREGIDO) ---
 function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
-    const store = document.getElementById("fStore").value.toLowerCase();
-    const roleTarget = document.getElementById("fRole").value.toLowerCase();
-    const user = document.getElementById("fUser").value.toLowerCase();
+    const storeSel = document.getElementById("fStore").value.toLowerCase().trim();
+    const roleSel = document.getElementById("fRole").value.toLowerCase().trim();
+    const userSel = document.getElementById("fUser").value.toLowerCase().trim();
 
     const filtered = allReportsRaw.filter(r => {
+        // 1. Validar Fecha
         let mDate = true;
         if(from && to) {
             const d = new Date(r.createdAt);
@@ -122,15 +133,20 @@ function filterReports() {
             mDate = (reportDay >= from && reportDay <= to);
         }
         
-        const mStore = store === "all" || (r.storeId?.name || "").toLowerCase().includes(store);
-        const mUser = user === "all" || (r.userId?.name || "").toLowerCase().includes(user);
+        // 2. Validar Tienda
+        const mStore = (storeSel === "all") || (r.storeId?.name || "").toLowerCase().includes(storeSel);
         
-        // Aquí está la corrección: Comparación exacta del rol
-        const currentRole = (r.userId?.role || "").toLowerCase().trim();
-        const mRole = (roleTarget === "all") || (currentRole === roleTarget);
+        // 3. Validar Usuario
+        const mUser = (userSel === "all") || (r.userId?.name || "").toLowerCase().includes(userSel);
+        
+        // 4. VALIDAR ROL (EXACTO Y LIMPIO)
+        // Buscamos el rol en el reporte
+        const reportUserRole = (r.userId?.role || "").toLowerCase().trim();
+        const mRole = (roleSel === "all") || (reportUserRole === roleSel);
 
-        return mDate && mStore && mRole && mUser;
+        return mDate && mStore && mUser && mRole;
     });
+    
     renderList(filtered);
 }
 
@@ -155,7 +171,7 @@ function exportPDF() {
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Gestión de Usuarios</h2>`;
+    let html = `<h2>👥 Usuarios y Rutas</h2>`;
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
@@ -172,10 +188,10 @@ async function loadUsers() {
                 </div>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>TIENDAS DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ASIGNADA</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -198,11 +214,11 @@ function loadCreateUser() {
 
 async function saveUser() {
     await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name: document.getElementById("un").value, email: document.getElementById("ue").value, password: document.getElementById("up").value, role: document.getElementById("ur").value, agencyId }) });
-    alert("Usuario Creado con Éxito"); loadUsers();
+    alert("Usuario Creado"); loadUsers();
 }
 
 async function updateUserRole(uId, role) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({role}) }); loadUsers(); }
-async function deleteUser(uId) { if(confirm("¿Seguro de eliminar este usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"DELETE" }); loadUsers(); } }
+async function deleteUser(uId) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"DELETE" }); loadUsers(); } }
 
 // --- TIENDAS ---
 async function loadStores() {
@@ -218,13 +234,13 @@ async function loadStores() {
 function showStoreForm() {
     document.getElementById("storeFormArea").innerHTML = `
         <div class="card" style="border: 2px solid var(--gold);">
-            <input id="sn" placeholder="Nombre Comercial"> <input id="sa" placeholder="Dirección Completa">
-            <button class="btn-action" onclick="saveStore()" style="margin-top:10px;">Guardar Tienda</button>
+            <input id="sn" placeholder="Nombre de Tienda"> <input id="sa" placeholder="Dirección">
+            <button class="btn-action" onclick="saveStore()" style="margin-top:10px;">Guardar</button>
         </div>`;
 }
 
 async function saveStore() {
-    await fetchAPI(`${BACKEND_URL}/stores`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:document.getElementById("sn").value, address:document.getElementById("sa").value, agencyId}) });
+    await fetchAPI(`${BACKEND_URL}/stores`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name:document.getElementById("sn").value, address:document.getElementById("sa").value, agencyId}) });
     loadStores();
 }
 
@@ -241,10 +257,13 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>StorePulse Admin</h1><p>Bienvenido al sistema de control de agencia.</p></div>`; }
+function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>StorePulse Admin</h1><p>Control de operación en tiempo real.</p></div>`; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
-window.onload = () => { document.getElementById("userInfo").innerText = `👤 Sesión: ${userName}`; loadDashboard(); };
+window.onload = () => { 
+    document.getElementById("userInfo").innerText = `👤 ${userName}`; 
+    loadDashboard(); 
+};
 </script>
 </body>
 </html>

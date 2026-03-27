@@ -10,33 +10,23 @@
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
-        
-        /* Sidebar */
         .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
         .sidebar h2 { font-size: 1.2rem; border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; color: var(--gold); }
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; transition: 0.3s; font-size: 0.9rem; }
         .sidebar button:hover { background: #1e293b; }
         .sidebar button.active { background: var(--gold); color: var(--primary); font-weight: bold; }
-        
-        /* Main Content */
         .main { flex:1; padding:20px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        
-        /* Drag & Drop Styles */
         .store-list { display:flex; gap:10px; margin-top: 15px; }
         .store-column { flex:1; min-height:150px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-column.assigned { background:#e0f2fe; border-color: #7dd3fc; }
         .store-item { background:white; color:#1e293b; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; font-size: 0.85rem; }
-        
-        /* Forms & Buttons */
         input, select, textarea { padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; background: #f8fafc; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-danger { background: var(--danger) !important; }
-        
         .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
         .type-badge { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
-        
         .report-controls { background:#fff; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 </head>
@@ -63,10 +53,10 @@ const BACKEND_URL = "https://storepulse.onrender.com";
 const userId = localStorage.getItem("userId");
 const agencyId = localStorage.getItem("agencyId");
 
-let draggedStore = null;
 let allStores = [];
 let cachedUsers = [];
 let allReportsRaw = []; 
+let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
@@ -91,8 +81,7 @@ function changeTab(btn, callback) {
 }
 
 async function loadUserInfo() {
-    let text = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
-    document.getElementById("userInfo").innerText = text;
+    document.getElementById("userInfo").innerText = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
 }
 
 function loadDashboard() {
@@ -114,14 +103,10 @@ async function loadUsers() {
         cachedUsers.forEach(u => {
             const assigned = (u.stores || []).map(s => s._id || s);
             const available = allStores.filter(s => !assigned.includes(s._id));
-
             html += `
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <div>
-                        <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
-                        <small>${u.email} | <b style="color:var(--gold)">${u.role.toUpperCase()}</b></small>
-                    </div>
+                    <div><strong>${u.name}</strong><br><small>${u.email} | <b style="color:var(--gold)">${u.role.toUpperCase()}</b></small></div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
                             <option value="" disabled selected>Cambiar Rol...</option>
@@ -148,9 +133,7 @@ async function loadUsers() {
             </div>`;
         });
         document.getElementById("content").innerHTML = html;
-    } catch (err) {
-        document.getElementById("content").innerHTML = "<h3>Error al cargar usuarios</h3>";
-    }
+    } catch (err) { document.getElementById("content").innerHTML = "<h3>Error al cargar usuarios</h3>"; }
 }
 
 function dragStart(id) { draggedStore = id; }
@@ -161,11 +144,8 @@ async function dropStore(e, targetUserId, type) {
     const user = cachedUsers.find(u => u._id === targetUserId);
     if(!user) return;
     let stores = (user.stores || []).map(s => s._id || s);
-    if (type === "assigned") {
-        if (!stores.includes(draggedStore)) stores.push(draggedStore);
-    } else {
-        stores = stores.filter(s => s !== draggedStore);
-    }
+    if (type === "assigned") { if (!stores.includes(draggedStore)) stores.push(draggedStore); }
+    else { stores = stores.filter(s => s !== draggedStore); }
     try {
         await fetchAPI(`${BACKEND_URL}/users/${targetUserId}/stores`, {
             method: "PUT",
@@ -184,8 +164,7 @@ async function updateUserRole(userId, newRole) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ role: newRole })
         });
-        alert("Rol actualizado ✅");
-        loadUsers();
+        alert("Rol actualizado ✅"); loadUsers();
     } catch (e) { alert("Error al cambiar rol"); }
 }
 
@@ -193,13 +172,9 @@ function loadCreateUser() {
     document.getElementById("content").innerHTML = `
         <div class="card" style="max-width: 500px;">
             <h2>➕ Registrar Nuevo Miembro</h2>
-            <label><small>Nombre</small></label>
-            <input id="new_name" placeholder="Ej. Ana García">
-            <label><small>Correo</small></label>
-            <input id="new_email" type="email" placeholder="ejemplo@correo.com">
-            <label><small>Contraseña</small></label>
-            <input id="new_pass" type="password" placeholder="Min. 6 caracteres">
-            <label><small>Rol en la empresa</small></label>
+            <input id="new_name" placeholder="Nombre completo">
+            <input id="new_email" type="email" placeholder="Correo electrónico">
+            <input id="new_pass" type="password" placeholder="Contraseña">
             <select id="new_role">
                 <option value="promotor">Promotor (Ruta)</option>
                 <option value="demostradora">Demostradora (Fijo)</option>
@@ -210,103 +185,75 @@ function loadCreateUser() {
 }
 
 async function createUser() {
-    const btn = document.getElementById("btnCreate");
     const name = document.getElementById("new_name").value;
     const email = document.getElementById("new_email").value;
     const password = document.getElementById("new_pass").value;
     const role = document.getElementById("new_role").value;
     const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
-
-    if(!name || !email || !password) return alert("Por favor, llena todos los campos.");
-    if(!currentAgencyId) return alert("Error: No se encontró ID de Agencia. Reinicia sesión.");
-
-    btn.innerText = "PROCESANDO...";
-    btn.disabled = true;
-
-    const data = { name: name.trim(), email: email.trim().toLowerCase(), password: password, role: role, agencyId: currentAgencyId };
-
+    if(!name || !email || !password) return alert("Llena todos los campos.");
     try {
-        const response = await fetch(`${BACKEND_URL}/users`, {
+        await fetchAPI(`${BACKEND_URL}/users`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "userId": userId },
-            body: JSON.stringify(data)
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, email, password, role, agencyId: currentAgencyId })
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || "Error al crear");
-        alert("Usuario Creado ✅");
-        const btnUsers = document.getElementById("btnUsers");
-        changeTab(btnUsers, loadUsers);
-    } catch (err) { 
-        alert("❌ Error: " + err.message); 
-        btn.innerText = "REGISTRAR USUARIO"; btn.disabled = false;
-    }
+        alert("Usuario Creado ✅"); changeTab(document.getElementById("btnUsers"), loadUsers);
+    } catch (err) { alert("❌ Error: " + err.message); }
 }
 
-// --- REPORTES CON CONSOLIDACIÓN POR TIENDA Y USUARIO ---
+// --- REPORTES CON FILTROS DUALES Y CONSOLIDACIÓN ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
         const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
-        if(!currentAgencyId) throw new Error("ID de Agencia no encontrado");
-
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
         allReportsRaw = reports; 
         renderReportInterface(reports);
-    } catch (error) {
-        document.getElementById("content").innerHTML = `<div class="card" style="border-left: 5px solid var(--danger);"><h3>⚠️ Error</h3><p>${error.message}</p></div>`;
-    }
+    } catch (error) { document.getElementById("content").innerHTML = `<div class="card"><h3>⚠️ Error</h3><p>${error.message}</p></div>`; }
 }
 
 function renderReportInterface(reportsToShow) {
     const content = document.getElementById("content");
     const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
+    const uniqueUsers = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
 
     let html = `
         <div class="report-controls">
-            <h2 style="margin-top:0;">📊 Historial de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; align-items: end;">
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:bold;">Desde:</label>
-                    <input type="date" id="dateFrom" style="margin:0;">
-                </div>
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:bold;">Hasta:</label>
-                    <input type="date" id="dateTo" style="margin:0;">
-                </div>
-                <div>
-                    <label style="display:block; font-size:12px; font-weight:bold;">Tienda:</label>
+            <h2 style="margin-top:0;">📊 Reporte de Actividades</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:15px; align-items: end;">
+                <div><label style="font-size:12px; font-weight:bold;">Desde:</label><input type="date" id="dateFrom" style="margin:0;"></div>
+                <div><label style="font-size:12px; font-weight:bold;">Hasta:</label><input type="date" id="dateTo" style="margin:0;"></div>
+                <div><label style="font-size:12px; font-weight:bold;">Tienda:</label>
                     <select id="filterStore" style="margin:0;">
-                        <option value="all">Todas las tiendas</option>
+                        <option value="all">Todas</option>
                         ${uniqueStores.map(s => `<option value="${s}">${s}</option>`).join('')}
                     </select>
                 </div>
+                <div><label style="font-size:12px; font-weight:bold;">Usuario:</label>
+                    <select id="filterUser" style="margin:0;">
+                        <option value="all">Todos</option>
+                        ${uniqueUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
+                    </select>
+                </div>
                 <div style="display:flex; gap:10px;">
-                    <button onclick="filterReports()" class="btn-action" style="flex:1;">Filtrar</button>
-                    <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a; flex:1;">Excel</button>
-                    <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626; flex:1;">PDF</button>
+                    <button onclick="filterReports()" class="btn-action">Filtrar</button>
+                    <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a;">Excel</button>
+                    <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626;">PDF</button>
                 </div>
             </div>
         </div>
         <div id="reportsContainer">`;
 
     if(!reportsToShow || reportsToShow.length === 0) {
-        html += `<div class="card" style="text-align:center;"><p style="color:#64748b">No se encontraron registros.</p></div>`;
+        html += `<div class="card" style="text-align:center;"><p>No se encontraron registros.</p></div>`;
     } else {
         [...reportsToShow].reverse().forEach(r => {
-            const user = r.userId?.name || '---';
-            const store = r.storeId?.name || '---';
-            const tipo = r.type || 'General';
-            const detalle = r.articulo || r.comentarios || r.observaciones || 'Actividad';
-
             html += `
-            <div class="card" style="border-left: 5px solid ${tipo === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
-                <div style="display:flex; justify-content:space-between;">
-                    <b>${user}</b>
-                    <span class="type-badge">${tipo}</span>
-                </div>
-                <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${store}</div>
+            <div class="card" style="border-left: 5px solid ${r.type === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
+                <div style="display:flex; justify-content:space-between;"><b>${r.userId?.name || '---'}</b><span class="type-badge">${r.type || 'Gral'}</span></div>
+                <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${r.storeId?.name || '---'}</div>
                 <small style="color:#94a3b8">${new Date(r.createdAt).toLocaleString()}</small>
-                <p style="margin:5px 0 0 0; font-size:0.9rem;">${detalle} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
+                <p style="margin:5px 0 0 0; font-size:0.9rem;">${r.articulo || r.comentarios || r.observaciones || 'Actividad'} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
                 ${r.foto_url ? `<br><a href="${BACKEND_URL}${r.foto_url}" target="_blank" style="font-size:0.8rem; color:var(--gold); font-weight:bold;">🖼️ Evidencia</a>` : ''}
             </div>`;
         });
@@ -318,17 +265,17 @@ function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
     const storeSel = document.getElementById("filterStore").value;
+    const userSel = document.getElementById("filterUser").value;
 
     if (!from || !to) return alert("Selecciona rango de fechas");
-
     const start = new Date(from); start.setHours(0,0,0,0);
     const end = new Date(to); end.setHours(23,59,59,999);
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        const matchDate = d >= start && d <= end;
-        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
-        return matchDate && matchStore;
+        return d >= start && d <= end && 
+               (storeSel === "all" || r.storeId?.name === storeSel) &&
+               (userSel === "all" || r.userId?.name === userSel);
     });
     renderReportInterface(filtered);
 }
@@ -337,22 +284,21 @@ function exportConsolidated(format) {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
     const storeSel = document.getElementById("filterStore").value;
+    const userSel = document.getElementById("filterUser").value;
 
-    if (!from || !to) return alert("Selecciona rango de fechas para exportar");
-
+    if (!from || !to) return alert("Selecciona fechas para exportar");
     const start = new Date(from); start.setHours(0,0,0,0);
     const end = new Date(to); end.setHours(23,59,59,999);
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        const matchDate = d >= start && d <= end;
-        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
-        return matchDate && matchStore;
+        return d >= start && d <= end && 
+               (storeSel === "all" || r.storeId?.name === storeSel) &&
+               (userSel === "all" || r.userId?.name === userSel);
     });
 
-    if (filtered.length === 0) return alert("No hay datos para exportar");
+    if (filtered.length === 0) return alert("No hay datos");
 
-    // Lógica de Agrupamiento
     const grouped = {};
     filtered.forEach(r => {
         const key = `${r.userId?._id}-${r.storeId?._id}`;
@@ -361,25 +307,18 @@ function exportConsolidated(format) {
                 Fecha: new Date(r.createdAt).toLocaleDateString(),
                 Colaborador: r.userId?.name || "N/A",
                 Tienda: r.storeId?.name || "N/A",
-                Ventas: [],
-                Inventario: [],
-                Degustacion: [],
-                Notas: []
+                Ventas: [], Inventario: [], Degustacion: [], Notas: []
             };
         }
-        const item = `${r.articulo || ''} ${r.cantidad ? '['+r.cantidad+']' : ''}`.trim();
-        const nota = r.comentarios || r.observaciones || '';
-
+        const item = `${r.articulo || ''} ${r.cantidad ? '('+r.cantidad+')' : ''}`.trim();
         if (r.type === 'ventas') grouped[key].Ventas.push(item);
         else if (r.type === 'inventario') grouped[key].Inventario.push(item);
         else if (r.type === 'degustacion') grouped[key].Degustacion.push(item);
-        if (nota) grouped[key].Notas.push(nota);
+        if (r.comentarios || r.observaciones) grouped[key].Notas.push(r.comentarios || r.observaciones);
     });
 
     const tableData = Object.values(grouped).map(g => ({
-        "FECHA": g.Fecha,
-        "COLABORADOR": g.Colaborador,
-        "TIENDA": g.Tienda,
+        "FECHA": g.Fecha, "USUARIO": g.Colaborador, "TIENDA": g.Tienda,
         "VENTAS": g.Ventas.join(" | ") || "---",
         "INVENTARIO": g.Inventario.join(" | ") || "---",
         "DEGUSTACION": g.Degustacion.join(" | ") || "---",
@@ -390,19 +329,13 @@ function exportConsolidated(format) {
         const ws = XLSX.utils.json_to_sheet(tableData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-        XLSX.writeFile(wb, `Reporte_Consolidado_${from}.xlsx`);
+        XLSX.writeFile(wb, `Reporte_${from}.xlsx`);
     } else {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('l', 'pt', 'a4');
         doc.text("Reporte Consolidado StorePulse", 40, 40);
-        doc.autoTable({
-            head: [Object.keys(tableData[0])],
-            body: tableData.map(Object.values),
-            startY: 60,
-            styles: { fontSize: 8 },
-            headStyles: { fillColor: [11, 31, 58] }
-        });
-        doc.save(`Reporte_Consolidado_${from}.pdf`);
+        doc.autoTable({ head: [Object.keys(tableData[0])], body: tableData.map(Object.values), startY: 60, styles: { fontSize: 8 } });
+        doc.save(`Reporte_${from}.pdf`);
     }
 }
 
@@ -411,19 +344,15 @@ async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
         let html = `<h2>🏬 Catálogo de Tiendas</h2><div class="grid-tiendas">`;
-        stores.forEach(s => {
-            html += `<div class="card"><strong>${s.name}</strong><br><small>${s.address || 'Sin dirección'}</small></div>`;
-        });
+        stores.forEach(s => { html += `<div class="card"><strong>${s.name}</strong><br><small>${s.address || 'Sin dirección'}</small></div>`; });
         document.getElementById("content").innerHTML = html + `</div>`;
     } catch (err) { alert("Error al cargar tiendas"); }
 }
 
 async function deleteUser(id) { 
-    if(confirm("¿Estás seguro de eliminar este usuario?")) { 
-        try {
-            await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); 
-            loadUsers(); 
-        } catch(e) { alert("No se pudo eliminar"); }
+    if(confirm("¿Eliminar usuario?")) { 
+        try { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } 
+        catch(e) { alert("Error"); }
     } 
 }
 
@@ -431,8 +360,7 @@ function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { 
     if(!userId) window.location.href = "login.html";
-    loadUserInfo(); 
-    loadDashboard(); 
+    loadUserInfo(); loadDashboard(); 
 };
 </script>
 </body>

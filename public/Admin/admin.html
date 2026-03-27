@@ -149,50 +149,6 @@ async function dropStore(e, targetUserId, type) {
     } catch(err) { alert("Error al actualizar la ruta"); }
 }
 
-async function updateUserRole(userId, newRole) {
-    if(!newRole) return;
-    try {
-        await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ role: newRole })
-        });
-        alert("Rol actualizado ✅"); loadUsers();
-    } catch (e) { alert("Error al cambiar rol"); }
-}
-
-function loadCreateUser() {
-    document.getElementById("content").innerHTML = `
-        <div class="card" style="max-width: 500px;">
-            <h2>➕ Registrar Nuevo Miembro</h2>
-            <input id="new_name" placeholder="Nombre completo">
-            <input id="new_email" type="email" placeholder="Correo electrónico">
-            <input id="new_pass" type="password" placeholder="Contraseña">
-            <select id="new_role">
-                <option value="promotor">Promotor (Ruta)</option>
-                <option value="demostradora">Demostradora (Fijo)</option>
-                <option value="admin">Administrador de Agencia</option>
-            </select>
-            <button class="btn-action" id="btnCreate" onclick="createUser()" style="width: 100%; margin-top: 15px;">REGISTRAR USUARIO</button>
-        </div>`;
-}
-
-async function createUser() {
-    const name = document.getElementById("new_name").value;
-    const email = document.getElementById("new_email").value;
-    const password = document.getElementById("new_pass").value;
-    const role = document.getElementById("new_role").value;
-    if(!name || !email || !password) return alert("Llena todos los campos.");
-    try {
-        await fetchAPI(`${BACKEND_URL}/users`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password, role, agencyId })
-        });
-        alert("Usuario Creado ✅"); changeTab(document.getElementById("btnUsers"), loadUsers);
-    } catch (err) { alert("Error al crear usuario"); }
-}
-
 // --- REPORTES ---
 async function loadReports() {
     try {
@@ -264,23 +220,30 @@ function renderReportsList(reportsToShow) {
     listContainer.innerHTML = html;
 }
 
+// FUNCIÓN DE FILTRADO REFORZADA
 function filterReports() {
     const fromVal = document.getElementById("dateFrom").value;
     const toVal = document.getElementById("dateTo").value;
-    const storeSel = document.getElementById("filterStore").value;
-    const userSel = document.getElementById("filterUser").value;
-    const roleSel = document.getElementById("filterRole").value;
+    const storeSel = document.getElementById("filterStore").value.trim().toLowerCase();
+    const userSel = document.getElementById("filterUser").value.trim().toLowerCase();
+    const roleSel = document.getElementById("filterRole").value.trim().toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
         let matchDate = true;
         if (fromVal && toVal) {
             const d = new Date(r.createdAt);
-            matchDate = d >= new Date(fromVal + "T00:00:00") && d <= new Date(toVal + "T23:59:59");
+            const start = new Date(fromVal + "T00:00:00");
+            const end = new Date(toVal + "T23:59:59");
+            matchDate = d >= start && d <= end;
         }
-        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
-        const matchUser = userSel === "all" || r.userId?.name === userSel;
-        // Normalizamos a minúsculas para evitar que el filtro falle por formato
-        const matchRole = roleSel === "all" || r.userId?.role?.toLowerCase() === roleSel.toLowerCase();
+
+        const reportStore = (r.storeId?.name || "").trim().toLowerCase();
+        const reportUser = (r.userId?.name || "").trim().toLowerCase();
+        const reportRole = (r.userId?.role || "").trim().toLowerCase();
+
+        const matchStore = storeSel === "all" || reportStore === storeSel;
+        const matchUser = userSel === "all" || reportUser === userSel;
+        const matchRole = roleSel === "all" || reportRole === roleSel;
         
         return matchDate && matchStore && matchUser && matchRole;
     });
@@ -301,26 +264,15 @@ function exportConsolidated(format) {
 
     if (filtered.length === 0) return alert("No hay datos");
 
-    const tempData = {};
-    filtered.forEach(r => {
-        const fecha = new Date(r.createdAt).toLocaleDateString();
-        const usuario = (r.userId?.name || "N/A").toUpperCase();
-        const tienda = (r.storeId?.name || "N/A").toUpperCase();
-        const producto = (r.articulo || "SIN ARTICULO").toUpperCase();
-        const key = `${fecha}-${usuario}-${tienda}-${producto}`;
-
-        if (!tempData[key]) {
-            tempData[key] = { FECHA: fecha, USUARIO: usuario, TIENDA: tienda, PRODUCTO: producto, VENTAS: 0, INVENTARIO: 0, DEGUSTACION: 0, NOTAS: [] };
-        }
-
-        const cant = parseInt(r.cantidad) || 0;
-        if (r.type === 'ventas') tempData[key].VENTAS += cant;
-        else if (r.type === 'inventario') tempData[key].INVENTARIO += cant;
-        else if (r.type === 'degustacion') tempData[key].DEGUSTACION += cant;
-        if (r.comentarios || r.observaciones) tempData[key].NOTAS.push((r.comentarios || r.observaciones).toUpperCase());
-    });
-
-    const finalData = Object.values(tempData).map(row => ({ ...row, NOTAS: row.NOTAS.join(" // ") }));
+    const finalData = filtered.map(r => ({
+        FECHA: new Date(r.createdAt).toLocaleDateString(),
+        USUARIO: (r.userId?.name || "N/A").toUpperCase(),
+        TIENDA: (r.storeId?.name || "N/A").toUpperCase(),
+        TIPO: (r.type || "GRAL").toUpperCase(),
+        PRODUCTO: (r.articulo || "---").toUpperCase(),
+        CANTIDAD: r.cantidad || 0,
+        NOTAS: (r.comentarios || r.observaciones || "").toUpperCase()
+    }));
 
     if (format === 'excel') {
         const ws = XLSX.utils.json_to_sheet(finalData);
@@ -336,7 +288,7 @@ function exportConsolidated(format) {
     }
 }
 
-// --- SECCIÓN DE TIENDAS ---
+// --- TIENDAS ---
 async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -347,13 +299,12 @@ async function loadStores() {
             </div>
             <div id="storeFormArea"></div>
             <div class="grid-tiendas">`;
-        
         stores.forEach(s => { 
             html += `
             <div class="card">
                 <strong>${s.name.toUpperCase()}</strong><br>
                 <small>${(s.address || 'S/D').toUpperCase()}</small><br>
-                <code style="font-size:10px;">${s.lat || '0'}, ${s.lng || '0'}</code>
+                <code style="font-size:10px;">LAT: ${s.lat || '0'} | LNG: ${s.lng || '0'}</code>
             </div>`; 
         });
         document.getElementById("content").innerHTML = html + `</div>`;
@@ -367,13 +318,10 @@ function showCreateStoreForm() {
             <input id="st_name" placeholder="Nombre de la Tienda">
             <input id="st_address" placeholder="Dirección">
             <div style="display:flex; gap:10px;">
-                <input id="st_lat" type="number" step="any" placeholder="Latitud (ej. 19.4326)">
-                <input id="st_lng" type="number" step="any" placeholder="Longitud (ej. -99.1332)">
+                <input id="st_lat" type="number" step="any" placeholder="Latitud">
+                <input id="st_lng" type="number" step="any" placeholder="Longitud">
             </div>
-            <div style="display:flex; gap:10px;">
-                <button class="btn-action" onclick="createStore()">Guardar</button>
-                <button class="btn-action btn-danger" onclick="document.getElementById('storeFormArea').innerHTML=''">Cancelar</button>
-            </div>
+            <button class="btn-action" onclick="createStore()">Guardar Tienda</button>
         </div>`;
 }
 
@@ -382,7 +330,6 @@ async function createStore() {
     const address = document.getElementById("st_address").value;
     const lat = document.getElementById("st_lat").value;
     const lng = document.getElementById("st_lng").value;
-    if(!name) return alert("Nombre obligatorio");
     try {
         await fetchAPI(`${BACKEND_URL}/stores`, {
             method: "POST",

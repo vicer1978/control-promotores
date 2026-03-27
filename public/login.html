@@ -91,25 +91,28 @@
                     // 1. Limpiar sesión previa para evitar conflictos
                     localStorage.clear();
 
-                    // 2. Guardar nuevos datos (Asegurando coincidencia de nombres con super-admin.html)
+                    // 2. Guardar nuevos datos
                     localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('userRole', data.role); 
                     localStorage.setItem('name', data.name);
                     
+                    // --- NORMALIZACIÓN DE ROL ---
+                    // Guardamos en 'userRole' y en 'role' para que sea compatible con todas tus páginas
+                    const normalizedRole = data.role.toLowerCase().trim();
+                    localStorage.setItem('userRole', normalizedRole); 
+                    localStorage.setItem('role', normalizedRole); 
+
                     // --- CORRECCIÓN PARA REPORTES ---
                     if (data.agencyId) {
-                        localStorage.setItem('agencyId', data.agencyId); // Esta es la que usa admin.html
-                        localStorage.setItem('activeAgencyId', data.agencyId); // Esta es la que tenías antes
+                        localStorage.setItem('agencyId', data.agencyId); 
+                        localStorage.setItem('activeAgencyId', data.agencyId); 
                     }
 
-                    console.log("Sesión guardada:", { id: data.userId, role: data.role });
+                    console.log("Sesión guardada:", { id: data.userId, role: normalizedRole });
 
-                    // 3. Redirección (Normalizamos a minúsculas para mayor seguridad)
-                    const role = data.role.toLowerCase().trim();
-                    
-                    if (role === 'super-admin') {
+                    // 3. Redirección
+                    if (normalizedRole === 'super-admin') {
                         window.location.href = 'Admin/super-admin.html';
-                    } else if (role === 'admin') {
+                    } else if (normalizedRole === 'admin') {
                         window.location.href = 'Admin/admin.html';
                     } else {
                         window.location.href = 'dashboard.html';

@@ -147,7 +147,8 @@
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
         const name = localStorage.getItem("name") || "Usuario";
-        const role = localStorage.getItem("userRole") || "Promotor";
+        // Buscamos el rol en ambas posibles claves por seguridad
+        const role = localStorage.getItem("role") || localStorage.getItem("userRole") || "Promotor";
 
         if (!userId) {
             window.location.href = "./login.html";
@@ -159,7 +160,17 @@
         const elGreeting = document.getElementById("greeting");
 
         if (elUserName) elUserName.innerText = name;
-        if (elUserRole) elUserRole.innerText = role.toUpperCase();
+        
+        // Actualizamos el rol en el menú lateral
+        if (elUserRole) {
+            elUserRole.innerText = role.toUpperCase();
+            // Si es demostradora, le damos el color dorado del diseño
+            if (role.toLowerCase() === "demostradora") {
+                elUserRole.style.color = "var(--gold)";
+                elUserRole.style.fontWeight = "bold";
+            }
+        }
+
         if (elGreeting) elGreeting.innerText = `¡Hola, ${name.split(' ')[0]}!`;
 
         await loadStores(userId);
@@ -177,7 +188,6 @@
         if (!container) return;
 
         try {
-            // Se asegura de enviar el userId tanto en la URL como en el Header para máxima compatibilidad
             const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
                 method: 'GET',
                 headers: { 
@@ -189,8 +199,6 @@
             if (!res.ok) throw new Error(`Error ${res.status}: Fallo en servidor`);
             
             const userData = await res.json();
-            
-            // Verificamos si las tiendas vienen directamente o dentro de un objeto
             const stores = userData.stores || [];
 
             if (stores.length === 0) {
@@ -291,5 +299,6 @@
         window.location.href = "./login.html";
     }
 </script>
+
 </body>
 </html>

@@ -174,7 +174,6 @@ async function dropStore(e, targetUserId, type) {
     } catch(err) { alert("Error al actualizar la ruta"); }
 }
 
-// CORREGIDO: Ahora usa PATCH y la ruta correcta del server.js
 async function updateUserRole(userId, newRole) {
     if(!newRole) return;
     try {
@@ -206,15 +205,23 @@ function loadCreateUser() {
         </div>`;
 }
 
-// CORREGIDO: Ahora apunta a /users (la ruta que definiste en server.js)
+// CORREGIDO: Ahora incluye agencyId para evitar el error de "AgencyID no encontrado"
 async function createUser() {
+    const name = document.getElementById("new_name").value;
+    const email = document.getElementById("new_email").value;
+    const password = document.getElementById("new_pass").value;
+    const role = document.getElementById("new_role").value;
+
+    if(!name || !email || !password) return alert("Faltan datos");
+
     const data = {
-        name: document.getElementById("new_name").value,
-        email: document.getElementById("new_email").value,
-        password: document.getElementById("new_pass").value,
-        role: document.getElementById("new_role").value
+        name,
+        email,
+        password,
+        role,
+        agencyId: localStorage.getItem("agencyId") // Envía el ID de la agencia actual
     };
-    if(!data.name || !data.email || !data.password) return alert("Faltan datos");
+
     try {
         await fetchAPI(`${BACKEND_URL}/users`, {
             method: "POST",
@@ -265,5 +272,6 @@ function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { loadUserInfo(); loadDashboard(); };
 </script>
+
 </body>
 </html>

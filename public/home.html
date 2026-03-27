@@ -116,20 +116,26 @@
     <script>
         const BACKEND_URL = "https://storepulse.onrender.com";
         
-        // 1. Datos de sesión
+        // 1. Datos de sesión mejorados para detectar el rol
         const userId = localStorage.getItem("userId");
-        const role = localStorage.getItem("role") || "promotor";
+        const role = localStorage.getItem("role") || localStorage.getItem("userRole") || "promotor";
         const storeName = localStorage.getItem("activeStoreName");
         const activeStoreId = localStorage.getItem("activeStoreId");
 
-        // Seguridad: Si no hay tienda activa o no hay usuario, redirigir
+        // Seguridad
         if (!userId) window.location.href = "./login.html";
         if (!activeStoreId) window.location.href = "./dashboard.html";
 
+        // Actualizar UI básica
         document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
-        document.getElementById("userRoleBadge").innerText = role.replace('-', ' ');
+        
+        // CORRECCIÓN DE ETIQUETA: Mostramos el rol real del usuario
+        const badge = document.getElementById("userRoleBadge");
+        if (badge) {
+            badge.innerText = role.replace('-', ' ').toUpperCase();
+        }
 
-        // 2. Diccionario de Tareas (Roles sincronizados con el backend)
+        // 2. Diccionario de Tareas (Roles sincronizados)
         const tasks = {
             'demostradora': [
                 { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
@@ -148,11 +154,14 @@
             ]
         };
 
-        // 3. Renderizado
+        // 3. Renderizado dinámico según el rol
         function renderTasks() {
             const container = document.getElementById("taskContainer");
-            // Limpiar por si acaso y obtener tareas por rol
-            const userTasks = tasks[role.toLowerCase()] || tasks['promotor']; 
+            if (!container) return;
+
+            // Normalizamos el rol a minúsculas para comparar con el diccionario
+            const currentRole = role.toLowerCase().trim();
+            const userTasks = tasks[currentRole] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
                 <div class="task-card" onclick="goToReport('${task.id}')">
@@ -163,7 +172,6 @@
         }
 
         function goToReport(type) {
-            // Mandamos el ID de la tienda y el tipo de reporte por URL
             window.location.href = `./report.html?type=${type}&storeId=${activeStoreId}`;
         }
 
@@ -175,17 +183,13 @@
             btn.disabled = true;
 
             try {
-                // Opcional: Podrías hacer un POST a /checkout si quieres guardar la hora exacta en el server
-                // const res = await fetch(`${BACKEND_URL}/checkout`, { ... });
-
-                // Limpiamos la tienda activa de la memoria
                 localStorage.removeItem("activeStoreId");
                 localStorage.removeItem("activeStoreName");
                 
                 alert("Salida registrada con éxito. ¡Buen descanso!");
                 window.location.href = "./dashboard.html";
             } catch (err) {
-                alert("Hubo un problema al cerrar sesión. Intenta de nuevo.");
+                alert("Hubo un problema al cerrar sesión.");
                 btn.innerText = "FINALIZAR DÍA / SALIDA";
                 btn.disabled = false;
             }

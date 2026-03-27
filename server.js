@@ -184,7 +184,7 @@ app.get("/dashboard", (req, res) => {
 });
 
 // El comodín final solo para peticiones que NO sean de API
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
     // Si la ruta no existe y no es una llamada a /api, mandamos al login
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

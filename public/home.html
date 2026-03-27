@@ -100,7 +100,7 @@
 
     <div class="footer-actions">
         <button id="btnFinish" onclick="finishDay()" class="btn-finish">
-            FINALIZAR DÍA / SALIDA
+            VOLVER AL PANEL / SALIDA
         </button>
     </div>
 
@@ -110,13 +110,17 @@
         const storeName = localStorage.getItem("activeStoreName");
         const activeStoreId = localStorage.getItem("activeStoreId");
 
-        if (!userId) window.location.href = "./login.html";
-        if (!activeStoreId) window.location.href = "./dashboard.html";
+        // Seguridad: Si no hay usuario o no hay check-in activo
+        if (!userId) {
+            window.location.href = "./login.html";
+        } else if (!activeStoreId) {
+            window.location.href = "./dashboard.html";
+        }
 
         document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
         document.getElementById("userRoleBadge").innerText = role.toUpperCase();
 
-        // DICCIONARIO ACTUALIZADO: Apunta a los archivos correctos
+        // Configuración de tareas por Rol
         const tasks = {
             'demostradora': [
                 { id: 'report', label: 'Reporte Diario', icon: '📋' },
@@ -133,6 +137,8 @@
         function renderTasks() {
             const container = document.getElementById("taskContainer");
             const currentRole = role.toLowerCase().trim();
+            
+            // Si el rol no está en el diccionario, usamos promotor por defecto
             const userTasks = tasks[currentRole] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
@@ -143,15 +149,16 @@
             `).join('');
         }
 
-        // REDIRECCIÓN INTELIGENTE
         function goTo(pageId) {
-            // Ejemplo: si es 'report', va a report.html
-            // Si es 'ranking', va a ranking.html (nuestro nuevo form de degustación)
+            // Redirige al archivo .html correspondiente
             window.location.href = `./${pageId}.html`;
         }
 
         function finishDay() {
-            if(!confirm("¿Deseas finalizar la salida?")) return;
+            // No borramos el userId, solo liberamos la tienda actual 
+            // para que el usuario pueda marcar su salida oficial en el Dashboard
+            if(!confirm("¿Deseas salir del panel de esta tienda?")) return;
+            
             localStorage.removeItem("activeStoreId");
             localStorage.removeItem("activeStoreName");
             window.location.href = "./dashboard.html";

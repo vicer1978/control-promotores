@@ -106,7 +106,10 @@
             labelArt: 'Producto Degustado',
             labelObs: 'Detalle de la Degustación (Piezas/Comentarios)'
         },
-        'reporte_diario': { title: 'Reporte Diario', fields: ['group-articulo', 'block-demo', 'group-comentarios', 'group-foto'] },
+        'reporte_diario': { 
+            title: 'Reporte Diario', 
+            fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] 
+        },
         'competencia': { 
             title: 'Precios Competencia', 
             fields: ['group-articulo', 'group-foto', 'group-comentarios'],
@@ -153,8 +156,14 @@
 
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
         
-        // Cantidad unificada (si es reporte diario usa 'ventas', si no usa 'cantidad')
-        const cant = document.getElementById("cantidad").value || document.getElementById("ventas").value || 0;
+        // CAPTURA INTELIGENTE DE CANTIDAD SEGÚN EL TIPO DE REPORTE
+        let cant = 0;
+        if (typeFromUrl === 'reporte_diario') {
+            cant = document.getElementById("ventas").value || 0;
+        } else {
+            const cantInput = document.getElementById("cantidad");
+            cant = cantInput ? cantInput.value : 0;
+        }
         formData.append("cantidad", cant);
 
         formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
@@ -178,7 +187,7 @@
                 window.location.href = "./home.html";
             } else {
                 const errData = await res.json();
-                alert("❌ Error: " + (errData.message || "Error al enviar"));
+                alert("❌ Error: " + (errData.error || errData.message || "Error al enviar"));
             }
         } catch (err) {
             console.error(err);

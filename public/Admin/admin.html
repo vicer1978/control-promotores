@@ -63,15 +63,8 @@ async function fetchAPI(url, options = {}) {
     try {
         const res = await fetch(url, options);
         if (res.status === 401 || res.status === 403) { logout(); return; }
-        if (!res.ok) {
-            const errorData = await res.json().catch(() => ({}));
-            throw new Error(errorData.message || "Error en la petición");
-        }
         return await res.json();
-    } catch (error) {
-        console.error("Error en fetchAPI:", error);
-        throw error;
-    }
+    } catch (error) { console.error(error); throw error; }
 }
 
 function changeTab(btn, callback) {
@@ -106,7 +99,7 @@ async function loadUsers() {
             html += `
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                    <div><strong>${u.name}</strong><br><small>${u.email} | <b style="color:var(--gold)">${u.role.toUpperCase()}</b></small></div>
+                    <div><strong>${u.name}</strong><br><small>${u.email} | <b style="color:var(--gold)">${u.role?.toUpperCase() || 'S/R'}</b></small></div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
                             <option value="" disabled selected>Cambiar Rol...</option>
@@ -189,24 +182,22 @@ async function createUser() {
     const email = document.getElementById("new_email").value;
     const password = document.getElementById("new_pass").value;
     const role = document.getElementById("new_role").value;
-    const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
     if(!name || !email || !password) return alert("Llena todos los campos.");
     try {
         await fetchAPI(`${BACKEND_URL}/users`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password, role, agencyId: currentAgencyId })
+            body: JSON.stringify({ name, email, password, role, agencyId })
         });
         alert("Usuario Creado ✅"); changeTab(document.getElementById("btnUsers"), loadUsers);
-    } catch (err) { alert("❌ Error: " + err.message); }
+    } catch (err) { alert("Error al crear usuario"); }
 }
 
 // --- REPORTES ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-        const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
-        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
+        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
         allReportsRaw = reports; 
         
         const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
@@ -238,8 +229,9 @@ async function loadReports() {
                         </select>
                     </div>
                     <div style="display:flex; gap:5px;">
-                        <button onclick="filterReports()" class="btn-action" style="padding: 10px;">Filtrar</button>
-                        <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a; padding: 10px;">Excel</button>
+                        <button onclick="filterReports()" class="btn-action">Filtrar</button>
+                        <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a;">Excel</button>
+                        <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626;">PDF</button>
                     </div>
                 </div>
             </div>
@@ -266,7 +258,6 @@ function renderReportsList(reportsToShow) {
                 <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${r.storeId?.name || '---'}</div>
                 <small style="color:#94a3b8">${new Date(r.createdAt).toLocaleString()}</small>
                 <p style="margin:5px 0 0 0; font-size:0.9rem;">${(r.articulo || r.comentarios || r.observaciones || 'Actividad').toUpperCase()} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
-                ${r.foto_url ? `<br><a href="${BACKEND_URL}${r.foto_url}" target="_blank" style="font-size:0.8rem; color:var(--gold); font-weight:bold;">🖼️ Evidencia</a>` : ''}
             </div>`;
         });
     }
@@ -280,46 +271,35 @@ function filterReports() {
     const userSel = document.getElementById("filterUser").value;
     const roleSel = document.getElementById("filterRole").value;
 
-    if (!fromVal || !toVal) return alert("Selecciona rango de fechas");
-
-    const start = new Date(fromVal + "T00:00:00"); 
-    const end = new Date(toVal + "T23:59:59");
-
     const filtered = allReportsRaw.filter(r => {
-        const d = new Date(r.createdAt);
-        const matchDate = d >= start && d <= end;
+        let matchDate = true;
+        if (fromVal && toVal) {
+            const d = new Date(r.createdAt);
+            matchDate = d >= new Date(fromVal + "T00:00:00") && d <= new Date(toVal + "T23:59:59");
+        }
         const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
         const matchUser = userSel === "all" || r.userId?.name === userSel;
-        const matchRole = roleSel === "all" || r.userId?.role === roleSel;
+        // Normalizamos a minúsculas para evitar que el filtro falle por formato
+        const matchRole = roleSel === "all" || r.userId?.role?.toLowerCase() === roleSel.toLowerCase();
+        
         return matchDate && matchStore && matchUser && matchRole;
     });
 
     renderReportsList(filtered);
 }
 
-// --- EXPORTACIÓN CON BORDES Y MAYÚSCULAS ---
+// --- EXPORTACIÓN ---
 function exportConsolidated(format) {
     const fromVal = document.getElementById("dateFrom").value;
     const toVal = document.getElementById("dateTo").value;
-    const storeSel = document.getElementById("filterStore").value;
-    const userSel = document.getElementById("filterUser").value;
-    const roleSel = document.getElementById("filterRole").value;
-
     if (!fromVal || !toVal) return alert("Selecciona fechas para exportar");
-    
-    const start = new Date(fromVal + "T00:00:00");
-    const end = new Date(toVal + "T23:59:59");
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        const matchDate = d >= start && d <= end;
-        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
-        const matchUser = userSel === "all" || r.userId?.name === userSel;
-        const matchRole = roleSel === "all" || r.userId?.role === roleSel;
-        return matchDate && matchStore && matchUser && matchRole;
+        return d >= new Date(fromVal + "T00:00:00") && d <= new Date(toVal + "T23:59:59");
     });
 
-    if (filtered.length === 0) return alert("No hay datos para exportar");
+    if (filtered.length === 0) return alert("No hay datos");
 
     const tempData = {};
     filtered.forEach(r => {
@@ -327,51 +307,32 @@ function exportConsolidated(format) {
         const usuario = (r.userId?.name || "N/A").toUpperCase();
         const tienda = (r.storeId?.name || "N/A").toUpperCase();
         const producto = (r.articulo || "SIN ARTICULO").toUpperCase();
-        
         const key = `${fecha}-${usuario}-${tienda}-${producto}`;
 
         if (!tempData[key]) {
-            tempData[key] = {
-                "FECHA": fecha,
-                "USUARIO": usuario,
-                "ROL": (r.userId?.role || "N/A").toUpperCase(),
-                "TIENDA": tienda,
-                "PRODUCTO": producto,
-                "VENTAS": 0,
-                "INVENTARIO": 0,
-                "DEGUSTACION": 0,
-                "NOTAS": [],
-                "LINK_FOTO": ""
-            };
+            tempData[key] = { FECHA: fecha, USUARIO: usuario, TIENDA: tienda, PRODUCTO: producto, VENTAS: 0, INVENTARIO: 0, DEGUSTACION: 0, NOTAS: [] };
         }
 
         const cant = parseInt(r.cantidad) || 0;
-        if (r.type === 'ventas') tempData[key]["VENTAS"] += cant;
-        else if (r.type === 'inventario') tempData[key]["INVENTARIO"] += cant;
-        else if (r.type === 'degustacion') tempData[key]["DEGUSTACION"] += cant;
-
-        if (r.comentarios || r.observaciones) {
-            tempData[key]["NOTAS"].push((r.comentarios || r.observaciones).toUpperCase());
-        }
-        if (r.foto_url) tempData[key]["LINK_FOTO"] = BACKEND_URL + r.foto_url;
+        if (r.type === 'ventas') tempData[key].VENTAS += cant;
+        else if (r.type === 'inventario') tempData[key].INVENTARIO += cant;
+        else if (r.type === 'degustacion') tempData[key].DEGUSTACION += cant;
+        if (r.comentarios || r.observaciones) tempData[key].NOTAS.push((r.comentarios || r.observaciones).toUpperCase());
     });
 
-    const tableData = Object.values(tempData).map(row => ({
-        ...row,
-        "NOTAS": row.NOTAS.join(" // ") || "---"
-    }));
+    const finalData = Object.values(tempData).map(row => ({ ...row, NOTAS: row.NOTAS.join(" // ") }));
 
     if (format === 'excel') {
-        const ws = XLSX.utils.json_to_sheet(tableData);
+        const ws = XLSX.utils.json_to_sheet(finalData);
         const wb = XLSX.utils.book_new();
-        
-        // Ajuste de anchos
-        ws['!cols'] = [{wch:12}, {wch:25}, {wch:15}, {wch:25}, {wch:30}, {wch:10}, {wch:12}, {wch:15}, {wch:30}, {wch:40}];
-
-        // NOTA: Los bordes en Excel requieren la versión "Pro" de xlsx o manipulación de XML. 
-        // Para asegurar que los bordes aparezcan en la mayoría de visores, aplicamos una tabla HTML temporal.
-        XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-        XLSX.writeFile(wb, `Reporte_Acumulado_${fromVal}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+        XLSX.writeFile(wb, `Reporte_StorePulse.xlsx`);
+    } else {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'pt', 'a4');
+        doc.text("REPORTE CONSOLIDADO", 40, 40);
+        doc.autoTable({ head: [Object.keys(finalData[0])], body: finalData.map(Object.values), startY: 60, styles: { fontSize: 8 } });
+        doc.save("Reporte_StorePulse.pdf");
     }
 }
 
@@ -379,7 +340,6 @@ function exportConsolidated(format) {
 async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-        allStores = stores;
         let html = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>🏬 Catálogo de Tiendas</h2>
@@ -392,7 +352,8 @@ async function loadStores() {
             html += `
             <div class="card">
                 <strong>${s.name.toUpperCase()}</strong><br>
-                <small>${(s.address || 'Sin dirección').toUpperCase()}</small>
+                <small>${(s.address || 'S/D').toUpperCase()}</small><br>
+                <code style="font-size:10px;">${s.lat || '0'}, ${s.lng || '0'}</code>
             </div>`; 
         });
         document.getElementById("content").innerHTML = html + `</div>`;
@@ -400,12 +361,15 @@ async function loadStores() {
 }
 
 function showCreateStoreForm() {
-    const area = document.getElementById("storeFormArea");
-    area.innerHTML = `
+    document.getElementById("storeFormArea").innerHTML = `
         <div class="card" style="background: #f8fafc; border: 2px solid var(--gold);">
             <h3>Registrar Tienda</h3>
-            <input id="st_name" placeholder="Nombre de la Tienda (ej. Soriana Hiper)">
-            <input id="st_address" placeholder="Dirección completa">
+            <input id="st_name" placeholder="Nombre de la Tienda">
+            <input id="st_address" placeholder="Dirección">
+            <div style="display:flex; gap:10px;">
+                <input id="st_lat" type="number" step="any" placeholder="Latitud (ej. 19.4326)">
+                <input id="st_lng" type="number" step="any" placeholder="Longitud (ej. -99.1332)">
+            </div>
             <div style="display:flex; gap:10px;">
                 <button class="btn-action" onclick="createStore()">Guardar</button>
                 <button class="btn-action btn-danger" onclick="document.getElementById('storeFormArea').innerHTML=''">Cancelar</button>
@@ -416,30 +380,21 @@ function showCreateStoreForm() {
 async function createStore() {
     const name = document.getElementById("st_name").value;
     const address = document.getElementById("st_address").value;
+    const lat = document.getElementById("st_lat").value;
+    const lng = document.getElementById("st_lng").value;
     if(!name) return alert("Nombre obligatorio");
     try {
         await fetchAPI(`${BACKEND_URL}/stores`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, address, agencyId })
+            body: JSON.stringify({ name, address, lat, lng, agencyId })
         });
         alert("Tienda creada ✅"); loadStores();
     } catch (e) { alert("Error al crear tienda"); }
 }
 
-async function deleteUser(id) { 
-    if(confirm("¿Eliminar usuario?")) { 
-        try { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } 
-        catch(e) { alert("Error"); }
-    } 
-}
-
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
-
-window.onload = () => { 
-    if(!userId) window.location.href = "login.html";
-    loadUserInfo(); loadDashboard(); 
-};
+window.onload = () => { loadUserInfo(); loadDashboard(); };
 </script>
 </body>
 </html>

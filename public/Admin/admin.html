@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Versión Original Funcional</title>
+    <title>StorePulse Admin - Sistema Validado</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
@@ -35,7 +35,6 @@
 </div>
 
 <div class="main">
-    <div id="userInfo" style="margin-bottom:20px; font-weight: 800; color: var(--primary);"></div>
     <div id="content"></div>
 </div>
 
@@ -55,7 +54,6 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- LÓGICA DE REPORTES CON FILTRO DE ROL REPARADO ---
 async function loadReports() {
     [cachedUsers, allStores, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -77,7 +75,7 @@ async function loadReports() {
                 <select id="fUser"><option value="all">Todos los Usuarios</option>${userNames.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select>
                 <button onclick="filterReports()" class="btn-action">Filtrar</button>
             </div>
-            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">Descargar Excel</button>
+            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">Excel</button>
         </div>
         <div id="reportList"></div>`;
     renderList(allReportsRaw);
@@ -86,22 +84,21 @@ async function loadReports() {
 function renderList(data) {
     const container = document.getElementById("reportList");
     container.innerHTML = data.map(r => {
-        // Obtenemos el rol del usuario de la lista caché para que el filtro no falle
-        const userObj = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const role = userObj?.role || r.userId?.role || "S/R";
+        // Buscamos el rol real del usuario en la base de datos de usuarios
+        const userInDb = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const roleStr = userInDb ? userInDb.role : (r.userId?.role || "S/R");
 
         return `
         <div class="card">
             <button class="btn-delete" onclick="deleteReport('${r._id}')">ELIMINAR</button>
-            <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <small>${role.toUpperCase()}</small><br>
-            <span>📍 ${r.storeId?.name || 'TIENDA NO ASIGNADA'}</span>
+            <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <small>${roleStr.toUpperCase()}</small><br>
+            <span>📍 ${r.storeId?.name || 'S/T'}</span>
             <div class="data-grid">
-                <div><b>Producto:</b> ${r.articulo || '-'}</div>
+                <div><b>Articulo:</b> ${r.articulo || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
-                <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
-                <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
+                <div><b>Inventario:</b> ${r.inventarioInicial || 0} / ${r.inventarioFinal || 0}</div>
                 <div><b>Precio:</b> $${r.precio || 0}</div>
-                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top:5px;"><b>Obs:</b> ${r.observaciones || ''}</div>
+                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 5px;"><b>Obs:</b> ${r.observaciones || ''}</div>
             </div>
         </div>`;
     }).join('');
@@ -115,44 +112,44 @@ function filterReports() {
     const userSel = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        const userObj = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const currentRole = (userObj?.role || "").toLowerCase().trim();
+        // Lógica de filtrado por Rol basada en la base de datos de usuarios
+        const userInDb = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const currentRole = (userInDb?.role || "").toLowerCase().trim();
+
+        const matchStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
+        const matchUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
+        const matchRole = (roleSel === "all" || currentRole === roleSel);
         
-        const mStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
-        const mUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
-        const mRole = (roleSel === "all" || currentRole === roleSel);
-        
-        let mDate = true;
+        let matchDate = true;
         if(from && to) {
             const d = new Date(r.createdAt).toISOString().split('T')[0];
-            mDate = (d >= from && d <= to);
+            matchDate = (d >= from && d <= to);
         }
-        return mStore && mUser && mRole && mDate;
+        return matchStore && matchUser && matchRole && matchDate;
     });
     renderList(filtered);
 }
 
-// --- GESTIÓN DE USUARIOS Y RUTAS (COMPLETA) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Gestión de Personal</h2>`;
+    let html = `<h2>👥 Gestión de Usuarios</h2>`;
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
         html += `<div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; justify-content:space-between;">
                 <strong>${u.name.toUpperCase()}</strong>
-                <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto;">
+                <select onchange="updateUserRole('${u._id}', this.value)">
                     <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
                     <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
                 </select>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>TIENDAS DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ASIGNADA</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -161,24 +158,19 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
-// --- GESTIÓN DE TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
         <div class="card"><h2>🏬 Nueva Tienda</h2>
-            <input id="sn" placeholder="Nombre de la Tienda">
-            <input id="slat" placeholder="Latitud"><input id="slon" placeholder="Longitud">
-            <button onclick="saveStore()" class="btn-action" style="width:100%; margin-top:10px;">Guardar Tienda</button>
+            <input id="sn" placeholder="Nombre"><input id="slat" placeholder="Lat"><input id="slon" placeholder="Lon">
+            <button onclick="saveStore()" class="btn-action">Guardar</button>
         </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
-            ${allStores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.lat}, ${s.lon}</small></div>`).join('')}
-        </div>`;
+        ${allStores.map(s => `<div class="card"><b>${s.name}</b> (${s.lat}, ${s.lon})</div>`).join('')}`;
 }
 
-// Funciones Auxiliares
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
 async function saveStore() { await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name: document.getElementById("sn").value, lat: document.getElementById("slat").value, lon: document.getElementById("slon").value, agencyId }) }); loadStores(); }
-async function deleteReport(id) { if(confirm("¿Borrar reporte permanentemente?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } }); loadReports(); } }
+async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } }); loadReports(); } }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -191,13 +183,13 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 function exportExcel() {
-    const data = allReportsRaw.map(r => ({ "FECHA": new Date(r.createdAt).toLocaleDateString(), "USUARIO": r.userId?.name, "TIENDA": r.storeId?.name, "PRODUCTO": r.articulo, "VENTA": r.cantidad }));
+    const data = allReportsRaw.map(r => ({ "FECHA": new Date(r.createdAt).toLocaleDateString(), "USUARIO": r.userId?.name, "PRODUCTO": r.articulo, "VENTA": r.cantidad }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, "Reporte_StorePulse.xlsx");
+    XLSX.writeFile(wb, "Reporte.xlsx");
 }
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Bienvenido</h1>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 window.onload = loadReports;
 </script>

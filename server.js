@@ -57,8 +57,6 @@ async function auth(req, res, next) {
     }
 }
 
-// ... (authSuper se mantiene igual) ...
-
 // --- RUTAS DE LOGIN ---
 app.post("/login", async (req, res) => {
     try {
@@ -72,13 +70,11 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE REPORTES (AJUSTADA) ---
-
-// Obtener reportes por agencia (Aseguramos que traiga todo para el Admin)
+// --- GESTIÓN DE REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
-            .populate('userId', 'name role') // Traemos el rol para el MegaFiltro
+            .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 });
         res.json(reports);
@@ -87,20 +83,15 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     }
 });
 
-// Guardar Reporte (Soporta Foto y nuevos campos)
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
-        // Combinamos los datos del body con los del usuario autenticado
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            // Si el form mandó 'photo', multer lo guarda y aquí guardamos la ruta
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
-            // Aseguramos que si viene 'comentarios' se guarde en el campo correcto del modelo
             observaciones: req.body.observaciones || req.body.comentarios || ""
         };
-
         const report = new Report(reportData);
         await report.save();
         res.json({ message: "Reporte guardado con éxito", id: report._id });
@@ -108,9 +99,8 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         console.error("❌ Error al guardar reporte:", err);
         res.status(500).json({ error: "Error interno al guardar el reporte" }); 
     }
-} );
+});
 
-// Eliminar Reporte
 app.delete("/reports/:id", auth, async (req, res) => {
     try {
         await Report.findByIdAndDelete(req.params.id);
@@ -118,7 +108,7 @@ app.delete("/reports/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
-// --- OTRAS RUTAS (Se mantienen igual) ---
+// --- OTRAS RUTAS ---
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -139,10 +129,35 @@ app.get("/stores", auth, async (req, res) => {
     res.json(stores);
 });
 
-// --- MANEJO DE FRONTEND ---
-app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "admin.html")));
-app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
-app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
+// --- MANEJO DE FRONTEND (MODIFICADO POR CARPETA ADMIN) ---
+
+// Estas rutas ahora apuntan a la subcarpeta /Admin/
+app.get("/admin", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
+});
+
+app.get("/admin/super", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html"));
+});
+
+// Estas se mantienen en la raíz de public
+app.get("/dashboard", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "dashboard.html"));
+});
+
+app.get("/home", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "home.html"));
+});
+
+// RUTA RAIZ: Para evitar el error de "Cannot GET /" en Render
+app.get("/", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "login.html"));
+});
+
+// COMODÍN: Cualquier ruta no encontrada redirige al login
+app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "public", "login.html"));
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor corriendo en puerto ${PORT}`));

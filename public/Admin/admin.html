@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Versión Restaurada y Funcional</title>
+    <title>StorePulse Admin - Versión Original Funcional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
@@ -14,7 +14,7 @@
         .main { flex:1; padding:25px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: relative; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-delete-report { position: absolute; top: 15px; right: 15px; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .btn-delete { position: absolute; top: 15px; right: 15px; background: #fee2e2; color: #dc2626; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
         input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; background: #f8fafc; padding: 15px; border-radius: 8px; }
         .store-list { display:flex; gap:10px; margin-top: 10px; }
@@ -27,7 +27,7 @@
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
     <button onclick="loadDashboard()">🏠 Dashboard</button>
-    <button onclick="loadReports()" class="active">📊 Reportes</button>
+    <button onclick="loadReports()">📊 Reportes</button>
     <button onclick="loadUsers()">👥 Usuarios y Rutas</button>
     <button onclick="loadStores()">🏬 Tiendas</button>
     <div style="flex:1"></div>
@@ -35,6 +35,7 @@
 </div>
 
 <div class="main">
+    <div id="userInfo" style="margin-bottom:20px; font-weight: 800; color: var(--primary);"></div>
     <div id="content"></div>
 </div>
 
@@ -54,7 +55,7 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- LÓGICA DE REPORTES (LA QUE TE FUNCIONABA) ---
+// --- LÓGICA DE REPORTES CON FILTRO DE ROL REPARADO ---
 async function loadReports() {
     [cachedUsers, allStores, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -67,7 +68,7 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Filtro de Reportes</h2>
+            <h2>📊 Reportes Realizados</h2>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
                 <input type="date" id="dateFrom">
                 <input type="date" id="dateTo">
@@ -85,27 +86,22 @@ async function loadReports() {
 function renderList(data) {
     const container = document.getElementById("reportList");
     container.innerHTML = data.map(r => {
-        // Rescate de Rol para evitar el fallo de "Sin Rol"
-        let role = (r.userId?.role || "").toLowerCase().trim();
-        if(!role || role === "sin rol") {
-            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
-            role = u ? u.role.toLowerCase() : "s/r";
-        }
+        // Obtenemos el rol del usuario de la lista caché para que el filtro no falle
+        const userObj = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const role = userObj?.role || r.userId?.role || "S/R";
 
         return `
         <div class="card">
-            <button class="btn-delete-report" onclick="deleteReport('${r._id}')">ELIMINAR</button>
+            <button class="btn-delete" onclick="deleteReport('${r._id}')">ELIMINAR</button>
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <small>${role.toUpperCase()}</small><br>
-            <span>📍 ${r.storeId?.name || 'S/T'}</span>
+            <span>📍 ${r.storeId?.name || 'TIENDA NO ASIGNADA'}</span>
             <div class="data-grid">
                 <div><b>Producto:</b> ${r.articulo || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
                 <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
                 <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
                 <div><b>Precio:</b> $${r.precio || 0}</div>
-                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top: 5px;">
-                    <b>Observaciones:</b> ${r.observaciones || ''}
-                </div>
+                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; padding-top:5px;"><b>Obs:</b> ${r.observaciones || ''}</div>
             </div>
         </div>`;
     }).join('');
@@ -119,48 +115,44 @@ function filterReports() {
     const userSel = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        let currentRole = (r.userId?.role || "").toLowerCase().trim();
-        if(!currentRole || currentRole === "sin rol") {
-            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
-            currentRole = u ? u.role.toLowerCase() : "";
-        }
-
-        const matchStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
-        const matchUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
-        const matchRole = (roleSel === "all" || currentRole === roleSel);
+        const userObj = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
+        const currentRole = (userObj?.role || "").toLowerCase().trim();
         
-        let matchDate = true;
+        const mStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
+        const mUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
+        const mRole = (roleSel === "all" || currentRole === roleSel);
+        
+        let mDate = true;
         if(from && to) {
             const d = new Date(r.createdAt).toISOString().split('T')[0];
-            matchDate = (d >= from && d <= to);
+            mDate = (d >= from && d <= to);
         }
-        return matchStore && matchUser && matchRole && matchDate;
+        return mStore && mUser && mRole && mDate;
     });
     renderList(filtered);
 }
 
-// --- GESTIÓN DE USUARIOS Y RUTAS (VERSION ORIGINAL) ---
+// --- GESTIÓN DE USUARIOS Y RUTAS (COMPLETA) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Usuarios y Roles</h2>`;
+    let html = `<h2>👥 Gestión de Personal</h2>`;
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
-        html += `
-        <div class="card">
-            <div style="display:flex; justify-content:space-between;">
+        html += `<div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong>${u.name.toUpperCase()}</strong>
-                <select onchange="updateUserRole('${u._id}', this.value)">
+                <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto;">
                     <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
                     <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
                 </select>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>TIENDAS DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ASIGNADA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -169,20 +161,24 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+// --- GESTIÓN DE TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
         <div class="card"><h2>🏬 Nueva Tienda</h2>
-            <input id="sn" placeholder="Nombre"><input id="slat" placeholder="Latitud"><input id="slon" placeholder="Longitud">
-            <button onclick="saveStore()" class="btn-action">Guardar Tienda</button>
+            <input id="sn" placeholder="Nombre de la Tienda">
+            <input id="slat" placeholder="Latitud"><input id="slon" placeholder="Longitud">
+            <button onclick="saveStore()" class="btn-action" style="width:100%; margin-top:10px;">Guardar Tienda</button>
         </div>
-        ${allStores.map(s => `<div class="card"><b>${s.name}</b> (${s.lat}, ${s.lon})</div>`).join('')}`;
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
+            ${allStores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.lat}, ${s.lon}</small></div>`).join('')}
+        </div>`;
 }
 
-// Funciones lógicas (Drag & Drop, Guardar, Borrar)
+// Funciones Auxiliares
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
 async function saveStore() { await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name: document.getElementById("sn").value, lat: document.getElementById("slat").value, lon: document.getElementById("slon").value, agencyId }) }); loadStores(); }
-async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } }); loadReports(); } }
+async function deleteReport(id) { if(confirm("¿Borrar reporte permanentemente?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } }); loadReports(); } }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -195,13 +191,13 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 function exportExcel() {
-    const data = allReportsRaw.map(r => ({ "FECHA": new Date(r.createdAt).toLocaleDateString(), "USUARIO": r.userId?.name, "PRODUCTO": r.articulo, "VENTA": r.cantidad }));
+    const data = allReportsRaw.map(r => ({ "FECHA": new Date(r.createdAt).toLocaleDateString(), "USUARIO": r.userId?.name, "TIENDA": r.storeId?.name, "PRODUCTO": r.articulo, "VENTA": r.cantidad }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, "Reporte.xlsx");
+    XLSX.writeFile(wb, "Reporte_StorePulse.xlsx");
 }
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard</h1>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Bienvenido</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 window.onload = loadReports;
 </script>

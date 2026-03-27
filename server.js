@@ -15,11 +15,13 @@ const Checkin = require("./models/Checkin");
 const app = express();
 
 // --- Middlewares ---
+// Modificado: Agregado "userid" (minúsculas) a headers permitidos para evitar bloqueos de CORS
 app.use(cors({ 
     origin: "*", 
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], 
-    allowedHeaders: ["Content-Type", "userId"] 
+    allowedHeaders: ["Content-Type", "userId", "userid"] 
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -112,19 +114,22 @@ app.get("/super/users", authSuper, async (req, res) => {
 
 // --- RUTAS DE USUARIOS Y TIENDAS ---
 
-// RUTA PARA CREAR USUARIO (MODIFICADA PARA LOGS)
+// RUTA PARA CREAR USUARIO (Mejorada: ahora acepta agencyId del body para mayor flexibilidad)
 app.post("/users", auth, async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, agencyId } = req.body;
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) return res.status(400).json({ error: "El correo ya existe" });
+
+        // Prioriza el agencyId que viene del formulario, si no, usa el del Admin logueado
+        const finalAgencyId = agencyId || req.user.agencyId;
 
         const newUser = new User({
             name,
             email: email.toLowerCase(),
             password,
             role,
-            agencyId: req.user.agencyId
+            agencyId: finalAgencyId
         });
 
         await newUser.save();
@@ -135,10 +140,9 @@ app.post("/users", auth, async (req, res) => {
     }
 });
 
-// RUTA PARA ACTUALIZAR ROL (MODIFICADA CON runValidators: false)
+// RUTA PARA ACTUALIZAR ROL
 app.patch("/users/:id/role", auth, async (req, res) => {
     try {
-        // runValidators: false permite que se guarde el rol aunque el enum en el modelo sea estricto
         const user = await User.findByIdAndUpdate(
             req.params.id, 
             { role: req.body.role }, 
@@ -227,6 +231,7 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
+        // Mejorado: Captura todos los campos posibles (comentarios para demostradoras, articulo para promotores)
         const reportData = {
             ...req.body,
             userId: req.user._id,

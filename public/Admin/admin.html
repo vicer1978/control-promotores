@@ -71,9 +71,8 @@ async function fetchAPI(url, options = {}) {
             logout();
             return;
         }
-        const contentType = res.headers.get("content-type");
         if (!res.ok) {
-            const errorData = await res.json();
+            const errorData = await res.json().catch(() => ({}));
             throw new Error(errorData.message || "Error en la petición");
         }
         return await res.json();
@@ -219,25 +218,44 @@ async function createUser() {
     const email = document.getElementById("new_email").value;
     const password = document.getElementById("new_pass").value;
     const role = document.getElementById("new_role").value;
-    const currentAgencyId = localStorage.getItem("agencyId");
+    
+    // Sincronizamos con el ID de agencia del storage que vimos en tus fotos
+    const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
 
     if(!name || !email || !password) return alert("Por favor, llena todos los campos.");
+    if(!currentAgencyId) return alert("Error: No se encontró ID de Agencia. Reinicia sesión.");
 
     btn.innerText = "PROCESANDO...";
     btn.disabled = true;
 
-    const data = { name, email, password, role, agencyId: currentAgencyId };
+    const data = { 
+        name: name.trim(), 
+        email: email.trim().toLowerCase(), 
+        password: password, 
+        role: role, 
+        agencyId: currentAgencyId 
+    };
 
     try {
-        await fetchAPI(`${BACKEND_URL}/users`, {
+        const response = await fetch(`${BACKEND_URL}/users`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+                "Content-Type": "application/json",
+                "userId": userId 
+            },
             body: JSON.stringify(data)
         });
+
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.message || "Error al crear");
+
         alert("Usuario Creado ✅");
-        // Forzar recarga de pestaña de usuarios para ver el nuevo
+        
+        // Regresar a la lista de usuarios
         const btnUsers = document.getElementById("btnUsers");
         changeTab(btnUsers, loadUsers);
+
     } catch (err) { 
         alert("❌ Error: " + err.message); 
         btn.innerText = "REGISTRAR USUARIO";
@@ -248,10 +266,11 @@ async function createUser() {
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-        // Si no hay agencyId en memoria, no podemos filtrar
-        if(!agencyId) throw new Error("ID de Agencia no encontrado");
+        
+        const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
+        if(!currentAgencyId) throw new Error("ID de Agencia no encontrado");
 
-        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
         let html = `<h2>📊 Reportes Recientes</h2>`;
         
         if(!reports || reports.length === 0) {
@@ -260,16 +279,17 @@ async function loadReports() {
                     <p style="color:#64748b">No se encontraron reportes registrados para esta agencia.</p>
                 </div>`;
         } else {
-            // Invertir para ver los más nuevos primero
             reports.slice().reverse().forEach(r => {
                 const user = r.userId?.name || 'Usuario desconocido';
                 const store = r.storeId?.name || 'Tienda no especificada';
                 const date = new Date(r.createdAt).toLocaleString();
                 const tipo = r.type || 'General';
-                const detalle = r.articulo || r.comentarios || r.observaciones || 'Sin detalles adicionales';
+                
+                // Prioridad de campos para mostrar según el rol (Demostradora usa comentarios/observaciones)
+                const detalle = r.articulo || r.comentarios || r.observaciones || 'Reporte de actividad enviado';
 
                 html += `
-                <div class="card">
+                <div class="card" style="border-left: 5px solid ${tipo === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
                     <div style="display:flex; justify-content:space-between;">
                         <b>${user}</b>
                         <span class="type-badge">${tipo}</span>
@@ -278,7 +298,7 @@ async function loadReports() {
                     <small style="color:#94a3b8">${date}</small>
                     <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
                     <p style="margin:0; font-size:0.9rem; color:#475569">
-                        <strong>Info:</strong> ${detalle}
+                        <strong>Detalle:</strong> ${detalle}
                     </p>
                 </div>`;
             });
@@ -306,8 +326,10 @@ async function loadStores() {
 
 async function deleteUser(id) { 
     if(confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) { 
-        await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); 
-        loadUsers(); 
+        try {
+            await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); 
+            loadUsers(); 
+        } catch(e) { alert("No se pudo eliminar"); }
     } 
 }
 

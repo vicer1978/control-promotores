@@ -9,18 +9,16 @@
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
         .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; }
         .sidebar h2 { color: var(--gold); border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; }
-        .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; transition: 0.3s; }
+        .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; }
         .sidebar button:hover, .sidebar button.active { background: #1e293b; color: var(--gold); }
         .main { flex:1; padding:25px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-danger { background: var(--danger); }
         input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; background: #f8fafc; padding: 10px; border-radius: 8px; }
         .store-list { display:flex; gap:10px; margin-top: 10px; }
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
-        .obs-box { grid-column: 1 / -1; background: #fffbeb; padding: 8px; border-radius: 4px; border: 1px solid #fef3c7; font-size: 0.85rem; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -45,28 +43,43 @@ const BACKEND_URL = "https://storepulse.onrender.com";
 const agencyId = localStorage.getItem("agencyId");
 const userId = localStorage.getItem("userId");
 
+let allReportsRaw = [];
+let cachedUsers = [];
+let allStores = [];
+let draggedStore = null;
+
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId, "Content-Type": "application/json" };
     const res = await fetch(url, options);
     return res.json();
 }
 
-// --- REPORTES: MAPEO EXACTO DE CAPTURA ---
+// --- REPORTES CON TODOS LOS FILTROS RECUPERADOS ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Sincronizando reportes...</h3>";
-    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allReportsRaw = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+    document.getElementById("content").innerHTML = "<h3>Sincronizando datos...</h3>";
     
+    // Carga paralela para rapidez
+    [cachedUsers, allStores, allReportsRaw] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/users`),
+        fetchAPI(`${BACKEND_URL}/stores`),
+        fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`)
+    ]);
+
+    const userNames = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
+    const storeNames = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
+
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Reporte de Actividades</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
-                <input type="date" id="dateFrom">
-                <input type="date" id="dateTo">
-                <select id="fRole"><option value="all">Roles (Todos)</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
-                <button onclick="filterReports()" class="btn-action">Filtrar</button>
+            <h2>📊 Filtro de Reportes</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
+                <div><label>Desde:</label><input type="date" id="dateFrom"></div>
+                <div><label>Hasta:</label><input type="date" id="dateTo"></div>
+                <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${storeNames.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
+                <div><label>Rol:</label><select id="fRole"><option value="all">Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select></div>
+                <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${userNames.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
+                <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button></div>
             </div>
-            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width: 100%;">Descargar Excel (Datos Reales)</button>
+            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">Descargar Excel Completo</button>
         </div>
         <div id="reportList"></div>`;
     renderList(allReportsRaw);
@@ -74,91 +87,98 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    container.innerHTML = data.map(r => `
+    if(!data.length) return container.innerHTML = "<div class='card'>No hay datos con estos filtros.</div>";
+
+    container.innerHTML = data.map(r => {
+        // Corrección de Rol: Si el reporte no trae rol, lo buscamos en el cache de usuarios
+        let role = (r.userId?.role || "").toLowerCase();
+        if(!role || role === "sin rol") {
+            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
+            role = u ? u.role : "S/R";
+        }
+
+        return `
         <div class="card" style="border-left: 5px solid var(--primary);">
             <div style="display:flex; justify-content:space-between;">
                 <b>${(r.userId?.name || 'S/N').toUpperCase()}</b>
-                <span style="font-size: 0.75rem; color: #64748b;">${new Date(r.createdAt).toLocaleString()}</span>
+                <span style="background:#eee; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${role.toUpperCase()}</span>
             </div>
-            <div style="margin: 5px 0;">📍 <b>${r.storeId?.name || 'TIENDA NUEVA / NO ASIGNADA'}</b></div>
+            <div style="margin:5px 0;">📍 ${r.storeId?.name || 'TIENDA DESCONOCIDA'}</div>
             <div class="data-grid">
-                <div><b>Articulo:</b> ${r.articulo || r.comentarios || '-'}</div>
+                <div><b>Producto:</b> ${r.articulo || r.comentarios || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
                 <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
                 <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
                 <div><b>Precio:</b> $${r.precio || 0}</div>
-                <div class="obs-box"><b>Comentarios:</b> ${r.observaciones || 'Sin observaciones'}</div>
+                <div style="grid-column: 1 / -1; font-size:0.85rem; color:#444; border-top:1px solid #eee; padding-top:5px;">
+                    <b>Observaciones:</b> ${r.observaciones || 'Sin comentarios'}
+                </div>
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
+}
+
+function filterReports() {
+    const from = document.getElementById("dateFrom").value;
+    const to = document.getElementById("dateTo").value;
+    const storeSel = document.getElementById("fStore").value.toLowerCase();
+    const roleSel = document.getElementById("fRole").value.toLowerCase();
+    const userSel = document.getElementById("fUser").value.toLowerCase();
+
+    const filtered = allReportsRaw.filter(r => {
+        let currentRole = (r.userId?.role || "").toLowerCase();
+        if (!currentRole || currentRole === "sin rol") {
+            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
+            if (u) currentRole = u.role.toLowerCase();
+        }
+
+        const mStore = (storeSel === "all" || (r.storeId?.name || "").toLowerCase().includes(storeSel));
+        const mUser = (userSel === "all" || (r.userId?.name || "").toLowerCase().includes(userSel));
+        const mRole = (roleSel === "all" || currentRole === roleSel);
+        
+        // Filtro de fecha
+        let mDate = true;
+        if(from && to) {
+            const d = new Date(r.createdAt).toISOString().split('T')[0];
+            mDate = (d >= from && d <= to);
+        }
+
+        return mStore && mUser && mRole && mDate;
+    });
+    renderList(filtered);
 }
 
 function exportExcel() {
-    const excelData = allReportsRaw.map(r => ({
-        "FECHA": new Date(r.createdAt).toLocaleDateString(),
-        "HORA": new Date(r.createdAt).toLocaleTimeString(),
-        "USUARIO": (r.userId?.name || '').toUpperCase(),
-        "TIENDA": (r.storeId?.name || 'N/A').toUpperCase(),
-        "PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
-        "VENTA": r.cantidad || 0,
-        "INV INICIAL": r.inventarioInicial || 0,
-        "INV FINAL": r.inventarioFinal || 0,
-        "PRECIO PROPIO": r.precio || 0,
-        "PRECIO COMP": r.precioCompetencia || 0,
-        "OBSERVACIONES": r.observaciones || ""
-    }));
+    const excelData = allReportsRaw.map(r => {
+        let role = (r.userId?.role || "").toLowerCase();
+        if(!role || role === "sin rol") {
+            const u = cachedUsers.find(user => user._id === (r.userId?._id || r.userId));
+            role = u ? u.role : "S/R";
+        }
+        return {
+            "FECHA": new Date(r.createdAt).toLocaleDateString(),
+            "USUARIO": (r.userId?.name || '').toUpperCase(),
+            "ROL": role.toUpperCase(),
+            "TIENDA": (r.storeId?.name || '').toUpperCase(),
+            "PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
+            "CANTIDAD": r.cantidad || 0,
+            "INV INICIAL": r.inventarioInicial || 0,
+            "INV FINAL": r.inventarioFinal || 0,
+            "PRECIO": r.precio || 0,
+            "OBSERVACIONES": r.observaciones || ""
+        };
+    });
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte_StorePulse");
-    XLSX.writeFile(wb, `StorePulse_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+    XLSX.writeFile(wb, "Reporte_Completo_StorePulse.xlsx");
 }
 
-// --- GESTIÓN DE TIENDAS ---
-async function loadStores() {
-    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>🏬 Registro de Tiendas</h2>
-            <input id="sn" placeholder="Nombre de la Tienda">
-            <div style="display:flex; gap:10px;">
-                <input id="slat" placeholder="Latitud">
-                <input id="slon" placeholder="Longitud">
-                <button class="btn-action" onclick="getCurrentLocation()" style="background:#64748b;">📍 GPS</button>
-            </div>
-            <button class="btn-action" onclick="saveStore()" style="width:100%; margin-top:10px;">Alta de Tienda</button>
-        </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
-            ${allStores.map(s => `<div class="card" style="padding:10px;">
-                <b>${s.name}</b><br>
-                <code style="font-size:0.7rem;">${s.lat || 0}, ${s.lon || 0}</code>
-            </div>`).join('')}
-        </div>`;
-}
-
-function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            document.getElementById("slat").value = pos.coords.latitude;
-            document.getElementById("slon").value = pos.coords.longitude;
-        }, () => alert("GPS desactivado o no disponible."));
-    }
-}
-
-async function saveStore() {
-    const name = document.getElementById("sn").value;
-    const lat = document.getElementById("slat").value;
-    const lon = document.getElementById("slon").value;
-    if(!name) return alert("Ingresa el nombre de la tienda");
-    await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name, lat, lon, agencyId }) });
-    loadStores();
-}
-
-// --- USUARIOS: ELIMINAR Y CAMBIAR ROL ---
+// --- MÓDULOS DE GESTIÓN (USUARIOS Y TIENDAS) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Usuarios y Roles</h2>
-    <button class="btn-action" onclick="showCreateUser()">+ Nuevo Colaborador</button><br><br>`;
-    
+    let html = `<h2>👥 Usuarios y Roles</h2><button class="btn-action" onclick="showCreateUser()">+ Nuevo Usuario</button><br><br>`;
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
@@ -166,21 +186,19 @@ async function loadUsers() {
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong>${u.name.toUpperCase()}</strong>
-                <div style="display:flex; gap:10px;">
-                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; height:35px;">
+                <div>
+                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin-right:10px;">
                         <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
                         <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
                     </select>
-                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Eliminar</button>
+                    <button class="btn-action" onclick="deleteUser('${u._id}')" style="background:var(--danger)">Eliminar</button>
                 </div>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)">
-                    <small>SIN ASIGNAR</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)">
-                    <small>EN RUTA</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -189,8 +207,24 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+async function loadStores() {
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Nueva Tienda</h2>
+            <input id="sn" placeholder="Nombre">
+            <div style="display:flex; gap:10px;"><input id="slat" placeholder="Latitud"><input id="slon" placeholder="Longitud"></div>
+            <button class="btn-action" onclick="saveStore()" style="width:100%; margin-top:10px;">Guardar Tienda</button>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
+            ${allStores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.lat || 0}, ${s.lon || 0}</small></div>`).join('')}
+        </div>`;
+}
+
+// Funciones de utilidad
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
-async function deleteUser(id) { if(confirm("¿Eliminar usuario? Se perderán sus reportes asociados.")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
+async function deleteUser(id) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
+async function saveStore() { await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name: document.getElementById("sn").value, lat: document.getElementById("slat").value, lon: document.getElementById("slon").value, agencyId }) }); loadStores(); }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -202,13 +236,9 @@ async function dropStore(e, uId, type) {
     await fetchAPI(`${BACKEND_URL}/users/${uId}/stores`, { method: "PUT", body: JSON.stringify({stores}) });
     loadUsers();
 }
-
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard StorePulse</h1><p>Sistema de gestión de campo listo.</p>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Bienvenido Admin</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
-window.onload = () => { 
-    document.getElementById("userInfo").innerText = `Admin: ${localStorage.getItem("userName") || 'Usuario'}`;
-    loadDashboard(); 
-};
+window.onload = () => { loadDashboard(); };
 </script>
 </body>
 </html>

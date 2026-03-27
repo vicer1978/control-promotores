@@ -150,12 +150,12 @@ app.get("/home", (req, res) => {
 });
 
 // RUTA RAIZ: Para evitar el error de "Cannot GET /" en Render
-app.get("/", (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
 // COMODÍN: Cualquier ruta no encontrada redirige al login
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 

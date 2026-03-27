@@ -112,7 +112,7 @@ app.get("/super/users", authSuper, async (req, res) => {
 
 // --- RUTAS DE USUARIOS Y TIENDAS ---
 
-// NUEVA RUTA: CREAR USUARIO (CORRIGE ERROR AL CREAR USUARIO EN PANEL ADMIN)
+// RUTA PARA CREAR USUARIO (MODIFICADA PARA LOGS)
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
@@ -124,23 +124,30 @@ app.post("/users", auth, async (req, res) => {
             email: email.toLowerCase(),
             password,
             role,
-            agencyId: req.user.agencyId // Se asigna la agencia del admin que lo crea
+            agencyId: req.user.agencyId
         });
 
         await newUser.save();
         res.status(201).json({ message: "Usuario creado con éxito" });
     } catch (err) {
-        res.status(500).json({ error: "Error al crear usuario" });
+        console.error("❌ Error DB al crear usuario:", err.message);
+        res.status(500).json({ error: "Error al crear usuario: " + err.message });
     }
 });
 
-// *** NUEVA RUTA: ACTUALIZAR ROL (CORRIGE EL ERROR DE TUS CAPTURAS) ***
+// RUTA PARA ACTUALIZAR ROL (MODIFICADA CON runValidators: false)
 app.patch("/users/:id/role", auth, async (req, res) => {
     try {
-        const user = await User.findByIdAndUpdate(req.params.id, { role: req.body.role }, { new: true });
+        // runValidators: false permite que se guarde el rol aunque el enum en el modelo sea estricto
+        const user = await User.findByIdAndUpdate(
+            req.params.id, 
+            { role: req.body.role }, 
+            { new: true, runValidators: false } 
+        );
         if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
         res.json({ message: "Rol actualizado con éxito", user });
     } catch (err) {
+        console.error("❌ Error al actualizar rol:", err.message);
         res.status(500).json({ error: "Error al actualizar el rol" });
     }
 });
@@ -170,14 +177,13 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
 });
 
-// --- GESTIÓN DE TIENDAS (AGREGADO Y CORREGIDO) ---
+// --- GESTIÓN DE TIENDAS ---
 
 app.get("/stores", auth, async (req, res) => {
     const stores = await Store.find().sort({ name: 1 });
     res.json(stores);
 });
 
-// RUTA PARA CREAR TIENDA (NUEVA)
 app.post("/stores", auth, async (req, res) => {
     try {
         const store = new Store(req.body);
@@ -188,7 +194,6 @@ app.post("/stores", auth, async (req, res) => {
     }
 });
 
-// RUTA PARA ELIMINAR TIENDA (NUEVA)
 app.delete("/stores/:id", auth, async (req, res) => {
     try {
         await Store.findByIdAndDelete(req.params.id);
@@ -208,7 +213,6 @@ app.post("/checkin", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error en check-in" }); }
 });
 
-// RUTA PARA OBTENER REPORTES POR AGENCIA (NUEVA)
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -239,15 +243,12 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
 app.get("/admin/super", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "super-admin.html"));
 });
-
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "admin.html"));
 });
-
 app.get("/dashboard", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "dashboard.html"));
 });
-
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

@@ -93,11 +93,13 @@
 
                     // 2. Guardar nuevos datos (Asegurando coincidencia de nombres con super-admin.html)
                     localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('userRole', data.role); // <-- CAMBIADO DE 'role' A 'userRole'
+                    localStorage.setItem('userRole', data.role); 
                     localStorage.setItem('name', data.name);
                     
+                    // --- CORRECCIÓN PARA REPORTES ---
                     if (data.agencyId) {
-                        localStorage.setItem('activeAgencyId', data.agencyId);
+                        localStorage.setItem('agencyId', data.agencyId); // Esta es la que usa admin.html
+                        localStorage.setItem('activeAgencyId', data.agencyId); // Esta es la que tenías antes
                     }
 
                     console.log("Sesión guardada:", { id: data.userId, role: data.role });

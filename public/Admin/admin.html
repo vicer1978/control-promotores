@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Versión Final Corregida</title>
+    <title>StorePulse Admin - Sistema Completo Corregido</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -20,7 +20,7 @@
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; }
         
-        /* Estilos Rutas */
+        /* Estilos Rutas Drag & Drop */
         .store-list { display:flex; gap:10px; margin-top: 15px; }
         .store-column { flex:1; min-height:120px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; border: 1px solid #e2e8f0; font-size: 0.85rem; }
@@ -67,7 +67,7 @@ function changeTab(btn, callback) {
     callback();
 }
 
-// --- REPORTES CON FILTROS Y EXPORTACIÓN ---
+// --- REPORTES (FILTRADO MEJORADO) ---
 async function loadReports() {
     document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
@@ -111,15 +111,19 @@ function renderList(data) {
 function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
-    const store = document.getElementById("fStore").value;
-    const role = document.getElementById("fRole").value;
-    const user = document.getElementById("fUser").value;
+    const store = document.getElementById("fStore").value.toLowerCase();
+    const role = document.getElementById("fRole").value.toLowerCase();
+    const user = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
         let mDate = true;
         if(from && to) {
-            const reportDate = new Date(r.createdAt).toISOString().split('T')[0];
-            mDate = (reportDate >= from && reportDate <= to);
+            const d = new Date(r.createdAt);
+            // Formateo YYYY-MM-DD local para comparar correctamente
+            const reportDay = d.getFullYear() + '-' + 
+                              String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                              String(d.getDate()).padStart(2, '0');
+            mDate = (reportDay >= from && reportDay <= to);
         }
         const mStore = store === "all" || (r.storeId?.name||"").toLowerCase().includes(store);
         const mRole = role === "all" || (r.userId?.role||"").toLowerCase() === role;
@@ -131,14 +135,7 @@ function filterReports() {
 
 // --- EXPORTACIÓN ---
 function exportExcel() {
-    const data = allReportsRaw.map(r => ({
-        Fecha: new Date(r.createdAt).toLocaleDateString(),
-        Usuario: r.userId?.name || '',
-        Rol: r.userId?.role || '',
-        Tienda: r.storeId?.name || '',
-        Actividad: (r.articulo || r.comentarios || '').toUpperCase(),
-        Cantidad: r.cantidad || 0
-    }));
+    const data = allReportsRaw.map(r => ({ Fecha: new Date(r.createdAt).toLocaleDateString(), Usuario: r.userId?.name || '', Rol: r.userId?.role || '', Tienda: r.storeId?.name || '', Detalle: (r.articulo || r.comentarios || '').toUpperCase(), Cant: r.cantidad || 0 }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
@@ -148,19 +145,12 @@ function exportExcel() {
 function exportPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    doc.text("Reporte de Actividades - StorePulse", 14, 15);
-    const rows = allReportsRaw.map(r => [
-        new Date(r.createdAt).toLocaleDateString(),
-        r.userId?.name || '',
-        r.storeId?.name || '',
-        (r.articulo || r.comentarios || '').toUpperCase(),
-        r.cantidad || 0
-    ]);
-    doc.autoTable({ head: [['Fecha', 'Usuario', 'Tienda', 'Detalle', 'Cant']], body: rows, startY: 20 });
+    const rows = allReportsRaw.map(r => [new Date(r.createdAt).toLocaleDateString(), r.userId?.name || '', r.storeId?.name || '', (r.articulo || r.comentarios || '').toUpperCase(), r.cantidad || 0]);
+    doc.autoTable({ head: [['Fecha', 'Usuario', 'Tienda', 'Detalle', 'Cant']], body: rows });
     doc.save("Reporte_StorePulse.pdf");
 }
 
-// --- USUARIOS Y RUTAS ---
+// --- USUARIOS Y RUTAS (DRAG & DROP) ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -184,7 +174,7 @@ async function loadUsers() {
                 <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ACTUAL</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -193,9 +183,7 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
-async function updateUserRole(uId, role) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({role}) }); loadUsers(); }
-async function deleteUser(uId) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"DELETE" }); loadUsers(); } }
-
+// --- CREAR USUARIOS ---
 function loadCreateUser() {
     document.getElementById("content").innerHTML = `
         <div class="card" style="max-width:400px;">
@@ -209,18 +197,18 @@ function loadCreateUser() {
 }
 
 async function saveUser() {
-    await fetchAPI(`${BACKEND_URL}/users`, { 
-        method: "POST", headers: {"Content-Type":"application/json"}, 
-        body: JSON.stringify({ name: document.getElementById("un").value, email: document.getElementById("ue").value, password: document.getElementById("up").value, role: document.getElementById("ur").value, agencyId }) 
-    });
+    await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name: document.getElementById("un").value, email: document.getElementById("ue").value, password: document.getElementById("up").value, role: document.getElementById("ur").value, agencyId }) });
     alert("Usuario Creado"); loadUsers();
 }
+
+async function updateUserRole(uId, role) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({role}) }); loadUsers(); }
+async function deleteUser(uId) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"DELETE" }); loadUsers(); } }
 
 // --- TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;"><h2>🏬 Tiendas</h2><button class="btn-action" onclick="showStoreForm()">+ Nueva Tienda</button></div>
+        <div style="display:flex; justify-content:space-between; align-items:center;"><h2>🏬 Tiendas</h2><button class="btn-action" onclick="showStoreForm()">+ Nueva</button></div>
         <div id="storeFormArea"></div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px; margin-top:15px;">
             ${allStores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.address||''}</small><br><code style="font-size:10px;">${s.lat||0}, ${s.lng||0}</code></div>`).join('')}
@@ -241,7 +229,7 @@ async function saveStore() {
     loadStores();
 }
 
-// Drag & Drop
+// Drag & Drop Logic
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -254,7 +242,7 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>Panel de Control</h1><p>Gestione reportes, usuarios y rutas desde aquí.</p></div>`; }
+function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>Panel de Control</h1><p>Sistema Administrativo StorePulse.</p></div>`; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
 window.onload = () => { 

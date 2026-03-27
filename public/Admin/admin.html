@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Versión MEGA FILTRO</title>
+    <title>StorePulse Admin - MEGAFILTRO REPARADO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
@@ -54,7 +54,6 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- MEGA FILTRO DE REPORTES ---
 async function loadReports() {
     [cachedUsers, allStores, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -67,14 +66,14 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Mega Filtro de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;">
+            <h2>📊 MegaFiltro de Reportes</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
                 <input type="date" id="dateFrom">
                 <input type="date" id="dateTo">
                 <select id="fStore"><option value="all">Tienda: Todas</option>${storeNames.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select>
                 <select id="fRole"><option value="all">Rol: Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
                 <select id="fUser"><option value="all">Usuario: Todos</option>${userNames.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select>
-                <button onclick="filterReports()" class="btn-action">APLICAR FILTRO</button>
+                <button onclick="filterReports()" class="btn-action">FILTRAR</button>
             </div>
             <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">EXCEL</button>
         </div>
@@ -85,9 +84,10 @@ async function loadReports() {
 function renderList(data) {
     const container = document.getElementById("reportList");
     container.innerHTML = data.map(r => {
-        // RESCATE DE ROL: Cruce con cachedUsers
-        const userFound = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const roleStr = userFound ? userFound.role : (r.userId?.role || "S/R");
+        // RESCATE DE ROL MEJORADO
+        const uId = r.userId?._id || r.userId;
+        const uInDb = cachedUsers.find(u => u._id === uId);
+        const roleStr = (uInDb?.role || r.userId?.role || "Sin Rol").toLowerCase();
 
         return `
         <div class="card">
@@ -95,7 +95,7 @@ function renderList(data) {
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <small>${roleStr.toUpperCase()}</small><br>
             <span>📍 ${r.storeId?.name || 'S/T'}</span>
             <div class="data-grid">
-                <div><b>Producto:</b> ${r.articulo || '-'}</div>
+                <div><b>Articulo:</b> ${r.articulo || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
                 <div><b>I. Inicial:</b> ${r.inventarioInicial || 0}</div>
                 <div><b>I. Final:</b> ${r.inventarioFinal || 0}</div>
@@ -114,25 +114,26 @@ function filterReports() {
     const uSel = document.getElementById("fUser").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // Lógica de cruce del Mega Filtro
-        const uFound = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const realRole = (uFound?.role || "").toLowerCase().trim();
+        // MEGAFILTRO: Cruce estricto por ID
+        const uId = r.userId?._id || r.userId;
+        const uInDb = cachedUsers.find(u => u._id === uId);
+        const role = (uInDb?.role || r.userId?.role || "").toLowerCase().trim();
 
         const matchS = (sSel === "all" || (r.storeId?.name || "").toLowerCase().includes(sSel));
         const matchU = (uSel === "all" || (r.userId?.name || "").toLowerCase().includes(uSel));
-        const matchR = (rSel === "all" || realRole === rSel);
+        const matchR = (rSel === "all" || role === rSel);
         
         let matchD = true;
         if(from && to) {
-            const dStr = new Date(r.createdAt).toISOString().split('T')[0];
-            matchD = (dStr >= from && dStr <= to);
+            const d = new Date(r.createdAt).toISOString().split('T')[0];
+            matchD = (d >= from && d <= to);
         }
         return matchS && matchU && matchR && matchD;
     });
     renderList(filtered);
 }
 
-// --- GESTIÓN DE RUTAS Y TIENDAS (SIN RECORTES) ---
+// MANTENEMOS TU GESTIÓN DE USUARIOS Y TIENDAS
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -187,7 +188,7 @@ function exportExcel() {
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
     XLSX.writeFile(wb, "Reporte.xlsx");
 }
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Panel de Administración</h1>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard</h1>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 window.onload = loadReports;
 </script>

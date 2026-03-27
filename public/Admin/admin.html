@@ -37,7 +37,6 @@
         .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
         .type-badge { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
         
-        /* Estilos para controles de reporte */
         .report-controls { background:#fff; padding:20px; border-radius:12px; margin-bottom:20px; border:1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
 </head>
@@ -67,7 +66,7 @@ const agencyId = localStorage.getItem("agencyId");
 let draggedStore = null;
 let allStores = [];
 let cachedUsers = [];
-let allReportsRaw = []; // Variable global para el historial
+let allReportsRaw = []; 
 
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
@@ -104,7 +103,7 @@ function loadDashboard() {
         </div>`;
 }
 
-// --- GESTIÓN DE USUARIOS (Sin cambios) ---
+// --- GESTIÓN DE USUARIOS ---
 async function loadUsers() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
@@ -243,16 +242,15 @@ async function createUser() {
     }
 }
 
-// --- SECCIÓN DE REPORTES CON FILTROS Y EXPORTACIÓN (MODIFICADA) ---
+// --- REPORTES CON CONSOLIDACIÓN POR TIENDA Y USUARIO ---
 async function loadReports() {
     try {
-        document.getElementById("content").innerHTML = "<h3>Cargando historial de reportes...</h3>";
+        document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
         const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
         if(!currentAgencyId) throw new Error("ID de Agencia no encontrado");
 
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
-        allReportsRaw = reports; // Guardar para filtros
-        
+        allReportsRaw = reports; 
         renderReportInterface(reports);
     } catch (error) {
         document.getElementById("content").innerHTML = `<div class="card" style="border-left: 5px solid var(--danger);"><h3>⚠️ Error</h3><p>${error.message}</p></div>`;
@@ -261,26 +259,31 @@ async function loadReports() {
 
 function renderReportInterface(reportsToShow) {
     const content = document.getElementById("content");
-    
+    const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
+
     let html = `
         <div class="report-controls">
             <h2 style="margin-top:0;">📊 Historial de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; align-items: end;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; align-items: end;">
                 <div>
-                    <label style="display:block; font-size:12px; font-weight:bold; color:var(--primary);">Desde:</label>
+                    <label style="display:block; font-size:12px; font-weight:bold;">Desde:</label>
                     <input type="date" id="dateFrom" style="margin:0;">
                 </div>
                 <div>
-                    <label style="display:block; font-size:12px; font-weight:bold; color:var(--primary);">Hasta:</label>
+                    <label style="display:block; font-size:12px; font-weight:bold;">Hasta:</label>
                     <input type="date" id="dateTo" style="margin:0;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:12px; font-weight:bold;">Tienda:</label>
+                    <select id="filterStore" style="margin:0;">
+                        <option value="all">Todas las tiendas</option>
+                        ${uniqueStores.map(s => `<option value="${s}">${s}</option>`).join('')}
+                    </select>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <button onclick="filterReports()" class="btn-action" style="flex:1;">Filtrar</button>
-                    <button onclick="resetFilters()" class="btn-action" style="background:#64748b; flex:1;">Limpiar</button>
-                </div>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="exportToExcel()" class="btn-action" style="background:#16a34a; flex:1;">Excel 📗</button>
-                    <button onclick="exportToPDF()" class="btn-action" style="background:#dc2626; flex:1;">PDF 📕</button>
+                    <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a; flex:1;">Excel</button>
+                    <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626; flex:1;">PDF</button>
                 </div>
             </div>
         </div>
@@ -289,13 +292,11 @@ function renderReportInterface(reportsToShow) {
     if(!reportsToShow || reportsToShow.length === 0) {
         html += `<div class="card" style="text-align:center;"><p style="color:#64748b">No se encontraron registros.</p></div>`;
     } else {
-        // Mostrar del más nuevo al más viejo
         [...reportsToShow].reverse().forEach(r => {
-            const user = r.userId?.name || 'Usuario desconocido';
-            const store = r.storeId?.name || 'Tienda no especificada';
-            const date = new Date(r.createdAt).toLocaleString();
+            const user = r.userId?.name || '---';
+            const store = r.storeId?.name || '---';
             const tipo = r.type || 'General';
-            const detalle = r.articulo || r.comentarios || r.observaciones || 'Actividad enviada';
+            const detalle = r.articulo || r.comentarios || r.observaciones || 'Actividad';
 
             html += `
             <div class="card" style="border-left: 5px solid ${tipo === 'degustacion' ? 'var(--gold)' : 'var(--primary)'}">
@@ -304,101 +305,108 @@ function renderReportInterface(reportsToShow) {
                     <span class="type-badge">${tipo}</span>
                 </div>
                 <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${store}</div>
-                <small style="color:#94a3b8">${date}</small>
-                <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
-                <p style="margin:0; font-size:0.9rem; color:#475569">
-                    <strong>Detalle/Notas:</strong> ${detalle} ${r.cantidad ? '(Cant: '+r.cantidad+')' : ''}
-                </p>
-                ${r.foto_url ? `<br><a href="${BACKEND_URL}${r.foto_url}" target="_blank" style="font-size:0.8rem; color:var(--gold); text-decoration:none; font-weight:bold;">🖼️ Ver Evidencia Fotográfica</a>` : ''}
+                <small style="color:#94a3b8">${new Date(r.createdAt).toLocaleString()}</small>
+                <p style="margin:5px 0 0 0; font-size:0.9rem;">${detalle} ${r.cantidad ? `(Cant: ${r.cantidad})` : ''}</p>
+                ${r.foto_url ? `<br><a href="${BACKEND_URL}${r.foto_url}" target="_blank" style="font-size:0.8rem; color:var(--gold); font-weight:bold;">🖼️ Evidencia</a>` : ''}
             </div>`;
         });
     }
-    html += `</div>`;
-    content.innerHTML = html;
+    content.innerHTML = html + "</div>";
 }
 
-// --- LÓGICA DE FILTRADO Y EXPORTACIÓN ---
 function filterReports() {
     const from = document.getElementById("dateFrom").value;
     const to = document.getElementById("dateTo").value;
-    if (!from || !to) return alert("Selecciona ambas fechas");
+    const storeSel = document.getElementById("filterStore").value;
+
+    if (!from || !to) return alert("Selecciona rango de fechas");
 
     const start = new Date(from); start.setHours(0,0,0,0);
     const end = new Date(to); end.setHours(23,59,59,999);
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        return d >= start && d <= end;
+        const matchDate = d >= start && d <= end;
+        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
+        return matchDate && matchStore;
     });
     renderReportInterface(filtered);
 }
 
-function resetFilters() { renderReportInterface(allReportsRaw); }
+function exportConsolidated(format) {
+    const from = document.getElementById("dateFrom").value;
+    const to = document.getElementById("dateTo").value;
+    const storeSel = document.getElementById("filterStore").value;
 
-function getCurrentData() {
-    const from = document.getElementById("dateFrom")?.value;
-    const to = document.getElementById("dateTo")?.value;
-    if(!from || !to) return allReportsRaw;
+    if (!from || !to) return alert("Selecciona rango de fechas para exportar");
+
     const start = new Date(from); start.setHours(0,0,0,0);
     const end = new Date(to); end.setHours(23,59,59,999);
-    return allReportsRaw.filter(r => {
+
+    const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        return d >= start && d <= end;
+        const matchDate = d >= start && d <= end;
+        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
+        return matchDate && matchStore;
     });
-}
 
-function exportToExcel() {
-    const dataToExport = getCurrentData();
-    if (dataToExport.length === 0) return alert("No hay datos");
+    if (filtered.length === 0) return alert("No hay datos para exportar");
 
-    const rows = dataToExport.map(r => ({
-        "Fecha/Hora": new Date(r.createdAt).toLocaleString(),
-        "Colaborador": r.userId?.name || "N/A",
-        "Tienda": r.storeId?.name || "N/A",
-        "Tipo": (r.type || "General").toUpperCase(),
-        "Artículo/Concepto": r.articulo || "---",
-        "Cantidad": r.cantidad || 0,
-        "Comentarios y Notas": r.comentarios || r.observaciones || "---"
+    // Lógica de Agrupamiento
+    const grouped = {};
+    filtered.forEach(r => {
+        const key = `${r.userId?._id}-${r.storeId?._id}`;
+        if (!grouped[key]) {
+            grouped[key] = {
+                Fecha: new Date(r.createdAt).toLocaleDateString(),
+                Colaborador: r.userId?.name || "N/A",
+                Tienda: r.storeId?.name || "N/A",
+                Ventas: [],
+                Inventario: [],
+                Degustacion: [],
+                Notas: []
+            };
+        }
+        const item = `${r.articulo || ''} ${r.cantidad ? '['+r.cantidad+']' : ''}`.trim();
+        const nota = r.comentarios || r.observaciones || '';
+
+        if (r.type === 'ventas') grouped[key].Ventas.push(item);
+        else if (r.type === 'inventario') grouped[key].Inventario.push(item);
+        else if (r.type === 'degustacion') grouped[key].Degustacion.push(item);
+        if (nota) grouped[key].Notas.push(nota);
+    });
+
+    const tableData = Object.values(grouped).map(g => ({
+        "FECHA": g.Fecha,
+        "COLABORADOR": g.Colaborador,
+        "TIENDA": g.Tienda,
+        "VENTAS": g.Ventas.join(" | ") || "---",
+        "INVENTARIO": g.Inventario.join(" | ") || "---",
+        "DEGUSTACION": g.Degustacion.join(" | ") || "---",
+        "NOTAS": g.Notas.join(" // ") || "---"
     }));
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, `StorePulse_Reporte_${new Date().toLocaleDateString()}.xlsx`);
+    if (format === 'excel') {
+        const ws = XLSX.utils.json_to_sheet(tableData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
+        XLSX.writeFile(wb, `Reporte_Consolidado_${from}.xlsx`);
+    } else {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'pt', 'a4');
+        doc.text("Reporte Consolidado StorePulse", 40, 40);
+        doc.autoTable({
+            head: [Object.keys(tableData[0])],
+            body: tableData.map(Object.values),
+            startY: 60,
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [11, 31, 58] }
+        });
+        doc.save(`Reporte_Consolidado_${from}.pdf`);
+    }
 }
 
-function exportToPDF() {
-    const dataToExport = getCurrentData();
-    if (dataToExport.length === 0) return alert("No hay datos");
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('l', 'pt', 'a4');
-
-    const tableRows = dataToExport.map(r => [
-        new Date(r.createdAt).toLocaleString(),
-        r.userId?.name || "N/A",
-        r.storeId?.name || "N/A",
-        (r.type || "Gral").toUpperCase(),
-        r.articulo || "---",
-        r.cantidad || 0,
-        r.comentarios || r.observaciones || "---"
-    ]);
-
-    doc.setFontSize(18);
-    doc.text("Historial de Actividades StorePulse", 40, 40);
-    
-    doc.autoTable({
-        head: [['Fecha/Hora', 'Colaborador', 'Tienda', 'Tipo', 'Artículo', 'Cant.', 'Notas']],
-        body: tableRows,
-        startY: 60,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [11, 31, 58] }
-    });
-
-    doc.save(`StorePulse_PDF_${new Date().toLocaleDateString()}.pdf`);
-}
-
-// --- OTROS (Sin cambios) ---
+// --- OTROS ---
 async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);

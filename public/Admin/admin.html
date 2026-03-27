@@ -58,13 +58,31 @@ const agencyId = localStorage.getItem("agencyId");
 
 let draggedStore = null;
 let allStores = [];
-let cachedUsers = []; // Para optimizar el drag & drop
+let cachedUsers = [];
 
+// fetchAPI mejorado para manejar errores de JSON y sesiones expiradas
 async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), "userId": userId };
-    const res = await fetch(url, options);
-    if (!res.ok) throw new Error("Error en la petición");
-    return res.json();
+    
+    try {
+        const res = await fetch(url, options);
+        
+        if (res.status === 401 || res.status === 403) {
+            alert("Sesión expirada o no autorizada");
+            logout();
+            return;
+        }
+
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+            throw new Error("Respuesta inválida del servidor");
+        }
+        
+        return await res.json();
+    } catch (error) {
+        console.error("Error en fetchAPI:", error);
+        throw error;
+    }
 }
 
 function changeTab(btn, callback) {
@@ -75,7 +93,7 @@ function changeTab(btn, callback) {
 
 async function loadUserInfo() {
     let text = `👤 ${localStorage.getItem("userName") || "Administrador"}`;
-    if (agencyId) {
+    if (agencyId && agencyId !== "null") {
         try {
             const agencies = await fetchAPI(`${BACKEND_URL}/agencies`);
             const agency = agencies.find(a => a._id === agencyId);
@@ -93,53 +111,56 @@ function loadDashboard() {
         </div>`;
 }
 
-// --- GESTIÓN DE USUARIOS CON CAMBIO DE ROL ---
+// --- GESTIÓN DE USUARIOS ---
 async function loadUsers() {
-    document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
-    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    
-    let html = `<h2>Gestión de Usuarios y Rutas</h2>`;
-    cachedUsers.forEach(u => {
-        const assigned = (u.stores || []).map(s => s._id || s);
-        const available = allStores.filter(s => !assigned.includes(s._id));
+    try {
+        document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
+        cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+        allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+        
+        let html = `<h2>Gestión de Usuarios y Rutas</h2>`;
+        cachedUsers.forEach(u => {
+            const assigned = (u.stores || []).map(s => s._id || s);
+            const available = allStores.filter(s => !assigned.includes(s._id));
 
-        html += `
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <div>
-                    <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
-                    <small>${u.email}</small>
+            html += `
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                    <div>
+                        <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
+                        <small>${u.email}</small>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
+                            <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
+                            <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
+                            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Agencia</option>
+                        </select>
+                        <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
+                    </div>
                 </div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
-                        <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
-                        <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
-                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin Agencia</option>
-                    </select>
-                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
+                
+                <div class="store-list">
+                    <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
+                        <small><b>TIENDAS DISPONIBLES</b></small>
+                        ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join("")}
+                    </div>
+                    <div class="store-column assigned" ondrop="dropStore(event,'${u._id}','assigned')" ondragover="allowDrop(event)">
+                        <small><b>RUTA ASIGNADA</b></small>
+                        ${assigned.map(id => {
+                            const s = allStores.find(x => x._id === id);
+                            return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : "";
+                        }).join("")}
+                    </div>
                 </div>
-            </div>
-            
-            <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','available')" ondragover="allowDrop(event)">
-                    <small><b>TIENDAS DISPONIBLES</b></small>
-                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join("")}
-                </div>
-                <div class="store-column assigned" ondrop="dropStore(event,'${u._id}','assigned')" ondragover="allowDrop(event)">
-                    <small><b>RUTA ASIGNADA</b></small>
-                    ${assigned.map(id => {
-                        const s = allStores.find(x => x._id === id);
-                        return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : "";
-                    }).join("")}
-                </div>
-            </div>
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html;
+            </div>`;
+        });
+        document.getElementById("content").innerHTML = html;
+    } catch (err) {
+        document.getElementById("content").innerHTML = "<h3>Error al cargar usuarios</h3>";
+    }
 }
 
-// --- DRAG AND DROP BIDIRECCIONAL ---
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 
@@ -153,7 +174,6 @@ async function dropStore(e, targetUserId, type) {
     if (type === "assigned") {
         if (!stores.includes(draggedStore)) stores.push(draggedStore);
     } else {
-        // Al soltar en "Disponibles", lo quitamos del array del usuario
         stores = stores.filter(s => s !== draggedStore);
     }
 
@@ -167,7 +187,6 @@ async function dropStore(e, targetUserId, type) {
     } catch(err) { alert("Error al actualizar la ruta"); }
 }
 
-// --- ACTUALIZAR ROL ---
 async function updateUserRole(userId, newRole) {
     try {
         await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, {
@@ -182,7 +201,6 @@ async function updateUserRole(userId, newRole) {
     }
 }
 
-// --- RESTO DE FUNCIONES (CREAR, REPORTES, TIENDAS) ---
 function loadCreateUser() {
     document.getElementById("content").innerHTML = `
         <div class="card" style="max-width: 500px;">
@@ -208,68 +226,109 @@ async function createUser() {
         agencyId: agencyId
     };
     if(!data.name || !data.email || !data.password) return alert("Faltan datos");
-    await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-    });
-    alert("Creado ✅");
-    loadUsers();
+    try {
+        await fetchAPI(`${BACKEND_URL}/admin/create-user`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+        alert("Creado ✅");
+        loadUsers();
+    } catch (err) { alert("Error al crear usuario"); }
 }
 
+// --- REPORTES ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
-    const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
-    let html = `<h2>📊 Reportes Recientes</h2>`;
-    if(!reports.length) html += "<p>No hay reportes hoy.</p>";
-    reports.reverse().forEach(r => {
-        html += `
-        <div class="card">
-            <div style="display:flex; justify-content:space-between;">
-                <b>${r.userId?.name || 'Usuario'} - ${r.storeId?.name || 'Tienda'}</b>
-                <small>${new Date(r.createdAt || r.date).toLocaleString()}</small>
-            </div>
-            <p>Tipo: ${r.type} | Art: ${r.articulo || 'N/A'}</p>
-            ${r.foto_url ? `<button class="btn-action" style="padding:5px 10px; font-size:0.7rem;" onclick="window.open('${BACKEND_URL}${r.foto_url}')">Ver Foto 📸</button>` : ''}
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html;
+    try {
+        document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
+        
+        if (!agencyId || agencyId === "null") {
+            document.getElementById("content").innerHTML = "<p>⚠️ Error: AgencyID no encontrado. Por favor, reingresa al sistema.</p>";
+            return;
+        }
+
+        const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+        let html = `<h2>📊 Reportes Recientes</h2>`;
+        
+        if(!reports || reports.length === 0) {
+            html += "<p>No hay reportes registrados hoy.</p>";
+        } else {
+            reports.slice().reverse().forEach(r => {
+                html += `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <b>${r.userId?.name || 'Usuario'} - ${r.storeId?.name || 'Tienda'}</b>
+                        <small>${new Date(r.createdAt || r.date).toLocaleString()}</small>
+                    </div>
+                    <p>Tipo: ${r.type} | Art: ${r.articulo || 'N/A'}</p>
+                    ${r.foto_url ? `<button class="btn-action" style="padding:5px 10px; font-size:0.7rem;" onclick="window.open('${BACKEND_URL}${r.foto_url}', '_blank')">Ver Foto 📸</button>` : ''}
+                </div>`;
+            });
+        }
+        document.getElementById("content").innerHTML = html;
+    } catch (error) {
+        document.getElementById("content").innerHTML = "<p style='color:red;'>❌ Error al cargar reportes. El servidor respondió con un formato inesperado.</p>";
+    }
 }
 
+// --- TIENDAS ---
 async function loadStores() {
-    document.getElementById("content").innerHTML = "<h3>Cargando catálogo...</h3>";
-    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2>🏬 Catálogo</h2>
-        <button class="btn-action" onclick="showAddStore()">+ TIENDA</button>
-    </div><div id="form-store-container"></div><div class="grid-tiendas">`;
-    stores.forEach(s => {
-        html += `<div class="card">
-            <strong>${s.name}</strong><br><small>${s.address || ''}</small><br>
-            <button class="btn-action btn-danger" onclick="deleteStore('${s._id}')" style="margin-top:10px; padding:5px; font-size:0.7rem;">Borrar</button>
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html + `</div>`;
+    try {
+        document.getElementById("content").innerHTML = "<h3>Cargando catálogo...</h3>";
+        const stores = await fetchAPI(`${BACKEND_URL}/stores`);
+        let html = `<div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>🏬 Catálogo</h2>
+            <button class="btn-action" onclick="showAddStore()">+ TIENDA</button>
+        </div><div id="form-store-container"></div><div class="grid-tiendas">`;
+        
+        stores.forEach(s => {
+            html += `<div class="card">
+                <strong>${s.name}</strong><br>
+                <small>${s.address || 'Sin dirección'}</small><br>
+                <small style="color: #64748b; font-size: 0.7rem;">📍 ${s.location?.lat || 0}, ${s.location?.lng || 0}</small><br>
+                <button class="btn-action btn-danger" onclick="deleteStore('${s._id}')" style="margin-top:10px; padding:5px; font-size:0.7rem;">Borrar</button>
+            </div>`;
+        });
+        document.getElementById("content").innerHTML = html + `</div>`;
+    } catch (err) {
+        document.getElementById("content").innerHTML = "<h3>Error al cargar tiendas</h3>";
+    }
 }
 
 function showAddStore() {
     document.getElementById("form-store-container").innerHTML = `
         <div class="card" style="border: 1px solid var(--gold);">
+            <h3>📍 Nueva Tienda</h3>
             <input id="st_name" placeholder="Nombre Tienda">
             <input id="st_addr" placeholder="Dirección">
-            <button class="btn-action" onclick="saveStore()">GUARDAR</button>
+            <div style="display: flex; gap: 10px;">
+                <input id="st_lat" type="number" step="any" placeholder="Latitud">
+                <input id="st_lng" type="number" step="any" placeholder="Longitud">
+            </div>
+            <button class="btn-action" onclick="saveStore()" style="width: 100%; margin-top: 10px;">GUARDAR</button>
         </div>`;
 }
 
 async function saveStore() {
     const name = document.getElementById("st_name").value;
     const address = document.getElementById("st_addr").value;
-    await fetchAPI(`${BACKEND_URL}/stores`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, address })
-    });
-    loadStores();
+    const lat = document.getElementById("st_lat").value;
+    const lng = document.getElementById("st_lng").value;
+
+    if (!name || !lat || !lng) return alert("Faltan datos obligatorios (Nombre, Lat, Lng)");
+
+    try {
+        await fetchAPI(`${BACKEND_URL}/stores`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                name, 
+                address, 
+                location: { lat: parseFloat(lat), lng: parseFloat(lng) } 
+            })
+        });
+        loadStores();
+    } catch (err) { alert("Error al guardar tienda"); }
 }
 
 async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } }
@@ -279,5 +338,6 @@ function logout() { localStorage.clear(); window.location.href = "../login.html"
 
 window.onload = () => { loadUserInfo(); loadDashboard(); };
 </script>
+
 </body>
 </html>

@@ -112,6 +112,17 @@ app.get("/super/users", authSuper, async (req, res) => {
 
 // --- RUTAS DE USUARIOS Y TIENDAS ---
 
+// *** NUEVA RUTA: ACTUALIZAR ROL (CORRIGE EL ERROR DE TUS CAPTURAS) ***
+app.patch("/users/:id/role", auth, async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(req.params.id, { role: req.body.role }, { new: true });
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+        res.json({ message: "Rol actualizado con éxito", user });
+    } catch (err) {
+        res.status(500).json({ error: "Error al actualizar el rol" });
+    }
+});
+
 app.get("/users/:id", auth, async (req, res) => {
     try {
         const user = await User.findById(req.params.id).populate('stores');
@@ -203,7 +214,6 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
 });
 
 // --- MANEJO DE RUTAS FRONTEND (SPA) ---
-
 app.get("/admin/super", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "super-admin.html"));
 });

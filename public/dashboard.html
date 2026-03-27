@@ -47,7 +47,7 @@
         .store-info small { color: #94a3b8; font-size: 0.85rem; }
         .arrow { color: var(--gold); font-size: 1.2rem; }
 
-        /* DRAWER (Menú lateral) */
+        /* DRAWER */
         .drawer {
             position:fixed;
             top:0;
@@ -100,8 +100,8 @@
             max-width: 400px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.2);
         }
-        .btn-checkin { background: #22c55e; color:white; padding:18px; border:none; border-radius:12px; width:100%; margin-top:20px; font-weight:bold; font-size:1rem; cursor:pointer; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
-        .btn-cancel { background:none; color: #94a3b8; padding:12px; border:none; width:100%; margin-top:10px; cursor:pointer; font-weight: 500; }
+        .btn-checkin { background: #22c55e; color:white; padding:18px; border:none; border-radius:12px; width:100%; margin-top:20px; font-weight:bold; font-size:1rem; cursor:pointer; }
+        .btn-cancel { background:none; color: #94a3b8; padding:12px; border:none; width:100%; margin-top:10px; cursor:pointer; }
         .loader { text-align: center; padding: 50px; color: #94a3b8; }
     </style>
 </head>
@@ -142,71 +142,65 @@
 </div>
 
 <script>
-    const BACKEND_URL = "https://storepulse.onrender.com";
+    // Detecta automáticamente si usa la URL de Render o local
+    const BACKEND_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:3000' 
+        : 'https://storepulse.onrender.com';
     
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
         const name = localStorage.getItem("name") || "Usuario";
-        // Buscamos el rol en ambas posibles claves por seguridad
-        const role = localStorage.getItem("role") || localStorage.getItem("userRole") || "Promotor";
+        const role = localStorage.getItem("role") || "Promotor";
 
         if (!userId) {
             window.location.href = "./login.html";
             return;
         }
 
-        const elUserName = document.getElementById("userName");
+        document.getElementById("userName").innerText = name;
         const elUserRole = document.getElementById("userRole");
-        const elGreeting = document.getElementById("greeting");
-
-        if (elUserName) elUserName.innerText = name;
-        
-        // Actualizamos el rol en el menú lateral
         if (elUserRole) {
             elUserRole.innerText = role.toUpperCase();
-            // Si es demostradora, le damos el color dorado del diseño
             if (role.toLowerCase() === "demostradora") {
                 elUserRole.style.color = "var(--gold)";
-                elUserRole.style.fontWeight = "bold";
             }
         }
 
-        if (elGreeting) elGreeting.innerText = `¡Hola, ${name.split(' ')[0]}!`;
-
+        document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
         await loadStores(userId);
     };
 
     let selectedStore = null;
 
     function toggleMenu() {
-        const drawer = document.getElementById("drawer");
-        if (drawer) drawer.classList.toggle("open");
+        document.getElementById("drawer").classList.toggle("open");
     }
 
     async function loadStores(userId) {
         const container = document.getElementById("storesContainer");
-        if (!container) return;
-
         try {
+            // Intentamos obtener el usuario (que ya incluye las tiendas "populadas")
             const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
                 method: 'GET',
                 headers: { 
                     "Content-Type": "application/json",
-                    "userId": userId 
+                    "userid": userId 
                 }
             });
 
-            if (!res.ok) throw new Error(`Error ${res.status}: Fallo en servidor`);
+            if (!res.ok) throw new Error("No se pudo conectar con el servidor");
             
             const userData = await res.json();
-            const stores = userData.stores || [];
+            // Verificamos si las tiendas vienen en userData.stores (si es un objeto usuario)
+            // o si vienen directamente (si usaste la ruta /my-stores)
+            const stores = userData.stores || (Array.isArray(userData) ? userData : []);
 
             if (stores.length === 0) {
                 container.innerHTML = `
                     <div style="text-align:center; padding:40px;">
                         <span style="font-size:40px;">🏪</span>
                         <h3>No tienes tiendas asignadas</h3>
-                        <p style="color:#64748b">Pide a tu supervisor que te asigne una sucursal en el panel Admin.</p>
+                        <p style="color:#64748b">Contacta a tu supervisor.</p>
                     </div>`;
                 return;
             }
@@ -215,83 +209,75 @@
                 <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
                     <div class="store-info">
                         <b>${s.name}</b>
-                        <small>${s.address || "Ver mapa para dirección"}</small>
+                        <small>${s.address || "Dirección no disponible"}</small>
                     </div>
                     <div class="arrow">➔</div>
                 </div>
             `).join("");
 
         } catch (err) {
-            console.error("Error en loadStores:", err);
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>No pudimos cargar tus tiendas. Revisa tu internet y recarga la página.</p>";
+            console.error("Error:", err);
+            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>Revisa tu internet y recarga la página.</p>";
         }
     }
 
     function openModal(store) {
         selectedStore = store;
-        const modal = document.getElementById("modal");
-        const displayName = document.getElementById("storeNameDisplay");
-        
-        if (displayName) displayName.innerText = store.name;
-        if (modal) modal.style.display = "flex";
+        document.getElementById("storeNameDisplay").innerText = store.name;
+        document.getElementById("modal").style.display = "flex";
     }
 
     function closeModal() {
-        const modal = document.getElementById("modal");
-        if (modal) modal.style.display = "none";
+        document.getElementById("modal").style.display = "none";
     }
 
     function startCheckin() {
         const btn = document.getElementById("btnCheckin");
         const userId = localStorage.getItem("userId");
         
-        if (!navigator.geolocation) {
-            return alert("GPS no disponible en este navegador.");
-        }
+        if (!navigator.geolocation) return alert("GPS no disponible.");
 
         btn.innerText = "LOCALIZANDO...";
         btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(async pos => {
-            const { latitude, longitude } = pos.coords;
-
             try {
                 const res = await fetch(`${BACKEND_URL}/checkin`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "userId": userId },
+                    headers: { 
+                        "Content-Type": "application/json", 
+                        "userid": userId 
+                    },
                     body: JSON.stringify({
                         storeId: selectedStore._id,
-                        lat: latitude,
-                        lng: longitude
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
                     })
                 });
 
                 const data = await res.json();
-
                 if (res.ok) {
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
-                    alert(`✅ ¡Entrada exitosa en ${selectedStore.name}!`);
+                    alert(`✅ Entrada exitosa en ${selectedStore.name}`);
                     window.location.href = "./home.html"; 
                 } else {
-                    alert("❌ " + (data.error || data.message || "Error al marcar entrada"));
+                    alert("❌ " + (data.error || "Error al marcar entrada"));
                     resetBtn(btn);
                 }
             } catch (err) {
-                alert("Error de red al intentar marcar entrada.");
+                alert("Error de red.");
                 resetBtn(btn);
             }
-        }, err => {
-            alert("Error: Activa el GPS de tu celular para poder entrar.");
+        }, () => {
+            alert("Activa el GPS de tu celular.");
             resetBtn(btn);
         }, { enableHighAccuracy: true });
     }
 
     function resetBtn(btn) {
-        if (btn) {
-            btn.innerText = "INICIAR OPERACIÓN";
-            btn.disabled = false;
-        }
+        btn.innerText = "INICIAR OPERACIÓN";
+        btn.disabled = false;
     }
 
     function logout() {
@@ -299,6 +285,5 @@
         window.location.href = "./login.html";
     }
 </script>
-
 </body>
 </html>

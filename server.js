@@ -108,7 +108,9 @@ app.delete("/reports/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
-// --- OTRAS RUTAS ---
+// --- GESTIÓN DE USUARIOS Y RUTAS ---
+
+// Obtener todos los usuarios de la agencia (Filtro para Admin)
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -117,6 +119,43 @@ app.get("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener usuarios" }); }
 });
 
+// Obtener un usuario específico (Para el Dashboard del promotor/demostradora)
+app.get("/users/:id", auth, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).populate('stores');
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+        res.json(user);
+    } catch (err) { res.status(500).json({ error: "Error al obtener perfil" }); }
+});
+
+// Crear nuevo usuario (Admin)
+app.post("/users", auth, async (req, res) => {
+    try {
+        const { name, email, password, role, agencyId } = req.body;
+        const existing = await User.findOne({ email: email.toLowerCase() });
+        if (existing) return res.status(400).json({ error: "El correo ya existe" });
+
+        const newUser = new User({
+            name,
+            email: email.toLowerCase(),
+            password,
+            role,
+            agencyId: agencyId || req.user.agencyId
+        });
+        await newUser.save();
+        res.json({ message: "Usuario creado", userId: newUser._id });
+    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
+});
+
+// Actualizar ROL de usuario
+app.put("/users/:id", auth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.params.id, { role: req.body.role });
+        res.json({ message: "Rol actualizado" });
+    } catch (err) { res.status(500).json({ error: "Error al actualizar rol" }); }
+});
+
+// Actualizar ASIGNACIÓN de tiendas (Rutas)
 app.put("/users/:userId/stores", auth, async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
@@ -124,14 +163,31 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
 });
 
+// --- GESTIÓN DE TIENDAS ---
+
 app.get("/stores", auth, async (req, res) => {
-    const stores = await Store.find().sort({ name: 1 });
-    res.json(stores);
+    try {
+        const stores = await Store.find().sort({ name: 1 });
+        res.json(stores);
+    } catch (err) { res.status(500).json({ error: "Error al obtener tiendas" }); }
 });
 
-// --- MANEJO DE FRONTEND (MODIFICADO POR CARPETA ADMIN) ---
+app.post("/stores", auth, async (req, res) => {
+    try {
+        const { name, address } = req.body;
+        // Se agrega la asignación automática de agencyId basada en el Admin que crea la tienda
+        const newStore = new Store({ 
+            name, 
+            address, 
+            agencyId: req.user.agencyId 
+        });
+        await newStore.save();
+        res.json({ message: "Tienda creada", store: newStore });
+    } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
+});
 
-// Estas rutas ahora apuntan a la subcarpeta /Admin/
+// --- MANEJO DE FRONTEND ---
+
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
 });
@@ -140,7 +196,6 @@ app.get("/admin/super", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html"));
 });
 
-// Estas se mantienen en la raíz de public
 app.get("/dashboard", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "dashboard.html"));
 });
@@ -149,12 +204,7 @@ app.get("/home", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "home.html"));
 });
 
-// RUTA RAIZ: Para evitar el error de "Cannot GET /" en Render
-app.get(/.*/, (req, res) => {
-    res.sendFile(path.resolve(__dirname, "public", "login.html"));
-});
-
-// COMODÍN: Cualquier ruta no encontrada redirige al login
+// RUTA RAIZ Y COMODÍN (Unificado)
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

@@ -30,20 +30,20 @@
         .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #f8fafc; border-radius: 8px; overflow: hidden; }
         .report-table th, .report-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
         
-        /* Estilos de Rutas (Tu diseño original) */
         .store-list { display:flex; gap:10px; margin-top: 10px; }
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
-    <button onclick="loadSection('dashboard')">🏠 Dashboard</button>
-    <button onclick="loadSection('reports')" class="active">📊 Reportes</button>
-    <button onclick="loadSection('users')">👥 Usuarios y Rutas</button>
-    <button onclick="loadSection('stores')">🏬 Tiendas</button>
+    <button onclick="loadSection('reports')" id="btn-reports">📊 Reportes</button>
+    <button onclick="loadSection('users')" id="btn-users">👥 Usuarios y Rutas</button>
+    <button onclick="loadSection('stores')" id="btn-stores">🏬 Tiendas</button>
     <div style="flex:1"></div>
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
@@ -63,24 +63,137 @@ let allStores = [];
 let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
-    options.headers = { ...(options.headers || {}), "userId": userId, "Content-Type": "application/json" };
+    const headers = { 
+        "userId": userId, 
+        "userid": userId,
+        "Content-Type": "application/json" 
+    };
+    options.headers = { ...(options.headers || {}), ...headers };
     const res = await fetch(url, options);
+    if (!res.ok) {
+        const error = await res.json();
+        alert("Error: " + (error.error || error.message));
+        throw new Error(error.error);
+    }
     return res.json();
 }
 
-// CARGA DE SECCIONES
-async function loadSection(section) {
-    // Actualizar botones del sidebar
+function loadSection(section) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
-    event?.target?.classList?.add('active');
+    document.getElementById(`btn-${section}`)?.classList.add('active');
 
     if (section === 'reports') loadReports();
     if (section === 'users') loadUsers();
     if (section === 'stores') loadStores();
-    if (section === 'dashboard') document.getElementById("content").innerHTML = "<h1>Dashboard</h1>";
 }
 
-// --- GESTIÓN DE REPORTES (CON FILTRO POR TIPO) ---
+// --- GESTIÓN DE TIENDAS (NUEVO: CREAR TIENDAS) ---
+async function loadStores() {
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Registrar Nueva Tienda</h2>
+            <div class="grid-2">
+                <input type="text" id="sName" placeholder="Nombre de la Tienda (Ej: Walmart Celaya)">
+                <input type="text" id="sAddress" placeholder="Dirección">
+            </div>
+            <button onclick="createStore()" class="btn-action" style="margin-top:10px; width:100%">GUARDAR TIENDA</button>
+        </div>
+        <div id="storesList">
+            ${allStores.map(s => `
+                <div class="card">
+                    <b>${s.name}</b><br><small>${s.address || 'Sin dirección'}</small>
+                </div>
+            `).join('')}
+        </div>`;
+}
+
+async function createStore() {
+    const name = document.getElementById("sName").value;
+    const address = document.getElementById("sAddress").value;
+    if(!name) return alert("Nombre obligatorio");
+
+    await fetchAPI(`${BACKEND_URL}/stores`, {
+        method: "POST",
+        body: JSON.stringify({ name, address })
+    });
+    alert("Tienda creada");
+    loadStores();
+}
+
+// --- GESTIÓN DE USUARIOS (NUEVO: CREAR Y MODIFICAR ROL) ---
+async function loadUsers() {
+    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+
+    let html = `
+        <div class="card">
+            <h2>👥 Registrar Nuevo Usuario</h2>
+            <div class="grid-2">
+                <input type="text" id="uName" placeholder="Nombre Completo">
+                <input type="email" id="uEmail" placeholder="Email">
+                <input type="password" id="uPass" placeholder="Password">
+                <select id="uRole">
+                    <option value="promotor">Promotor</option>
+                    <option value="demostradora">Demostradora</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <button onclick="createUser()" class="btn-action" style="margin-top:10px; width:100%">CREAR USUARIO</button>
+        </div>
+        <h2>Listado de Personal y Rutas</h2>`;
+
+    cachedUsers.forEach(u => {
+        const assigned = (u.stores || []).map(s => s._id || s);
+        const available = allStores.filter(s => !assigned.includes(s._id));
+        
+        html += `<div class="card">
+            <strong>${u.name.toUpperCase()}</strong> (${u.email})
+            <select onchange="updateUserRole('${u._id}', this.value)" style="width:150px; margin-left:10px;">
+                <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+                <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+            </select>
+            <div class="store-list">
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
+                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
+                </div>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ASIGNADA</small>
+                    ${assigned.map(id => { 
+                        const s = allStores.find(x => x._id === id); 
+                        return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; 
+                    }).join('')}
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById("content").innerHTML = html;
+}
+
+async function createUser() {
+    const name = document.getElementById("uName").value;
+    const email = document.getElementById("uEmail").value;
+    const password = document.getElementById("uPass").value;
+    const role = document.getElementById("uRole").value;
+
+    await fetchAPI(`${BACKEND_URL}/users`, {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, role, agencyId })
+    });
+    alert("Usuario creado exitosamente");
+    loadUsers();
+}
+
+async function updateUserRole(id, role) {
+    // IMPORTANTE: Asegúrate de tener la ruta PUT /users/:id en tu server.js
+    await fetchAPI(`${BACKEND_URL}/users/${id}`, { 
+        method: "PUT", 
+        body: JSON.stringify({ role }) 
+    });
+    alert("Rol actualizado");
+}
+
+// --- GESTIÓN DE REPORTES ---
 async function loadReports() {
     [cachedUsers, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -89,7 +202,7 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Filtro Inteligente de Reportes</h2>
+            <h2>📊 Filtros de Reportes</h2>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
                 <input type="date" id="fDate">
                 <select id="fType"><option value="all">Tipo: Todos</option><option value="ventas">Ventas</option><option value="degustacion">Degustación</option></select>
@@ -107,13 +220,11 @@ function renderList(data) {
     container.innerHTML = data.map(r => {
         const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
         const isV = r.reportType === 'ventas';
-        
         return `
         <div class="card">
             <button class="btn-delete" onclick="deleteReport('${r._id}')">BORRAR</button>
             <span class="badge ${isV?'badge-v':'badge-d'}">${(r.reportType || 'Gral').toUpperCase()}</span><br>
             <b>${(u?.name || 'S/N').toUpperCase()}</b> | <span>📍 ${r.storeId?.name || 'S/T'}</span>
-            
             ${isV ? `
                 <table class="report-table">
                     <tr><th>Producto</th><th>Venta</th><th>I. Inicial</th><th>I. Final</th></tr>
@@ -121,8 +232,7 @@ function renderList(data) {
                 </table>
             ` : `
                 <div style="margin-top:10px; background:#fff7ed; padding:10px; border-radius:8px; border:1px solid #ffedd5;">
-                    <b>Artículo:</b> ${r.articulo}<br>
-                    <b>Detalle:</b> ${r.observaciones}
+                    <b>Artículo:</b> ${r.articulo}<br><b>Detalle:</b> ${r.observaciones}
                 </div>
             `}
             <div style="margin-top:8px; font-size:11px; color:#64748b">Fecha: ${new Date(r.createdAt).toLocaleString()}</div>
@@ -145,36 +255,8 @@ function filterReports() {
     renderList(filtered);
 }
 
-// --- GESTIÓN DE RUTAS (TU LÓGICA ORIGINAL) ---
-async function loadUsers() {
-    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Gestión de Personal y Rutas</h2>`;
-    cachedUsers.forEach(u => {
-        const assigned = (u.stores || []).map(s => s._id || s);
-        const available = allStores.filter(s => !assigned.includes(s._id));
-        html += `<div class="card">
-            <strong>${u.name.toUpperCase()}</strong>
-            <select onchange="updateUserRole('${u._id}', this.value)" style="width:150px; margin-left:10px;">
-                <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-                <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-            </select>
-            <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
-                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
-                </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA ASIGNADA</small>
-                    ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
-                </div>
-            </div>
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html;
-}
-
-// Funciones Auxiliares (Drag & Drop, Borrado, Logout)
-async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
-async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId } }); loadReports(); } }
+// Auxiliares
+async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userId": userId, "userid": userId } }); loadReports(); } }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -201,7 +283,7 @@ function exportExcel() {
     XLSX.writeFile(wb, "Reporte_StorePulse_Maestro.xlsx");
 }
 
-function logout() { localStorage.clear(); window.location.href = "login.html"; }
+function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = loadReports;
 </script>
 </body>

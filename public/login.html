@@ -88,6 +88,12 @@
                 const data = await res.json();
 
                 if (res.ok) {
+                    // --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
+                    // Verificamos que el ID tenga el formato correcto de MongoDB (24 caracteres)
+                    if (!data.userId || data.userId.length !== 24) {
+                        throw new Error("El servidor devolvió un ID de usuario no válido.");
+                    }
+
                     // 1. Limpiar sesión previa para evitar conflictos
                     localStorage.clear();
 
@@ -97,11 +103,11 @@
                     
                     // --- NORMALIZACIÓN DE ROL ---
                     // Guardamos en 'userRole' y en 'role' para que sea compatible con todas tus páginas
-                    const normalizedRole = data.role.toLowerCase().trim();
+                    const normalizedRole = (data.role || 'promotor').toLowerCase().trim();
                     localStorage.setItem('userRole', normalizedRole); 
                     localStorage.setItem('role', normalizedRole); 
 
-                    // --- CORRECCIÓN PARA REPORTES ---
+                    // --- CORRECCIÓN PARA REPORTES Y AGENCIAS ---
                     if (data.agencyId) {
                         localStorage.setItem('agencyId', data.agencyId); 
                         localStorage.setItem('activeAgencyId', data.agencyId); 
@@ -110,24 +116,36 @@
                     console.log("Sesión guardada:", { id: data.userId, role: normalizedRole });
 
                     // 3. Redirección
-                    if (normalizedRole === 'super-admin') {
-                        window.location.href = 'Admin/super-admin.html';
-                    } else if (normalizedRole === 'admin') {
-                        window.location.href = 'Admin/admin.html';
-                    } else {
-                        window.location.href = 'dashboard.html';
-                    }
+                    // Pequeño delay para asegurar que el localStorage se escribió correctamente
+                    setTimeout(() => {
+                        if (normalizedRole === 'super-admin') {
+                            window.location.href = 'Admin/super-admin.html';
+                        } else if (normalizedRole === 'admin') {
+                            window.location.href = 'Admin/admin.html';
+                        } else {
+                            window.location.href = 'dashboard.html';
+                        }
+                    }, 100);
+
                 } else {
                     msg.innerText = data.message || "Credenciales incorrectas";
                 }
             } catch (err) {
-                msg.innerText = "Error de conexión con el servidor";
+                msg.innerText = err.message || "Error de conexión con el servidor";
                 console.error("Error en login:", err);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "ENTRAR";
             }
         }
+
+        // Limpiar mensajes al escribir de nuevo
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => {
+                document.getElementById('msg').innerText = "";
+            });
+        });
     </script>
+
 </body>
 </html>

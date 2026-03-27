@@ -68,10 +68,24 @@
 
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
-let agencyId = localStorage.getItem("agencyId");
-let userId = localStorage.getItem("userId");
 
-if (!userId || userId === "undefined") {
+// --- VALIDACIÓN DE SESIÓN MEJORADA ---
+function getSessionData() {
+    const uId = localStorage.getItem("userId");
+    const aId = localStorage.getItem("agencyId");
+    
+    // Verifica que el ID sea una cadena de 24 caracteres (formato MongoDB) para evitar "malformed ID"
+    if (!uId || uId === "undefined" || uId.length !== 24) {
+        console.error("ID de usuario no válido o inexistente.");
+        return null;
+    }
+    return { userId: uId, agencyId: aId };
+}
+
+let session = getSessionData();
+
+// Redirección inmediata si no hay sesión válida
+if (!session) {
     window.location.href = "../login.html";
 }
 
@@ -81,10 +95,9 @@ let allStores = [];
 let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
-    const currentUserId = localStorage.getItem("userId");
+    // Usamos consistentemente "userid" en minúsculas para evitar problemas de middleware
     const headers = { 
-        "userId": currentUserId, 
-        "userid": currentUserId,
+        "userid": session.userId,
         "Content-Type": "application/json" 
     };
     options.headers = { ...(options.headers || {}), ...headers };
@@ -112,19 +125,16 @@ function loadSection(section) {
     if (section === 'attendance') loadAttendance();
 }
 
-// --- NUEVA SECCIÓN: ASISTENCIA (CHECK-IN / CHECK-OUT) ---
+// --- SECCIÓN: ASISTENCIA (CHECK-IN / CHECK-OUT) ---
 async function loadAttendance() {
     document.getElementById("content").innerHTML = `<div class="loader">Cargando registros de asistencia...</div>`;
     
     try {
-        // Reutilizamos la lógica de obtener usuarios y agencia
-        const [users, checkins] = await Promise.all([
+        const [users, data] = await Promise.all([
             fetchAPI(`${BACKEND_URL}/users`),
-            fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`) // Nota: Si creaste una ruta específica /attendance, cámbiala aquí
+            fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
         ]);
 
-        // Filtramos solo los registros que sean de tipo checkin o checkout
-        // Si tu backend aún no tiene una ruta de filtrado, aquí simulamos la vista
         document.getElementById("content").innerHTML = `
             <div class="card">
                 <h2>⏰ Control de Asistencia (Entradas y Salidas)</h2>
@@ -149,35 +159,24 @@ async function loadAttendance() {
                 </div>
             </div>`;
 
-        // Aquí deberías tener una ruta en el backend para traer específicamente los Checkins
-        // Por ahora, intentaremos cargar los datos si el backend ya los envía
-        const res = await fetch(`${BACKEND_URL}/users`, { headers: {"userid": userId} });
-        const usersData = await res.json();
-
-        // Si tienes una tabla de Checkins en el DB, lo ideal es una ruta app.get("/attendance")
-        // Como solución temporal, mostramos un mensaje o los datos si existen
         const tbody = document.getElementById("attendanceTableBody");
-        tbody.innerHTML = `<tr><td colspan="4">Conectando con el registro de tiempos...</td></tr>`;
         
-        // Simulación o carga real si la ruta existe:
-        fetch(`${BACKEND_URL}/reports/agency/${agencyId}`, { headers: {"userid": userId} })
-            .then(r => r.json())
-            .then(data => {
-                // Filtramos por reportes que no sean ventas ni degustación (o que tengan el campo type)
-                const assist = data.filter(r => r.type === 'checkin' || r.type === 'checkout');
-                if(assist.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4">No hay registros de entrada/salida hoy.</td></tr>`;
-                    return;
-                }
-                tbody.innerHTML = assist.map(a => `
-                    <tr>
-                        <td>${a.userId?.name || 'Sistema'}</td>
-                        <td><span class="badge ${a.type==='checkin'?'badge-checkin':'badge-checkout'}">${a.type}</span></td>
-                        <td>${a.storeId?.name || 'Ruta Finalizada'}</td>
-                        <td>${new Date(a.timestamp || a.createdAt).toLocaleString()}</td>
-                    </tr>
-                `).join('');
-            });
+        // Filtramos por reportes de tipo asistencia
+        const assist = data.filter(r => r.type === 'checkin' || r.type === 'checkout');
+        
+        if(assist.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4">No hay registros de entrada/salida hoy.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = assist.map(a => `
+            <tr>
+                <td>${(a.userId?.name || 'Sistema').toUpperCase()}</td>
+                <td><span class="badge ${a.type==='checkin'?'badge-checkin':'badge-checkout'}">${a.type}</span></td>
+                <td>${a.storeId?.name || 'Ruta Finalizada'}</td>
+                <td>${new Date(a.timestamp || a.createdAt).toLocaleString()}</td>
+            </tr>
+        `).join('');
 
     } catch (e) {
         document.getElementById("content").innerHTML = `<h3>Error al cargar asistencia</h3>`;
@@ -272,7 +271,7 @@ async function createUser() {
     const role = document.getElementById("uRole").value;
     await fetchAPI(`${BACKEND_URL}/users`, {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role, agencyId })
+        body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId })
     });
     alert("Usuario creado exitosamente");
     loadUsers();
@@ -285,10 +284,9 @@ async function updateUserRole(id, role) {
 
 // --- GESTIÓN DE REPORTES ---
 async function loadReports() {
-    agencyId = localStorage.getItem("agencyId");
     [cachedUsers, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
-        fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`)
+        fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
     ]);
 
     document.getElementById("content").innerHTML = `
@@ -308,7 +306,7 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    // Filtramos para que aquí solo salgan reportes de actividad, no de asistencia
+    // Filtramos para reportes de actividad únicamente
     const filteredData = data.filter(r => r.reportType === 'ventas' || r.reportType === 'degustacion');
 
     container.innerHTML = filteredData.map(r => {
@@ -360,7 +358,7 @@ async function deleteReport(id) {
     if(confirm("¿Borrar este reporte?")) { 
         await fetch(`${BACKEND_URL}/reports/${id}`, { 
             method: 'DELETE', 
-            headers: { "userId": localStorage.getItem("userId"), "userid": localStorage.getItem("userId") } 
+            headers: { "userid": session.userId } 
         }); 
         loadReports(); 
     } 

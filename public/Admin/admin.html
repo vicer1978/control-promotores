@@ -92,7 +92,7 @@ function loadDashboard() {
         </div>`;
 }
 
-// --- GESTIÓN DE USUARIOS (Sin cambios) ---
+// --- GESTIÓN DE USUARIOS ---
 async function loadUsers() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
@@ -201,7 +201,7 @@ async function createUser() {
     } catch (err) { alert("❌ Error: " + err.message); }
 }
 
-// --- SECCIÓN DE REPORTES (CORREGIDA) ---
+// --- REPORTES ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
@@ -209,7 +209,6 @@ async function loadReports() {
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
         allReportsRaw = reports; 
         
-        // Creamos la estructura fija de filtros
         const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
         const uniqueUsers = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
 
@@ -238,11 +237,9 @@ async function loadReports() {
                     </div>
                 </div>
             </div>
-            <div id="reportsListContainer"></div>`; // Aquí se inyectarán solo los resultados
+            <div id="reportsListContainer"></div>`;
 
         document.getElementById("content").innerHTML = html;
-        
-        // Renderizamos la lista inicial (todos)
         renderReportsList(reports);
         
     } catch (error) { 
@@ -250,11 +247,9 @@ async function loadReports() {
     }
 }
 
-// Nueva función que solo actualiza los resultados sin borrar los inputs
 function renderReportsList(reportsToShow) {
     const listContainer = document.getElementById("reportsListContainer");
     let html = "";
-    
     if(!reportsToShow || reportsToShow.length === 0) {
         html = `<div class="card" style="text-align:center;"><p>No se encontraron registros.</p></div>`;
     } else {
@@ -294,6 +289,7 @@ function filterReports() {
     renderReportsList(filtered);
 }
 
+// --- EXPORTACIÓN FINAL CON BORDES Y EVIDENCIA ---
 function exportConsolidated(format) {
     const fromVal = document.getElementById("dateFrom").value;
     const toVal = document.getElementById("dateTo").value;
@@ -315,42 +311,88 @@ function exportConsolidated(format) {
 
     if (filtered.length === 0) return alert("No hay datos para exportar");
 
-    const grouped = {};
+    const tempData = {};
     filtered.forEach(r => {
-        const key = `${r.userId?._id}-${r.storeId?._id}`;
-        if (!grouped[key]) {
-            grouped[key] = {
-                Fecha: new Date(r.createdAt).toLocaleDateString(),
-                Colaborador: r.userId?.name || "N/A",
-                Tienda: r.storeId?.name || "N/A",
-                Ventas: [], Inventario: [], Degustacion: [], Notas: []
+        const fecha = new Date(r.createdAt).toLocaleDateString();
+        const usuario = r.userId?.name || "N/A";
+        const tienda = r.storeId?.name || "N/A";
+        const producto = r.articulo || "Sin artículo";
+        
+        const key = `${fecha}-${usuario}-${tienda}-${producto}`;
+
+        if (!tempData[key]) {
+            tempData[key] = {
+                "FECHA": fecha,
+                "USUARIO": usuario,
+                "TIENDA": tienda,
+                "Producto": producto,
+                "VENTAS": 0,
+                "INVENTARIO": 0,
+                "DEGUSTACION": 0,
+                "NOTAS": [],
+                "EVIDENCIA": ""
             };
         }
-        const item = `${r.articulo || ''} ${r.cantidad ? '('+r.cantidad+')' : ''}`.trim();
-        if (r.type === 'ventas') grouped[key].Ventas.push(item);
-        else if (r.type === 'inventario') grouped[key].Inventario.push(item);
-        else if (r.type === 'degustacion') grouped[key].Degustacion.push(item);
-        if (r.comentarios || r.observaciones) grouped[key].Notas.push(r.comentarios || r.observaciones);
+
+        const cant = parseInt(r.cantidad) || 0;
+        if (r.type === 'ventas') tempData[key]["VENTAS"] += cant;
+        else if (r.type === 'inventario') tempData[key]["INVENTARIO"] += cant;
+        else if (r.type === 'degustacion') tempData[key]["DEGUSTACION"] += cant;
+
+        if (r.comentarios || r.observaciones) {
+            tempData[key]["NOTAS"].push(r.comentarios || r.observaciones);
+        }
+        
+        if (r.foto_url) {
+            tempData[key]["EVIDENCIA"] = BACKEND_URL + r.foto_url;
+        }
     });
 
-    const tableData = Object.values(grouped).map(g => ({
-        "FECHA": g.Fecha, "USUARIO": g.Colaborador, "TIENDA": g.Tienda,
-        "VENTAS": g.Ventas.join(" | ") || "---",
-        "INVENTARIO": g.Inventario.join(" | ") || "---",
-        "DEGUSTACION": g.Degustacion.join(" | ") || "---",
-        "NOTAS": g.Notas.join(" // ") || "---"
+    const tableData = Object.values(tempData).map(row => ({
+        ...row,
+        "NOTAS": row.NOTAS.join(" // ") || "---"
     }));
 
     if (format === 'excel') {
         const ws = XLSX.utils.json_to_sheet(tableData);
+        
+        // Ajuste de ancho de columnas
+        ws['!cols'] = [
+            {wch:12}, {wch:22}, {wch:25}, {wch:28}, 
+            {wch:10}, {wch:12}, {wch:15}, {wch:35}, {wch:45}
+        ];
+
+        // Añadir bordes a todas las celdas con datos
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = {c: C, r: R};
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                if (!ws[cell_ref]) continue;
+                if (!ws[cell_ref].s) ws[cell_ref].s = {};
+                ws[cell_ref].s.border = {
+                    top: {style: "thin"},
+                    bottom: {style: "thin"},
+                    left: {style: "thin"},
+                    right: {style: "thin"}
+                };
+            }
+        }
+
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-        XLSX.writeFile(wb, `Reporte_${fromVal}.xlsx`);
+        XLSX.writeFile(wb, `Reporte_StorePulse_${fromVal}.xlsx`);
     } else {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('l', 'pt', 'a4');
-        doc.text("Reporte Consolidado StorePulse", 40, 40);
-        doc.autoTable({ head: [Object.keys(tableData[0])], body: tableData.map(Object.values), startY: 60, styles: { fontSize: 8 } });
+        doc.text("Reporte Detallado StorePulse", 40, 40);
+        doc.autoTable({ 
+            head: [Object.keys(tableData[0])], 
+            body: tableData.map(Object.values), 
+            startY: 60, 
+            styles: { fontSize: 7, cellPadding: 2 },
+            columnStyles: { 8: { cellWidth: 100 } } // Ajuste para columna de evidencia
+        });
         doc.save(`Reporte_${fromVal}.pdf`);
     }
 }

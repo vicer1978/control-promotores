@@ -31,6 +31,9 @@
         .btn-danger { background: var(--danger) !important; }
         
         .grid-tiendas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        
+        /* Badge para tipos de reporte */
+        .type-badge { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -38,8 +41,8 @@
 <div class="sidebar">
     <h2>⚡ StorePulse Admin</h2>
     <button onclick="changeTab(this, loadDashboard)" class="active">🏠 Dashboard</button>
-    <button onclick="changeTab(this, loadReports)">📊 Reportes</button>
-    <button onclick="changeTab(this, loadUsers)">👥 Gestión de Usuarios</button>
+    <button id="btnReports" onclick="changeTab(this, loadReports)">📊 Reportes</button>
+    <button id="btnUsers" onclick="changeTab(this, loadUsers)">👥 Gestión de Usuarios</button>
     <button onclick="changeTab(this, loadCreateUser)">➕ Crear Usuario</button>
     <button onclick="changeTab(this, loadStores)">🏬 Catálogo de Tiendas</button>
     <div style="flex:1"></div>
@@ -69,8 +72,9 @@ async function fetchAPI(url, options = {}) {
             return;
         }
         const contentType = res.headers.get("content-type");
-        if (!res.ok || !contentType || !contentType.includes("application/json")) {
-            throw new Error("Respuesta inválida");
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || "Error en la petición");
         }
         return await res.json();
     } catch (error) {
@@ -115,13 +119,13 @@ async function loadUsers() {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
                     <div>
                         <strong style="font-size: 1.1rem; color: var(--primary);">${u.name}</strong><br>
-                        <small>${u.email} | <b>Rol actual: ${u.role}</b></small>
+                        <small>${u.email} | <b style="color:var(--gold)">${u.role.toUpperCase()}</b></small>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; margin:0; padding:5px; font-size:0.8rem;">
                             <option value="" disabled selected>Cambiar Rol...</option>
-                            <option value="promotor">Promotor (Ruta)</option>
-                            <option value="demostradora">Demostradora (Fijo)</option>
+                            <option value="promotor">Promotor</option>
+                            <option value="demostradora">Demostradora</option>
                             <option value="admin">Admin Agencia</option>
                         </select>
                         <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')" style="padding: 8px 12px; font-size: 0.8rem;">Eliminar</button>
@@ -193,34 +197,36 @@ function loadCreateUser() {
     document.getElementById("content").innerHTML = `
         <div class="card" style="max-width: 500px;">
             <h2>➕ Registrar Nuevo Miembro</h2>
-            <input id="new_name" placeholder="Nombre Completo">
-            <input id="new_email" type="email" placeholder="Correo electrónico">
-            <input id="new_pass" type="password" placeholder="Contraseña temporal">
+            <label><small>Nombre</small></label>
+            <input id="new_name" placeholder="Ej. Ana García">
+            <label><small>Correo</small></label>
+            <input id="new_email" type="email" placeholder="ejemplo@correo.com">
+            <label><small>Contraseña</small></label>
+            <input id="new_pass" type="password" placeholder="Min. 6 caracteres">
+            <label><small>Rol en la empresa</small></label>
             <select id="new_role">
                 <option value="promotor">Promotor (Ruta)</option>
                 <option value="demostradora">Demostradora (Fijo)</option>
                 <option value="admin">Administrador de Agencia</option>
             </select>
-            <button class="btn-action" onclick="createUser()" style="width: 100%; margin-top: 15px;">REGISTRAR USUARIO</button>
+            <button class="btn-action" id="btnCreate" onclick="createUser()" style="width: 100%; margin-top: 15px;">REGISTRAR USUARIO</button>
         </div>`;
 }
 
-// CORREGIDO: Ahora incluye agencyId para evitar el error de "AgencyID no encontrado"
 async function createUser() {
+    const btn = document.getElementById("btnCreate");
     const name = document.getElementById("new_name").value;
     const email = document.getElementById("new_email").value;
     const password = document.getElementById("new_pass").value;
     const role = document.getElementById("new_role").value;
+    const currentAgencyId = localStorage.getItem("agencyId");
 
-    if(!name || !email || !password) return alert("Faltan datos");
+    if(!name || !email || !password) return alert("Por favor, llena todos los campos.");
 
-    const data = {
-        name,
-        email,
-        password,
-        role,
-        agencyId: localStorage.getItem("agencyId") // Envía el ID de la agencia actual
-    };
+    btn.innerText = "PROCESANDO...";
+    btn.disabled = true;
+
+    const data = { name, email, password, role, agencyId: currentAgencyId };
 
     try {
         await fetchAPI(`${BACKEND_URL}/users`, {
@@ -229,48 +235,89 @@ async function createUser() {
             body: JSON.stringify(data)
         });
         alert("Usuario Creado ✅");
-        loadUsers();
-    } catch (err) { alert("Error al crear usuario"); }
+        // Forzar recarga de pestaña de usuarios para ver el nuevo
+        const btnUsers = document.getElementById("btnUsers");
+        changeTab(btnUsers, loadUsers);
+    } catch (err) { 
+        alert("❌ Error: " + err.message); 
+        btn.innerText = "REGISTRAR USUARIO";
+        btn.disabled = false;
+    }
 }
 
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
+        // Si no hay agencyId en memoria, no podemos filtrar
+        if(!agencyId) throw new Error("ID de Agencia no encontrado");
+
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
         let html = `<h2>📊 Reportes Recientes</h2>`;
+        
         if(!reports || reports.length === 0) {
-            html += "<p>No hay reportes hoy.</p>";
+            html += `
+                <div class="card" style="text-align:center; padding: 40px;">
+                    <p style="color:#64748b">No se encontraron reportes registrados para esta agencia.</p>
+                </div>`;
         } else {
+            // Invertir para ver los más nuevos primero
             reports.slice().reverse().forEach(r => {
+                const user = r.userId?.name || 'Usuario desconocido';
+                const store = r.storeId?.name || 'Tienda no especificada';
+                const date = new Date(r.createdAt).toLocaleString();
+                const tipo = r.type || 'General';
+                const detalle = r.articulo || r.comentarios || r.observaciones || 'Sin detalles adicionales';
+
                 html += `
                 <div class="card">
-                    <b>${r.userId?.name || 'User'} - ${r.storeId?.name || 'Tienda'}</b><br>
-                    <small>${new Date(r.createdAt).toLocaleString()}</small>
-                    <p>Tipo: ${r.type} | Art: ${r.articulo || 'N/A'}</p>
+                    <div style="display:flex; justify-content:space-between;">
+                        <b>${user}</b>
+                        <span class="type-badge">${tipo}</span>
+                    </div>
+                    <div style="margin-top:5px; color: var(--primary); font-weight:500;">📍 ${store}</div>
+                    <small style="color:#94a3b8">${date}</small>
+                    <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+                    <p style="margin:0; font-size:0.9rem; color:#475569">
+                        <strong>Info:</strong> ${detalle}
+                    </p>
                 </div>`;
             });
         }
         document.getElementById("content").innerHTML = html;
     } catch (error) {
-        document.getElementById("content").innerHTML = "Error al cargar reportes.";
+        document.getElementById("content").innerHTML = `
+            <div class="card" style="border-left: 5px solid var(--danger);">
+                <h3>⚠️ Error al cargar reportes</h3>
+                <p>${error.message}</p>
+            </div>`;
     }
 }
 
 async function loadStores() {
     try {
         const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-        let html = `<h2>🏬 Catálogo</h2><div class="grid-tiendas">`;
+        let html = `<h2>🏬 Catálogo de Tiendas</h2><div class="grid-tiendas">`;
         stores.forEach(s => {
-            html += `<div class="card"><strong>${s.name}</strong><br><small>${s.address}</small></div>`;
+            html += `<div class="card"><strong>${s.name}</strong><br><small>${s.address || 'Sin dirección'}</small></div>`;
         });
         document.getElementById("content").innerHTML = html + `</div>`;
     } catch (err) { alert("Error al cargar tiendas"); }
 }
 
-async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); loadUsers(); } }
+async function deleteUser(id) { 
+    if(confirm("¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.")) { 
+        await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:"DELETE"}); 
+        loadUsers(); 
+    } 
+}
+
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 
-window.onload = () => { loadUserInfo(); loadDashboard(); };
+window.onload = () => { 
+    if(!userId) window.location.href = "login.html";
+    loadUserInfo(); 
+    loadDashboard(); 
+};
 </script>
 
 </body>

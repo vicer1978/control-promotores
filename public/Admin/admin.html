@@ -2,47 +2,40 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>StorePulse Admin - Reporte Integral</title>
+    <title>StorePulse Admin - Control Total</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    
     <style>
-        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; }
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; }
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
-        .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-        .sidebar h2 { color: var(--gold); border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.2rem; }
+        .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; }
+        .sidebar h2 { color: var(--gold); border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; }
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; transition: 0.3s; }
-        .sidebar button:hover { background: #1e293b; }
-        .sidebar button.active { background: var(--gold); color: var(--primary); font-weight: bold; }
+        .sidebar button:hover, .sidebar button.active { background: #1e293b; color: var(--gold); }
         .main { flex:1; padding:25px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; }
-        .store-list { display:flex; gap:10px; margin-top: 15px; }
-        .store-column { flex:1; min-height:120px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
-        .store-item { background:white; margin:8px 0; padding:10px; border-radius:6px; cursor:grab; border: 1px solid #e2e8f0; font-size: 0.85rem; }
-        .badge-role { background:#e2e8f0; padding:2px 8px; border-radius:4px; font-size:11px; margin-left:10px; font-weight:bold; color: var(--primary); }
-        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; background: #f8fafc; padding: 10px; border-radius: 8px; }
-        .data-item { font-size: 0.85rem; color: #475569; }
-        .data-item b { color: #0f172a; }
+        .btn-danger { background: var(--danger); }
+        input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; background: #f8fafc; padding: 10px; border-radius: 8px; }
+        .store-list { display:flex; gap:10px; margin-top: 10px; }
+        .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
+        .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <h2>⚡ StorePulse Admin</h2>
-    <button onclick="changeTab(this, loadDashboard)" class="active">🏠 Dashboard</button>
-    <button onclick="changeTab(this, loadReports)">📊 Reportes</button>
-    <button onclick="changeTab(this, loadUsers)">👥 Usuarios y Rutas</button>
-    <button onclick="changeTab(this, loadCreateUser)">➕ Crear Usuario</button>
-    <button onclick="changeTab(this, loadStores)">🏬 Tiendas</button>
+    <h2>⚡ StorePulse</h2>
+    <button onclick="loadDashboard()">🏠 Dashboard</button>
+    <button onclick="loadReports()">📊 Reportes</button>
+    <button onclick="loadUsers()">👥 Usuarios y Rutas</button>
+    <button onclick="loadStores()">🏬 Tiendas</button>
     <div style="flex:1"></div>
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
 
 <div class="main">
-    <div id="userInfo" style="margin-bottom:20px; font-weight: 800; font-size: 1.1rem; color: var(--primary);"></div>
+    <div id="userInfo" style="margin-bottom:20px; font-weight: 800; color: var(--primary);"></div>
     <div id="content"></div>
 </div>
 
@@ -50,49 +43,29 @@
 const BACKEND_URL = "https://storepulse.onrender.com";
 const agencyId = localStorage.getItem("agencyId");
 const userId = localStorage.getItem("userId");
-const userName = localStorage.getItem("userName") || "Administrador";
-
-let allReportsRaw = [];
-let cachedUsers = [];
-let allStores = [];
-let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
-    options.headers = { ...(options.headers || {}), "userId": userId };
+    options.headers = { ...(options.headers || {}), "userId": userId, "Content-Type": "application/json" };
     const res = await fetch(url, options);
     return res.json();
 }
 
-function changeTab(btn, callback) {
-    document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    callback();
-}
-
-// --- SECCIÓN REPORTES (VISUALIZACIÓN DE TODOS LOS DATOS) ---
+// --- REPORTES: CORRECCIÓN DE CAMPOS (INVENTARIOS Y COMENTARIOS) ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando datos de campo...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando información de campo...</h3>";
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
-    allReportsRaw = reports || [];
-
-    const stores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
-    const users = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
-
+    allReportsRaw = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
+    
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Filtro de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
-                <div><label>Desde:</label><input type="date" id="dateFrom"></div>
-                <div><label>Hasta:</label><input type="date" id="dateTo"></div>
-                <div><label>Tienda:</label><select id="fStore"><option value="all">Todas</option>${stores.map(s=>`<option value="${s.toLowerCase()}">${s}</option>`)}</select></div>
-                <div><label>Rol:</label><select id="fRole"><option value="all">Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select></div>
-                <div><label>Usuario:</label><select id="fUser"><option value="all">Todos</option>${users.map(u=>`<option value="${u.toLowerCase()}">${u}</option>`)}</select></div>
-                <div style="display:flex; align-items:flex-end;"><button onclick="filterReports()" class="btn-action" style="width:100%;">Filtrar</button></div>
+            <h2>📊 Filtro de Actividades</h2>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
+                <input type="date" id="dateFrom">
+                <input type="date" id="dateTo">
+                <select id="fRole"><option value="all">Todos los Roles</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
+                <button onclick="filterReports()" class="btn-action">Filtrar</button>
             </div>
-            <div style="margin-top:15px; display:flex; gap:10px;">
-                <button onclick="exportExcel()" class="btn-action" style="background:#16a34a;">Exportar a Excel (Datos Completos)</button>
-            </div>
+            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width: 100%;">Exportar Datos Crudos (Excel)</button>
         </div>
         <div id="reportList"></div>`;
     renderList(allReportsRaw);
@@ -100,114 +73,50 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    if(!data.length) return container.innerHTML = "<div class='card'>No se encontraron registros.</div>";
-    
-    container.innerHTML = `<div style="padding:10px;"><b>Registros en pantalla: ${data.length}</b></div>` + 
-    data.map(r => {
-        let role = (r.userId?.role || "").toLowerCase().trim();
-        if(!role || role === "sin rol") {
-            const uMatch = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-            role = uMatch ? uMatch.role : "Sin Rol";
-        }
-
-        return `
+    container.innerHTML = data.map(r => `
         <div class="card" style="border-left: 5px solid var(--primary);">
-            <div style="display:flex; justify-content:space-between;">
-                <b>${(r.userId?.name || '---').toUpperCase()}</b>
-                <span class="badge-role">${role.toUpperCase()}</span>
-            </div>
-            <div style="margin: 5px 0; font-weight:bold; color:var(--primary);">📍 ${r.storeId?.name || '---'}</div>
-            <small>⏰ ${new Date(r.createdAt).toLocaleString()}</small>
-            
+            <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <span style="color:var(--primary)">📍 ${r.storeId?.name || 'TIENDA NO REGISTRADA'}</span><br>
+            <small>📅 ${new Date(r.createdAt).toLocaleString()}</small>
             <div class="data-grid">
-                <div class="data-item"><b>Producto:</b> ${(r.articulo || r.comentarios || '---').toUpperCase()}</div>
-                <div class="data-item"><b>Cant/Venta:</b> ${r.cantidad || 0}</div>
-                <div class="data-item"><b>Inv. Inicial:</b> ${r.inventarioInicial || '-'}</div>
-                <div class="data-item"><b>Inv. Final:</b> ${r.inventarioFinal || '-'}</div>
-                <div class="data-item"><b>Precio:</b> ${r.precio ? '$'+r.precio : '-'}</div>
-                <div class="data-item"><b>Precio Comp:</b> ${r.precioCompetencia ? '$'+r.precioCompetencia : '-'}</div>
-                <div class="data-item" style="grid-column: 1 / -1;"><b>Observaciones:</b> ${r.observaciones || 'Sin comentarios'}</div>
+                <div><b>Producto:</b> ${r.articulo || r.comentarios || '-'}</div>
+                <div><b>Venta:</b> ${r.cantidad || 0}</div>
+                <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
+                <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
+                <div><b>Precio:</b> $${r.precio || 0}</div>
+                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; pt: 5px;">
+                    <b>Observaciones/Comentarios:</b> ${r.observaciones || 'Sin comentarios adicionales'}
+                </div>
             </div>
-        </div>`}).join('');
+        </div>`).join('');
 }
 
-function filterReports() {
-    const from = document.getElementById("dateFrom").value;
-    const to = document.getElementById("dateTo").value;
-    const storeSel = document.getElementById("fStore").value.toLowerCase().trim();
-    const roleSel = document.getElementById("fRole").value.toLowerCase().trim();
-    const userSel = document.getElementById("fUser").value.toLowerCase().trim();
-
-    const filtered = allReportsRaw.filter(r => {
-        let mDate = true;
-        if(from && to) {
-            const d = new Date(r.createdAt);
-            const reportDay = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-            mDate = (reportDay >= from && reportDay <= to);
-        }
-        const mStore = (storeSel === "all") || (r.storeId?.name || "").toLowerCase().includes(storeSel);
-        const mUser = (userSel === "all") || (r.userId?.name || "").toLowerCase().includes(userSel);
-        
-        let currentRole = (r.userId?.role || "").toLowerCase().trim();
-        if (!currentRole || currentRole === "sin rol") {
-            const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-            if (u) currentRole = u.role.toLowerCase();
-        }
-        const mRole = (roleSel === "all") || (currentRole === roleSel);
-
-        return mDate && mStore && mUser && mRole;
-    });
-    renderList(filtered);
-}
-
-// --- EXPORTACIÓN RAW (SIN TOTALIZAR, SOLO DATOS) ---
 function exportExcel() {
-    const roleSel = document.getElementById("fRole").value.toLowerCase();
-    
-    // Filtramos lo que está actualmente seleccionado
-    const dataToExport = allReportsRaw.filter(r => {
-        let currentRole = (r.userId?.role || "").toLowerCase().trim();
-        if (!currentRole || currentRole === "sin rol") {
-            const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-            if (u) currentRole = u.role.toLowerCase();
-        }
-        return (roleSel === "all" || currentRole === roleSel);
-    });
-
-    const excelData = dataToExport.map(r => {
-        let role = (r.userId?.role || "").toLowerCase().trim();
-        if(!role || role === "sin rol") {
-            const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-            role = u ? u.role : "Sin Rol";
-        }
-
-        return {
-            "FECHA": new Date(r.createdAt).toLocaleDateString(),
-            "HORA": new Date(r.createdAt).toLocaleTimeString(),
-            "USUARIO": (r.userId?.name || '').toUpperCase(),
-            "ROL": role.toUpperCase(),
-            "TIENDA": (r.storeId?.name || '').toUpperCase(),
-            "ARTICULO / PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
-            "CANTIDAD / VENTA": r.cantidad || 0,
-            "INVENTARIO INICIAL": r.inventarioInicial || 0,
-            "INVENTARIO FINAL": r.inventarioFinal || 0,
-            "PRECIO": r.precio || 0,
-            "PRECIO COMPETENCIA": r.precioCompetencia || 0,
-            "OBSERVACIONES": r.observaciones || ""
-        };
-    });
-
+    const excelData = allReportsRaw.map(r => ({
+        "FECHA": new Date(r.createdAt).toLocaleDateString(),
+        "HORA": new Date(r.createdAt).toLocaleTimeString(),
+        "USUARIO": (r.userId?.name || '').toUpperCase(),
+        "TIENDA": (r.storeId?.name || 'N/A').toUpperCase(),
+        "PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
+        "CANTIDAD": r.cantidad || 0,
+        "INV INICIAL": r.inventarioInicial || 0,
+        "INV FINAL": r.inventarioFinal || 0,
+        "PRECIO": r.precio || 0,
+        "PRECIO COMP": r.precioCompetencia || 0,
+        "OBSERVACIONES": r.observaciones || ""
+    }));
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Datos_Crudos");
-    XLSX.writeFile(wb, `Reporte_StorePulse_Completo.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Campo");
+    XLSX.writeFile(wb, `Reporte_StorePulse_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-// --- MANTENIMIENTO DE FUNCIONES EXISTENTES (USUARIOS Y TIENDAS) ---
+// --- USUARIOS: ELIMINAR Y CAMBIAR ROL ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Usuarios y Rutas</h2>`;
+    let html = `<h2>👥 Gestión de Usuarios</h2>
+    <button class="btn-action" onclick="showCreateUser()">+ Crear Nuevo Usuario</button><br><br>`;
+    
     cachedUsers.forEach(u => {
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
@@ -215,16 +124,21 @@ async function loadUsers() {
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <strong>${u.name.toUpperCase()}</strong>
-                <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto;">
-                    <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-                    <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-                </select>
+                <div style="display:flex; gap:10px;">
+                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto;">
+                        <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                        <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+                    </select>
+                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Eliminar</button>
+                </div>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)">
+                    <small>TIENDAS DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>RUTA</small>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)">
+                    <small>RUTA ASIGNADA</small>
                     ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -233,15 +147,49 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+// --- TIENDAS: REGISTRO CON COORDENADAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    document.getElementById("content").innerHTML = `<h2>🏬 Tiendas</h2><div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">${allStores.map(s => `<div class="card"><b>${s.name}</b></div>`).join('')}</div>`;
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Registrar Nueva Sucursal</h2>
+            <input id="sn" placeholder="Nombre de la Tienda (ej: Walmart El Sauz)">
+            <div style="display:flex; gap:10px;">
+                <input id="slat" placeholder="Latitud">
+                <input id="slon" placeholder="Longitud">
+                <button class="btn-action" onclick="getCurrentLocation()" style="background:#64748b;">📍 Mi Ubicación</button>
+            </div>
+            <button class="btn-action" onclick="saveStore()" style="width:100%; margin-top:10px;">Guardar en Base de Datos</button>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;">
+            ${allStores.map(s => `<div class="card">
+                <b>${s.name}</b><br>
+                <small style="color:gray;">Coordenadas: ${s.lat || 0}, ${s.lon || 0}</small>
+            </div>`).join('')}
+        </div>`;
 }
 
-async function updateUserRole(uId, role) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({role}) }); loadUsers(); }
-function loadCreateUser() { document.getElementById("content").innerHTML = `<div class="card" style="max-width:400px;"><h2>➕ Nuevo Usuario</h2><input id="un" placeholder="Nombre"><input id="ue" placeholder="Email"><input id="up" type="password" placeholder="Contraseña"><select id="ur"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select><button class="btn-action" onclick="saveUser()" style="width:100%; margin-top:10px;">Guardar</button></div>`; }
-async function saveUser() { await fetchAPI(`${BACKEND_URL}/users`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name: document.getElementById("un").value, email: document.getElementById("ue").value, password: document.getElementById("up").value, role: document.getElementById("ur").value, agencyId }) }); loadUsers(); }
+function getCurrentLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            document.getElementById("slat").value = pos.coords.latitude;
+            document.getElementById("slon").value = pos.coords.longitude;
+        }, () => alert("No se pudo obtener la ubicación. Activa el GPS."));
+    }
+}
 
+async function saveStore() {
+    const name = document.getElementById("sn").value;
+    const lat = document.getElementById("slat").value;
+    const lon = document.getElementById("slon").value;
+    if(!name) return alert("El nombre es obligatorio");
+    await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name, lat, lon, agencyId }) });
+    loadStores();
+}
+
+// Funciones lógicas de soporte
+async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
+async function deleteUser(id) { if(confirm("¿Estás seguro? Esta acción borrará al usuario y sus rutas.")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -250,13 +198,16 @@ async function dropStore(e, uId, type) {
     let stores = (user.stores || []).map(s => s._id || s);
     if(type === 'assign') { if(!stores.includes(draggedStore)) stores.push(draggedStore); }
     else { stores = stores.filter(id => id !== draggedStore); }
-    await fetchAPI(`${BACKEND_URL}/users/${uId}/stores`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({stores}) });
+    await fetchAPI(`${BACKEND_URL}/users/${uId}/stores`, { method: "PUT", body: JSON.stringify({stores}) });
     loadUsers();
 }
 
-function loadDashboard() { document.getElementById("content").innerHTML = `<div class="card"><h1>StorePulse Admin</h1><p>Sistema Operativo Activo.</p></div>`; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Panel de Administración StorePulse</h1><p>Selecciona una opción del menú para comenzar.</p>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
-window.onload = () => { document.getElementById("userInfo").innerText = `👤 ${userName}`; loadDashboard(); };
+window.onload = () => { 
+    document.getElementById("userInfo").innerText = `👤 ${localStorage.getItem("userName") || 'Administrador'}`;
+    loadDashboard(); 
+};
 </script>
 </body>
 </html>

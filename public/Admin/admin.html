@@ -92,7 +92,7 @@ function loadDashboard() {
         </div>`;
 }
 
-// --- GESTIÓN DE USUARIOS ---
+// --- GESTIÓN DE USUARIOS (Sin cambios) ---
 async function loadUsers() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
@@ -201,51 +201,62 @@ async function createUser() {
     } catch (err) { alert("❌ Error: " + err.message); }
 }
 
-// --- REPORTES CON FILTROS DUALES Y CONSOLIDACIÓN ---
+// --- SECCIÓN DE REPORTES (CORREGIDA) ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando reportes...</h3>";
         const currentAgencyId = localStorage.getItem("agencyId") || localStorage.getItem("activeAgencyId");
         const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${currentAgencyId}`);
         allReportsRaw = reports; 
-        renderReportInterface(reports);
-    } catch (error) { document.getElementById("content").innerHTML = `<div class="card"><h3>⚠️ Error</h3><p>${error.message}</p></div>`; }
-}
+        
+        // Creamos la estructura fija de filtros
+        const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
+        const uniqueUsers = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
 
-function renderReportInterface(reportsToShow) {
-    const content = document.getElementById("content");
-    const uniqueStores = [...new Set(allReportsRaw.map(r => r.storeId?.name).filter(Boolean))];
-    const uniqueUsers = [...new Set(allReportsRaw.map(r => r.userId?.name).filter(Boolean))];
-
-    let html = `
-        <div class="report-controls">
-            <h2 style="margin-top:0;">📊 Reporte de Actividades</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:15px; align-items: end;">
-                <div><label style="font-size:12px; font-weight:bold;">Desde:</label><input type="date" id="dateFrom" style="margin:0;"></div>
-                <div><label style="font-size:12px; font-weight:bold;">Hasta:</label><input type="date" id="dateTo" style="margin:0;"></div>
-                <div><label style="font-size:12px; font-weight:bold;">Tienda:</label>
-                    <select id="filterStore" style="margin:0;">
-                        <option value="all">Todas</option>
-                        ${uniqueStores.map(s => `<option value="${s}">${s}</option>`).join('')}
-                    </select>
-                </div>
-                <div><label style="font-size:12px; font-weight:bold;">Usuario:</label>
-                    <select id="filterUser" style="margin:0;">
-                        <option value="all">Todos</option>
-                        ${uniqueUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
-                    </select>
-                </div>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="filterReports()" class="btn-action">Filtrar</button>
-                    <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a;">Excel</button>
-                    <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626;">PDF</button>
+        let html = `
+            <div class="report-controls">
+                <h2 style="margin-top:0;">📊 Reporte de Actividades</h2>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:15px; align-items: end;">
+                    <div><label style="font-size:12px; font-weight:bold;">Desde:</label><input type="date" id="dateFrom" style="margin:0;"></div>
+                    <div><label style="font-size:12px; font-weight:bold;">Hasta:</label><input type="date" id="dateTo" style="margin:0;"></div>
+                    <div><label style="font-size:12px; font-weight:bold;">Tienda:</label>
+                        <select id="filterStore" style="margin:0;">
+                            <option value="all">Todas</option>
+                            ${uniqueStores.map(s => `<option value="${s}">${s}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label style="font-size:12px; font-weight:bold;">Usuario:</label>
+                        <select id="filterUser" style="margin:0;">
+                            <option value="all">Todos</option>
+                            ${uniqueUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="filterReports()" class="btn-action">Filtrar</button>
+                        <button onclick="exportConsolidated('excel')" class="btn-action" style="background:#16a34a;">Excel</button>
+                        <button onclick="exportConsolidated('pdf')" class="btn-action" style="background:#dc2626;">PDF</button>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="reportsContainer">`;
+            <div id="reportsListContainer"></div>`; // Aquí se inyectarán solo los resultados
 
+        document.getElementById("content").innerHTML = html;
+        
+        // Renderizamos la lista inicial (todos)
+        renderReportsList(reports);
+        
+    } catch (error) { 
+        document.getElementById("content").innerHTML = `<div class="card"><h3>⚠️ Error</h3><p>${error.message}</p></div>`; 
+    }
+}
+
+// Nueva función que solo actualiza los resultados sin borrar los inputs
+function renderReportsList(reportsToShow) {
+    const listContainer = document.getElementById("reportsListContainer");
+    let html = "";
+    
     if(!reportsToShow || reportsToShow.length === 0) {
-        html += `<div class="card" style="text-align:center;"><p>No se encontraron registros.</p></div>`;
+        html = `<div class="card" style="text-align:center;"><p>No se encontraron registros.</p></div>`;
     } else {
         [...reportsToShow].reverse().forEach(r => {
             html += `
@@ -258,10 +269,9 @@ function renderReportInterface(reportsToShow) {
             </div>`;
         });
     }
-    content.innerHTML = html + "</div>";
+    listContainer.innerHTML = html;
 }
 
-// CORRECCIÓN AQUÍ: Función para que reconozca los reportes de HOY
 function filterReports() {
     const fromVal = document.getElementById("dateFrom").value;
     const toVal = document.getElementById("dateTo").value;
@@ -270,7 +280,6 @@ function filterReports() {
 
     if (!fromVal || !toVal) return alert("Selecciona rango de fechas");
 
-    // "T00:00:00" y "T23:59:59" aseguran que se incluya todo el día, independientemente de la zona horaria
     const start = new Date(fromVal + "T00:00:00"); 
     const end = new Date(toVal + "T23:59:59");
 
@@ -281,12 +290,10 @@ function filterReports() {
         const matchUser = userSel === "all" || r.userId?.name === userSel;
         return matchDate && matchStore && matchUser;
     });
-    
-    if(filtered.length === 0) alert("No se encontraron registros con esos filtros.");
-    renderReportInterface(filtered);
+
+    renderReportsList(filtered);
 }
 
-// CORRECCIÓN AQUÍ: Función de exportación para que también reconozca el filtrado de HOY
 function exportConsolidated(format) {
     const fromVal = document.getElementById("dateFrom").value;
     const toVal = document.getElementById("dateTo").value;
@@ -306,7 +313,7 @@ function exportConsolidated(format) {
         return matchDate && matchStore && matchUser;
     });
 
-    if (filtered.length === 0) return alert("No hay datos para exportar en este rango");
+    if (filtered.length === 0) return alert("No hay datos para exportar");
 
     const grouped = {};
     filtered.forEach(r => {

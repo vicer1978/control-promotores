@@ -261,43 +261,52 @@ function renderReportInterface(reportsToShow) {
     content.innerHTML = html + "</div>";
 }
 
+// CORRECCIÓN AQUÍ: Función para que reconozca los reportes de HOY
 function filterReports() {
-    const from = document.getElementById("dateFrom").value;
-    const to = document.getElementById("dateTo").value;
+    const fromVal = document.getElementById("dateFrom").value;
+    const toVal = document.getElementById("dateTo").value;
     const storeSel = document.getElementById("filterStore").value;
     const userSel = document.getElementById("filterUser").value;
 
-    if (!from || !to) return alert("Selecciona rango de fechas");
-    const start = new Date(from); start.setHours(0,0,0,0);
-    const end = new Date(to); end.setHours(23,59,59,999);
+    if (!fromVal || !toVal) return alert("Selecciona rango de fechas");
+
+    // "T00:00:00" y "T23:59:59" aseguran que se incluya todo el día, independientemente de la zona horaria
+    const start = new Date(fromVal + "T00:00:00"); 
+    const end = new Date(toVal + "T23:59:59");
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        return d >= start && d <= end && 
-               (storeSel === "all" || r.storeId?.name === storeSel) &&
-               (userSel === "all" || r.userId?.name === userSel);
+        const matchDate = d >= start && d <= end;
+        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
+        const matchUser = userSel === "all" || r.userId?.name === userSel;
+        return matchDate && matchStore && matchUser;
     });
+    
+    if(filtered.length === 0) alert("No se encontraron registros con esos filtros.");
     renderReportInterface(filtered);
 }
 
+// CORRECCIÓN AQUÍ: Función de exportación para que también reconozca el filtrado de HOY
 function exportConsolidated(format) {
-    const from = document.getElementById("dateFrom").value;
-    const to = document.getElementById("dateTo").value;
+    const fromVal = document.getElementById("dateFrom").value;
+    const toVal = document.getElementById("dateTo").value;
     const storeSel = document.getElementById("filterStore").value;
     const userSel = document.getElementById("filterUser").value;
 
-    if (!from || !to) return alert("Selecciona fechas para exportar");
-    const start = new Date(from); start.setHours(0,0,0,0);
-    const end = new Date(to); end.setHours(23,59,59,999);
+    if (!fromVal || !toVal) return alert("Selecciona fechas para exportar");
+    
+    const start = new Date(fromVal + "T00:00:00");
+    const end = new Date(toVal + "T23:59:59");
 
     const filtered = allReportsRaw.filter(r => {
         const d = new Date(r.createdAt);
-        return d >= start && d <= end && 
-               (storeSel === "all" || r.storeId?.name === storeSel) &&
-               (userSel === "all" || r.userId?.name === userSel);
+        const matchDate = d >= start && d <= end;
+        const matchStore = storeSel === "all" || r.storeId?.name === storeSel;
+        const matchUser = userSel === "all" || r.userId?.name === userSel;
+        return matchDate && matchStore && matchUser;
     });
 
-    if (filtered.length === 0) return alert("No hay datos");
+    if (filtered.length === 0) return alert("No hay datos para exportar en este rango");
 
     const grouped = {};
     filtered.forEach(r => {
@@ -329,13 +338,13 @@ function exportConsolidated(format) {
         const ws = XLSX.utils.json_to_sheet(tableData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-        XLSX.writeFile(wb, `Reporte_${from}.xlsx`);
+        XLSX.writeFile(wb, `Reporte_${fromVal}.xlsx`);
     } else {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('l', 'pt', 'a4');
         doc.text("Reporte Consolidado StorePulse", 40, 40);
         doc.autoTable({ head: [Object.keys(tableData[0])], body: tableData.map(Object.values), startY: 60, styles: { fontSize: 8 } });
-        doc.save(`Reporte_${from}.pdf`);
+        doc.save(`Reporte_${fromVal}.pdf`);
     }
 }
 

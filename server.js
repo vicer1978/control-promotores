@@ -41,7 +41,6 @@ mongoose.connect(process.env.MONGO_URI)
 
 // --- Middlewares de Autenticación ---
 
-// Auth General (Mejorado para evitar errores de cast ID)
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
@@ -58,7 +57,6 @@ async function auth(req, res, next) {
     }
 }
 
-// Auth Exclusiva Super Admin
 async function authSuper(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId;
@@ -114,7 +112,6 @@ app.get("/super/users", authSuper, async (req, res) => {
 
 // --- RUTAS DE USUARIOS Y TIENDAS ---
 
-// NUEVA RUTA: Obtener usuario específico con tiendas (CRUCIAL PARA EL DASHBOARD)
 app.get("/users/:id", auth, async (req, res) => {
     try {
         const user = await User.findById(req.params.id).populate('stores');
@@ -140,18 +137,55 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
 });
 
+// --- GESTIÓN DE TIENDAS (AGREGADO Y CORREGIDO) ---
+
 app.get("/stores", auth, async (req, res) => {
-    const stores = await Store.find();
+    const stores = await Store.find().sort({ name: 1 });
     res.json(stores);
 });
 
+// RUTA PARA CREAR TIENDA (NUEVA)
+app.post("/stores", auth, async (req, res) => {
+    try {
+        const store = new Store(req.body);
+        await store.save();
+        res.status(201).json({ message: "Tienda guardada con éxito", store });
+    } catch (err) {
+        res.status(500).json({ error: "Error al guardar la tienda" });
+    }
+});
+
+// RUTA PARA ELIMINAR TIENDA (NUEVA)
+app.delete("/stores/:id", auth, async (req, res) => {
+    try {
+        await Store.findByIdAndDelete(req.params.id);
+        res.json({ message: "Tienda eliminada" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al eliminar tienda" });
+    }
+});
+
 // --- OPERACIONES (CHECKIN / REPORTES) ---
+
 app.post("/checkin", auth, async (req, res) => {
     try {
         const newCheckin = new Checkin({ ...req.body, userId: req.user._id, agencyId: req.user.agencyId });
         await newCheckin.save();
         res.json({ message: "Check-in registrado" });
     } catch (err) { res.status(500).json({ error: "Error en check-in" }); }
+});
+
+// RUTA PARA OBTENER REPORTES POR AGENCIA (NUEVA)
+app.get("/reports/agency/:agencyId", auth, async (req, res) => {
+    try {
+        const reports = await Report.find({ agencyId: req.params.agencyId })
+            .populate('userId', 'name')
+            .populate('storeId', 'name')
+            .sort({ createdAt: -1 });
+        res.json(reports);
+    } catch (err) {
+        res.status(500).json({ error: "Error al cargar reportes de la agencia" });
+    }
 });
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
@@ -169,7 +203,6 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
 });
 
 // --- MANEJO DE RUTAS FRONTEND (SPA) ---
-// Estas rutas deben ir DESPUÉS de todas las rutas de la API
 
 app.get("/admin/super", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "super-admin.html"));
@@ -183,9 +216,7 @@ app.get("/dashboard", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "dashboard.html"));
 });
 
-// El comodín final solo para peticiones que NO sean de API
 app.get(/.*/, (req, res) => {
-    // Si la ruta no existe y no es una llamada a /api, mandamos al login
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 

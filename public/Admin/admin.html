@@ -20,6 +20,7 @@
         .store-list { display:flex; gap:10px; margin-top: 10px; }
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
+        .obs-box { grid-column: 1 / -1; background: #fffbeb; padding: 8px; border-radius: 4px; border: 1px solid #fef3c7; font-size: 0.85rem; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -50,22 +51,22 @@ async function fetchAPI(url, options = {}) {
     return res.json();
 }
 
-// --- REPORTES: CORRECCIÓN DE CAMPOS (INVENTARIOS Y COMENTARIOS) ---
+// --- REPORTES: MAPEO EXACTO DE CAPTURA ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando información de campo...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Sincronizando reportes...</h3>";
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allReportsRaw = await fetchAPI(`${BACKEND_URL}/reports/agency/${agencyId}`);
     
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Filtro de Actividades</h2>
+            <h2>📊 Reporte de Actividades</h2>
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
                 <input type="date" id="dateFrom">
                 <input type="date" id="dateTo">
-                <select id="fRole"><option value="all">Todos los Roles</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
+                <select id="fRole"><option value="all">Roles (Todos)</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
                 <button onclick="filterReports()" class="btn-action">Filtrar</button>
             </div>
-            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width: 100%;">Exportar Datos Crudos (Excel)</button>
+            <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width: 100%;">Descargar Excel (Datos Reales)</button>
         </div>
         <div id="reportList"></div>`;
     renderList(allReportsRaw);
@@ -75,17 +76,18 @@ function renderList(data) {
     const container = document.getElementById("reportList");
     container.innerHTML = data.map(r => `
         <div class="card" style="border-left: 5px solid var(--primary);">
-            <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | <span style="color:var(--primary)">📍 ${r.storeId?.name || 'TIENDA NO REGISTRADA'}</span><br>
-            <small>📅 ${new Date(r.createdAt).toLocaleString()}</small>
+            <div style="display:flex; justify-content:space-between;">
+                <b>${(r.userId?.name || 'S/N').toUpperCase()}</b>
+                <span style="font-size: 0.75rem; color: #64748b;">${new Date(r.createdAt).toLocaleString()}</span>
+            </div>
+            <div style="margin: 5px 0;">📍 <b>${r.storeId?.name || 'TIENDA NUEVA / NO ASIGNADA'}</b></div>
             <div class="data-grid">
-                <div><b>Producto:</b> ${r.articulo || r.comentarios || '-'}</div>
+                <div><b>Articulo:</b> ${r.articulo || r.comentarios || '-'}</div>
                 <div><b>Venta:</b> ${r.cantidad || 0}</div>
                 <div><b>Inv. Inicial:</b> ${r.inventarioInicial || 0}</div>
                 <div><b>Inv. Final:</b> ${r.inventarioFinal || 0}</div>
                 <div><b>Precio:</b> $${r.precio || 0}</div>
-                <div style="grid-column: 1 / -1; border-top: 1px solid #eee; pt: 5px;">
-                    <b>Observaciones/Comentarios:</b> ${r.observaciones || 'Sin comentarios adicionales'}
-                </div>
+                <div class="obs-box"><b>Comentarios:</b> ${r.observaciones || 'Sin observaciones'}</div>
             </div>
         </div>`).join('');
 }
@@ -97,74 +99,37 @@ function exportExcel() {
         "USUARIO": (r.userId?.name || '').toUpperCase(),
         "TIENDA": (r.storeId?.name || 'N/A').toUpperCase(),
         "PRODUCTO": (r.articulo || r.comentarios || '').toUpperCase(),
-        "CANTIDAD": r.cantidad || 0,
+        "VENTA": r.cantidad || 0,
         "INV INICIAL": r.inventarioInicial || 0,
         "INV FINAL": r.inventarioFinal || 0,
-        "PRECIO": r.precio || 0,
+        "PRECIO PROPIO": r.precio || 0,
         "PRECIO COMP": r.precioCompetencia || 0,
         "OBSERVACIONES": r.observaciones || ""
     }));
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Campo");
-    XLSX.writeFile(wb, `Reporte_StorePulse_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte_StorePulse");
+    XLSX.writeFile(wb, `StorePulse_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-// --- USUARIOS: ELIMINAR Y CAMBIAR ROL ---
-async function loadUsers() {
-    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-    let html = `<h2>👥 Gestión de Usuarios</h2>
-    <button class="btn-action" onclick="showCreateUser()">+ Crear Nuevo Usuario</button><br><br>`;
-    
-    cachedUsers.forEach(u => {
-        const assigned = (u.stores || []).map(s => s._id || s);
-        const available = allStores.filter(s => !assigned.includes(s._id));
-        html += `
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong>${u.name.toUpperCase()}</strong>
-                <div style="display:flex; gap:10px;">
-                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto;">
-                        <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-                        <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-                    </select>
-                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Eliminar</button>
-                </div>
-            </div>
-            <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)">
-                    <small>TIENDAS DISPONIBLES</small>
-                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
-                </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)">
-                    <small>RUTA ASIGNADA</small>
-                    ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
-                </div>
-            </div>
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html;
-}
-
-// --- TIENDAS: REGISTRO CON COORDENADAS ---
+// --- GESTIÓN DE TIENDAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>🏬 Registrar Nueva Sucursal</h2>
-            <input id="sn" placeholder="Nombre de la Tienda (ej: Walmart El Sauz)">
+            <h2>🏬 Registro de Tiendas</h2>
+            <input id="sn" placeholder="Nombre de la Tienda">
             <div style="display:flex; gap:10px;">
                 <input id="slat" placeholder="Latitud">
                 <input id="slon" placeholder="Longitud">
-                <button class="btn-action" onclick="getCurrentLocation()" style="background:#64748b;">📍 Mi Ubicación</button>
+                <button class="btn-action" onclick="getCurrentLocation()" style="background:#64748b;">📍 GPS</button>
             </div>
-            <button class="btn-action" onclick="saveStore()" style="width:100%; margin-top:10px;">Guardar en Base de Datos</button>
+            <button class="btn-action" onclick="saveStore()" style="width:100%; margin-top:10px;">Alta de Tienda</button>
         </div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;">
-            ${allStores.map(s => `<div class="card">
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
+            ${allStores.map(s => `<div class="card" style="padding:10px;">
                 <b>${s.name}</b><br>
-                <small style="color:gray;">Coordenadas: ${s.lat || 0}, ${s.lon || 0}</small>
+                <code style="font-size:0.7rem;">${s.lat || 0}, ${s.lon || 0}</code>
             </div>`).join('')}
         </div>`;
 }
@@ -174,7 +139,7 @@ function getCurrentLocation() {
         navigator.geolocation.getCurrentPosition(pos => {
             document.getElementById("slat").value = pos.coords.latitude;
             document.getElementById("slon").value = pos.coords.longitude;
-        }, () => alert("No se pudo obtener la ubicación. Activa el GPS."));
+        }, () => alert("GPS desactivado o no disponible."));
     }
 }
 
@@ -182,14 +147,50 @@ async function saveStore() {
     const name = document.getElementById("sn").value;
     const lat = document.getElementById("slat").value;
     const lon = document.getElementById("slon").value;
-    if(!name) return alert("El nombre es obligatorio");
+    if(!name) return alert("Ingresa el nombre de la tienda");
     await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name, lat, lon, agencyId }) });
     loadStores();
 }
 
-// Funciones lógicas de soporte
+// --- USUARIOS: ELIMINAR Y CAMBIAR ROL ---
+async function loadUsers() {
+    cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+    allStores = await fetchAPI(`${BACKEND_URL}/stores`);
+    let html = `<h2>👥 Usuarios y Roles</h2>
+    <button class="btn-action" onclick="showCreateUser()">+ Nuevo Colaborador</button><br><br>`;
+    
+    cachedUsers.forEach(u => {
+        const assigned = (u.stores || []).map(s => s._id || s);
+        const available = allStores.filter(s => !assigned.includes(s._id));
+        html += `
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>${u.name.toUpperCase()}</strong>
+                <div style="display:flex; gap:10px;">
+                    <select onchange="updateUserRole('${u._id}', this.value)" style="width:auto; height:35px;">
+                        <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                        <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+                    </select>
+                    <button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Eliminar</button>
+                </div>
+            </div>
+            <div class="store-list">
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)">
+                    <small>SIN ASIGNAR</small>
+                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
+                </div>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)">
+                    <small>EN RUTA</small>
+                    ${assigned.map(id => { const s = allStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById("content").innerHTML = html;
+}
+
 async function updateUserRole(id, role) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) }); }
-async function deleteUser(id) { if(confirm("¿Estás seguro? Esta acción borrará al usuario y sus rutas.")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
+async function deleteUser(id) { if(confirm("¿Eliminar usuario? Se perderán sus reportes asociados.")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
 async function dropStore(e, uId, type) {
@@ -202,10 +203,10 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Panel de Administración StorePulse</h1><p>Selecciona una opción del menú para comenzar.</p>"; }
+function loadDashboard() { document.getElementById("content").innerHTML = "<h1>Dashboard StorePulse</h1><p>Sistema de gestión de campo listo.</p>"; }
 function logout() { localStorage.clear(); window.location.href = "login.html"; }
 window.onload = () => { 
-    document.getElementById("userInfo").innerText = `👤 ${localStorage.getItem("userName") || 'Administrador'}`;
+    document.getElementById("userInfo").innerText = `Admin: ${localStorage.getItem("userName") || 'Usuario'}`;
     loadDashboard(); 
 };
 </script>

@@ -8,33 +8,22 @@
     <style>
         :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --danger: #e11d48; --success: #16a34a; --info: #0ea5e9; }
         body { margin:0; font-family: 'Segoe UI', Arial; display:flex; background: var(--bg); height: 100vh; }
-        
-        /* Sidebar */
         .sidebar { width:240px; background: var(--primary); color:white; padding:20px; display:flex; flex-direction:column; }
         .sidebar h2 { color: var(--gold); border-bottom: 1px solid #1e293b; padding-bottom: 10px; margin-bottom: 20px; }
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; }
         .sidebar button:hover, .sidebar button.active { background: #1e293b; color: var(--gold); }
-        
         .main { flex:1; padding:25px; overflow-y: auto; }
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: relative; }
-        
         .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        
         input, select { padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; width: 100%; box-sizing: border-box; }
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; }
-
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-delete { background: #fee2e2; color: #dc2626; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
-
         .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; background: #f8fafc; }
         .report-table th, .report-table td { padding: 8px; border: 1px solid #e2e8f0; text-align: center; }
-        
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         .badge-inv { background: #e0f2fe; color: #0369a1; }
-
         .img-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0; cursor: pointer; }
-        
         .store-list { display:flex; gap:10px; margin-top: 10px; }
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
@@ -59,7 +48,6 @@
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
 let session = { userId: localStorage.getItem("userId"), agencyId: localStorage.getItem("agencyId") };
-
 if (!session.userId) window.location.href = "../login.html";
 
 let allReportsRaw = [];
@@ -135,12 +123,17 @@ function filterReports() {
     const type = document.getElementById("fType").value;
 
     const filtered = allReportsRaw.filter(r => {
-        if (['checkin', 'checkout'].includes(r.reportType)) return false;
+        const rTypeClean = (r.reportType || "").toLowerCase();
+        if (['checkin', 'checkout'].includes(rTypeClean)) return false;
+        
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
-        const matchType = type === "all" || r.reportType === type;
+        
+        // CORRECCIÓN: Filtro de tipo insensible a mayúsculas
+        const matchType = type === "all" || rTypeClean.includes(type.toLowerCase());
+        
         return matchDate && matchUser && matchStore && matchType;
     });
 
@@ -151,9 +144,7 @@ function filterReports() {
             <span class="badge badge-inv">${(r.reportType || 'Gral').toUpperCase()}</span><br>
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
             <table class="report-table">
-                <thead>
-                    <tr><th>Producto</th><th>Inicial</th><th>Resurtido</th><th>Venta</th><th>Final</th></tr>
-                </thead>
+                <thead><tr><th>Producto</th><th>Inicial</th><th>Resurtido</th><th>Venta</th><th>Final</th></tr></thead>
                 <tbody>
                     <tr>
                         <td>${r.articulo || '-'}</td>
@@ -167,8 +158,7 @@ function filterReports() {
             ${r.observaciones ? `<p style="font-size:12px; margin-top:8px;"><b>Nota:</b> ${r.observaciones}</p>` : ''}
             ${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="img-preview" onclick="window.open(this.src)">` : ''}
             <div style="font-size:10px; color:#94a3b8; margin-top:5px;">${new Date(r.createdAt).toLocaleString()}</div>
-        </div>
-    `).join('');
+        </div>`).join('');
 }
 
 function exportExcel() {
@@ -179,12 +169,13 @@ function exportExcel() {
     const type = document.getElementById("fType").value;
 
     const toExport = allReportsRaw.filter(r => {
-        if (['checkin', 'checkout'].includes(r.reportType)) return false;
+        const rTypeClean = (r.reportType || "").toLowerCase();
+        if (['checkin', 'checkout'].includes(rTypeClean)) return false;
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
-        const matchType = type === "all" || r.reportType === type;
+        const matchType = type === "all" || rTypeClean.includes(type.toLowerCase());
         return matchDate && matchUser && matchStore && matchType;
     });
 
@@ -192,24 +183,27 @@ function exportExcel() {
         "FECHA": new Date(r.createdAt).toLocaleDateString(),
         "USUARIO": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
-        "PRODUCTO / ARTÍCULO": r.articulo || "-",
-        "INVENTARIO INICIAL": r.inv_inicial || r.inventarioInicial || 0,
-        "RESURTIDO": r.resurtido || 0,
-        "VENTAS": r.ventas || r.cantidad || 0,
-        "INVENTARIO FINAL": r.inv_final || r.inventarioFinal || 0,
-        "OBSERVACIONES": r.observaciones || r.comentarios || ""
+        "TIPO": (r.reportType || "").toUpperCase(),
+        "PRODUCTO": r.articulo || "-",
+        "INICIAL": r.inv_inicial || 0,
+        "VENTAS": r.ventas || 0,
+        "FINAL": r.inv_final || 0,
+        "OBSERVACIONES": r.observaciones || ""
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte_Semanal");
-    XLSX.writeFile(wb, `StorePulse_Reporte_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Reportes");
+    XLSX.writeFile(wb, `Reporte_StorePulse_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    // CORRECCIÓN: Filtrar reportes que incluyan checkin y checkout
-    const assist = data.filter(r => r.reportType === 'checkin' || r.reportType === 'checkout');
+    // CORRECCIÓN: Filtrado robusto para asistencia
+    const assist = data.filter(r => {
+        const type = (r.reportType || "").toLowerCase();
+        return type === 'checkin' || type === 'checkout';
+    });
     
     document.getElementById("content").innerHTML = `
         <div class="card"><h2>⏰ Registro de Entradas y Salidas</h2></div>
@@ -219,9 +213,9 @@ async function loadAttendance() {
                 <tbody>
                     ${assist.length > 0 ? assist.map(a => `
                         <tr>
-                            <td>${(a.userId?.name || 'Sistema').toUpperCase()}</td>
-                            <td><span class="badge" style="background:${a.reportType==='checkin'?'#dcfce7':'#fee2e2'}">${a.reportType.toUpperCase()}</span></td>
-                            <td>${a.storeId?.name || 'Ruta / General'}</td>
+                            <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
+                            <td><span class="badge" style="background:${a.reportType.toLowerCase()==='checkin'?'#dcfce7':'#fee2e2'}">${a.reportType.toUpperCase()}</span></td>
+                            <td>${a.storeId?.name || 'General / Ruta'}</td>
                             <td>${new Date(a.createdAt).toLocaleString()}</td>
                         </tr>`).join('') : '<tr><td colspan="4">No hay registros de asistencia</td></tr>'}
                 </tbody>

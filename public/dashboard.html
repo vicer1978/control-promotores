@@ -47,7 +47,7 @@
         .store-info small { color: #94a3b8; font-size: 0.85rem; }
         .arrow { color: var(--gold); font-size: 1.2rem; }
 
-        /* SECCIÓN CERRAR TURNO (NUEVO) */
+        /* SECCIÓN CERRAR TURNO */
         .checkout-container {
             margin-top: 30px;
             padding: 20px;
@@ -282,9 +282,14 @@
 
                 const data = await res.json();
                 if (res.ok) {
+                    // LIMPIEZA Y SINCRONIZACIÓN PARA EL REPORTE DIARIO
+                    localStorage.removeItem("dailyReportData"); 
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
+                    
                     alert(`✅ Entrada exitosa en ${selectedStore.name}`);
+                    
+                    // IMPORTANTE: Aquí redirigimos a home.html
                     window.location.href = "./home.html"; 
                 } else {
                     alert("❌ " + (data.error || "Error al marcar entrada"));
@@ -300,7 +305,6 @@
         }, { enableHighAccuracy: true });
     }
 
-    // --- NUEVA FUNCIÓN: FINALIZAR TURNO ---
     async function finalizarTurno() {
         if (!confirm("¿Deseas cerrar tu turno por hoy? Esto marcará tu hora de salida oficial.")) return;
 
@@ -310,7 +314,6 @@
         btn.innerText = "REGISTRANDO SALIDA...";
         btn.disabled = true;
 
-        // Pedimos ubicación para asegurar que están en el punto o al menos registrar dónde cerraron
         navigator.geolocation.getCurrentPosition(async pos => {
             try {
                 const res = await fetch(`${BACKEND_URL}/checkout`, {
@@ -327,7 +330,7 @@
 
                 if (res.ok) {
                     alert("✅ Turno cerrado con éxito. ¡Buen trabajo!");
-                    logout(); // Cerramos sesión automáticamente al terminar jornada
+                    logout();
                 } else {
                     const data = await res.json();
                     alert("❌ Error: " + data.error);
@@ -356,6 +359,5 @@
         window.location.href = "./login.html";
     }
 </script>
-
 </body>
 </html>

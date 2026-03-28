@@ -111,7 +111,6 @@
         const storeName = localStorage.getItem("activeStoreName");
         const activeStoreId = localStorage.getItem("activeStoreId");
 
-        // Seguridad: Si no hay usuario o no hay tienda activa
         if (!userId) {
             window.location.href = "./login.html";
         } else if (!activeStoreId) {
@@ -121,28 +120,22 @@
         document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
         document.getElementById("userRoleBadge").innerText = role.toUpperCase();
 
-        // Configuración de tareas expandida
+        // CONFIGURACIÓN ACTUALIZADA: Se eliminaron los botones redundantes
+        // Ahora "reporte_diario" es el único acceso al mega-formulario de inventario
         const tasks = {
             'demostradora': [
-                { id: 'report', label: 'Reporte Diario', icon: '📋' },
-                { id: 'ventas', label: 'Ventas', icon: '📈' },
-                { id: 'inventarios', label: 'Inventarios', icon: '📦' },
-                { id: 'resurtido', label: 'Resurtido', icon: '🔄' },
+                { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
                 { id: 'ranking', label: 'Degustación', icon: '🍷' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ],
             'promotor': [
-                { id: 'ventas', label: 'Ventas', icon: '📈' },
-                { id: 'inventarios', label: 'Inventarios', icon: '📦' },
-                { id: 'resurtido', label: 'Resurtido', icon: '🔄' },
-                { id: 'precios', label: 'Precios Propios', icon: '💰' },
+                { id: 'reporte_diario', label: 'Inventario y Ventas', icon: '📊' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ]
         };
 
         function renderTasks() {
             const container = document.getElementById("taskContainer");
-            // Si el rol no coincide con el diccionario, carga el de promotor por seguridad
             const userTasks = tasks[role] || tasks['promotor']; 
 
             container.innerHTML = userTasks.map(task => `
@@ -153,14 +146,13 @@
             `).join('');
         }
 
+        // Modificado para que siempre use report.html con el parámetro correcto
         function goTo(pageId) {
-            window.location.href = `./${pageId}.html`;
+            window.location.href = `./report.html?type=${pageId}`;
         }
 
         function finishDay() {
             if(!confirm("¿Deseas salir del panel de esta tienda?")) return;
-            
-            // Liberamos la tienda activa para regresar al selector del Dashboard
             localStorage.removeItem("activeStoreId");
             localStorage.removeItem("activeStoreName");
             window.location.href = "./dashboard.html";

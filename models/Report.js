@@ -4,33 +4,42 @@ const ReportSchema = new mongoose.Schema({
     // --- RELACIONES ---
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
+    // Si manejas agencias, asegúrate de que el userId siempre traiga una vinculada
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency', required: true },
     
     // --- CLASIFICACIÓN ---
     reportType: { 
         type: String, 
         required: true, 
-        // Agregamos 'degustacion' para que coincida con el mapeo del frontend
-        enum: ['ventas', 'degustacion', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
+        // Agregamos 'ranking' porque es el ID que usa tu frontend para Degustación
+        enum: ['ventas', 'ranking', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
     },
     
     // --- DATOS DEL PRODUCTO ---
     articulo: { type: String, default: "N/A" },
-    cantidad: { type: Number, default: 0 }, // Aquí se guardan las "Ventas Realizadas"
-    precio: { type: Number, default: 0 },
     
-    // --- CONTROL DE INVENTARIO (CORREGIDO) ---
+    // --- FLUJO COMPLETO (VENTAS E INVENTARIO) ---
+    // Usar nombres claros ayuda a que el backend procese el "Mega Formulario" sin confusiones
     inv_inicial: { type: Number, default: 0 },
-    resurtido: { type: Number, default: 0 }, // <-- AGREGAR ESTO para el Reporte Diario
-    inv_final: { type: Number, default: 0 },
+    resurtido:   { type: Number, default: 0 }, 
+    cantidad:    { type: Number, default: 0 }, // Ventas Realizadas
+    inv_final:   { type: Number, default: 0 },
+    
+    precio:      { type: Number, default: 0 },
     
     // --- DATOS DE DEGUSTACIÓN / CAMPO ---
-    personas: { type: Number, default: 0 }, 
+    personas: { type: Number, default: 0 }, // Impactos o personas degustadas
     observaciones: { type: String }, 
     
     // --- EVIDENCIA Y TIEMPO ---
     foto_url: { type: String },
-    // Eliminamos 'date' manual porque 'timestamps: true' ya crea 'createdAt'
+
+    // --- GEOLOCALIZACIÓN (Opcional pero RECOMENDADO) ---
+    // Para validar que el reporte se hizo REALMENTE en la tienda
+    location: {
+        lat: Number,
+        lng: Number
+    }
 }, { 
     timestamps: true 
 });

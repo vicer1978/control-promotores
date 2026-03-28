@@ -123,20 +123,33 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
-        // Combinamos req.body con los datos de sesión y la foto
+        // Mapeo dinámico para soportar tanto "comentarios" como "observaciones"
+        const obs = req.body.observaciones || req.body.comentarios || "";
+        
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            // Guardamos la URL de la foto si existe
+            storeId: req.body.storeId, // Aseguramos que se guarde la tienda
+            
+            // Foto
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
-            // Normalizamos campos numéricos para evitar errores de tipo en la DB
+            
+            // Normalización estricta de números para evitar strings en la DB
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
             inv_final: Number(req.body.inv_final) || 0,
             precio: Number(req.body.precio) || 0,
-            observaciones: req.body.observaciones || req.body.comentarios || ""
+            personas: Number(req.body.personas) || 0,
+            
+            observaciones: obs,
+
+            // Guardamos ubicación si el frontend la envía
+            location: (req.body.lat && req.body.lng) ? {
+                lat: Number(req.body.lat),
+                lng: Number(req.body.lng)
+            } : undefined
         };
 
         const report = new Report(reportData);

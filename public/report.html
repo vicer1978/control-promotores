@@ -56,6 +56,19 @@
                 </div>
             </div>
 
+            <div id="group-precios" class="hidden">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Precio Normal ($)</label>
+                        <input type="number" id="precio_normal" step="0.01" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Precio Oferta ($)</label>
+                        <input type="number" id="precio_oferta" step="0.01" value="0">
+                    </div>
+                </div>
+            </div>
+
             <div class="form-group hidden" id="group-cantidad">
                 <label id="label-cantidad">Cantidad General</label>
                 <input type="number" id="cantidad" value="0">
@@ -90,27 +103,35 @@
     if (!userId || userId.length !== 24) window.location.href = "login.html";
 
     const config = {
-    'reporte_diario': { 
-        title: 'Reporte Diario Completo', 
-        fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] 
-    },
-    'ranking': { 
-        title: 'Degustación', 
-        fields: ['group-articulo', 'group-comentarios', 'group-foto'],
-        labelArt: 'Producto Degustado'
-    },
-    'competencia': { 
-        title: 'Competencia', 
-        fields: ['group-articulo', 'group-foto', 'group-comentarios'],
-        labelArt: 'Marca Competencia'
-    }
-};
-
+        'reporte_diario': { 
+            title: 'Reporte Diario Completo', 
+            fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] 
+        },
+        'ranking': { 
+            title: 'Degustación', 
+            fields: ['group-articulo', 'group-comentarios', 'group-foto'],
+            labelArt: 'Producto Degustado'
+        },
+        'competencia': { 
+            title: 'Competencia', 
+            fields: ['group-articulo', 'group-foto', 'group-comentarios'],
+            labelArt: 'Marca Competencia'
+        },
+        'precios': { 
+            title: 'Chequeo de Precios', 
+            fields: ['group-articulo', 'group-precios', 'group-comentarios'],
+            labelArt: 'Marca / Producto'
+        }
+    };
 
     window.onload = () => {
-        const s = config[typeFromUrl] || config['report'];
+        const s = config[typeFromUrl] || config['reporte_diario'];
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
+        
+        // Reset visual
+        document.querySelectorAll('.form-group, #block-demo, #group-precios').forEach(el => el.classList.add('hidden'));
+        
         s.fields.forEach(id => document.getElementById(id)?.classList.remove("hidden"));
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
     };
@@ -140,12 +161,27 @@
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
-        formData.append("reportType", (typeFromUrl === 'reporte_diario') ? 'inventario_completo' : typeFromUrl);
+
+        // --- AJUSTE DE EMERGENCIA PARA EL TIPO ---
+        let finalType = typeFromUrl;
+        if(typeFromUrl === 'reporte_diario') finalType = 'inventario'; 
+        formData.append("reportType", finalType);
+
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
-        formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
-        formData.append("resurtido", document.getElementById("resurtido").value || 0);
-        formData.append("ventas", document.getElementById("ventas").value || 0);
-        formData.append("inv_final", document.getElementById("inv_final").value || 0);
+        
+        // Conversión a números para evitar errores de validación en el servidor
+        formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
+        formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
+        formData.append("ventas", Number(document.getElementById("ventas").value) || 0);
+        formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
+        
+        // Campos para Chequeo de Precios
+        formData.append("precioNormal", Number(document.getElementById("precio_normal")?.value) || 0);
+        formData.append("precioOferta", Number(document.getElementById("precio_oferta")?.value) || 0);
+        
+        // Cantidad genérica (útil para reportes simples de ventas)
+        formData.append("cantidad", Number(document.getElementById("cantidad").value) || Number(document.getElementById("ventas").value) || 0);
+
         formData.append("observaciones", document.getElementById("comentarios").value || "");
 
         const fotoInput = document.getElementById("foto");

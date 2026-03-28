@@ -27,6 +27,7 @@
         .store-list { display:flex; gap:10px; margin-top: 10px; }
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
+        .role-select { width: auto; font-size: 11px; padding: 5px; margin-left: 10px; height: auto; }
     </style>
 </head>
 <body>
@@ -122,12 +123,6 @@ async function loadReports() {
     }
 }
 
-function clearFilters() {
-    ['fStart', 'fEnd'].forEach(id => document.getElementById(id).value = "");
-    ['fType', 'fUser', 'fStore'].forEach(id => document.getElementById(id).value = "all");
-    filterReports();
-}
-
 function filterReports() {
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
@@ -140,6 +135,7 @@ function filterReports() {
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
+        // Nota: Mantenemos la exclusión de asistencia aquí porque tienen su propia sección
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
         const dateObj = new Date(r.createdAt);
@@ -182,6 +178,123 @@ function filterReports() {
         </div>`).join('');
 }
 
+// CORRECCIÓN 1: ASISTENCIA - Asegurar que lea correctamente 'reporte' o 'reportType'
+async function loadAttendance() {
+    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Cargando asistencia...</h2></div>`;
+    try {
+        const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+        const assist = data.filter(r => {
+            const type = (r.reporte || r.reportType || "").toLowerCase().trim();
+            return type.includes('checkin') || type.includes('checkout') || type.includes('asistencia');
+        });
+        
+        document.getElementById("content").innerHTML = `
+            <div class="card"><h2>⏰ Asistencia (Check-In / Out)</h2></div>
+            <div class="card">
+                <table class="report-table">
+                    <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Hora</th></tr></thead>
+                    <tbody>
+                        ${assist.length ? assist.map(a => `<tr>
+                            <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
+                            <td><span class="badge" style="background:${(a.reporte||a.reportType||'').toUpperCase().includes('IN')?'#dcfce7':'#fee2e2'}">
+                                ${(a.reporte||a.reportType||'').toUpperCase()}
+                            </span></td>
+                            <td>${a.storeId?.name || 'General'}</td>
+                            <td>${new Date(a.createdAt).toLocaleString()}</td>
+                        </tr>`).join('') : '<tr><td colspan="4">No hay datos de asistencia registrados</td></tr>'}
+                    </tbody>
+                </table>
+            </div>`;
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// CORRECCIÓN 2: USUARIOS - Agregar Selector de Rol
+async function loadUsers() {
+    const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
+    let html = `<div class="card"><h2>👥 Gestión de Usuarios</h2></div>`;
+    users.forEach(u => {
+        const assigned = (u.stores || []).map(s => s._id || s);
+        const available = stores.filter(s => !assigned.includes(s._id));
+        html += `<div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <b>${u.name.toUpperCase()}</b>
+                    <select class="role-select" onchange="updateUserRole('${u._id}', this.value)">
+                        <option value="user" ${u.role === 'user' ? 'selected' : ''}>Usuario</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                </div>
+                <button onclick="deleteUser('${u._id}')" class="btn-delete">ELIMINAR</button>
+            </div>
+            <div class="store-list">
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
+                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
+                </div>
+                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>ASIGNADAS</small>
+                    ${assigned.map(id => { const s = stores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
+                </div>
+            </div>
+        </div>`;
+    });
+    document.getElementById("content").innerHTML = html;
+}
+
+async function updateUserRole(uId, newRole) {
+    if(confirm(`¿Cambiar rol a ${newRole}?`)) {
+        await fetchAPI(`${BACKEND_URL}/users/${uId}`, { 
+            method: "PUT", 
+            body: JSON.stringify({ role: newRole }) 
+        });
+        alert("Rol actualizado");
+    }
+}
+
+// CORRECCIÓN 3: TIENDAS - Agregar Latitud y Longitud
+async function loadStores() {
+    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Tiendas</h2>
+            <div class="grid-filters">
+                <input id="sN" placeholder="Nombre de Tienda">
+                <input id="sA" placeholder="Dirección Completa">
+                <input id="sLat" placeholder="Latitud (Ej: 19.4326)">
+                <input id="sLon" placeholder="Longitud (Ej: -99.1332)">
+            </div>
+            <button onclick="createStore()" class="btn-action" style="margin-top:10px; width:100%">AGREGAR TIENDA</button>
+        </div>
+        ${stores.map(s => `
+            <div class="card">
+                <div style="display:flex; justify-content:space-between;">
+                    <b>${s.name}</b>
+                    <small style="color:var(--info)">${s.coordinates ? `📍 ${s.coordinates.join(', ')}` : 'Sin GPS'}</small>
+                </div>
+                <small>${s.address}</small>
+            </div>`).join('')}`;
+}
+
+async function createStore() {
+    const body = { 
+        name: document.getElementById("sN").value, 
+        address: document.getElementById("sA").value,
+        coordinates: [
+            parseFloat(document.getElementById("sLat").value || 0),
+            parseFloat(document.getElementById("sLon").value || 0)
+        ]
+    };
+    await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify(body) });
+    loadStores();
+}
+
+// Funciones auxiliares restantes...
+function clearFilters() {
+    ['fStart', 'fEnd'].forEach(id => document.getElementById(id).value = "");
+    ['fType', 'fUser', 'fStore'].forEach(id => document.getElementById(id).value = "all");
+    filterReports();
+}
+
 function exportExcel() {
     const start = document.getElementById("fStart").value;
     const end = document.getElementById("fEnd").value;
@@ -202,13 +315,12 @@ function exportExcel() {
                (typeSel === "all" || rType.includes(typeSel.substring(0, 4)));
     });
 
-    // CAMBIO APLICADO: Se eliminó la columna "TIPO" y se renombraron las cabeceras
     const excelData = toExport.map(r => ({
         "FECHA": new Date(r.createdAt).toLocaleDateString(),
         "NOMBRE": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
         "ARTÍCULO": r.articulo || r.producto || "-",
-        "INV INICIAL": r.inv_inicial || r.inventarioInicial || 0,
+        "INV INCIAL": r.inv_inicial || r.inventarioInicial || 0,
         "RESURTIDO": r.resurtido || 0,
         "VENTAS": r.ventas || r.cantidad || 0,
         "INV FINAL": r.inv_final || r.inventarioFinal || 0,
@@ -219,67 +331,6 @@ function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
     XLSX.writeFile(wb, `Reporte_StorePulse_${new Date().toISOString().split('T')[0]}.xlsx`);
-}
-
-async function loadAttendance() {
-    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    const assist = data.filter(r => {
-        const type = (r.reporte || r.reportType || "").toLowerCase().trim();
-        return type.includes('checkin') || type.includes('checkout');
-    });
-    
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>⏰ Asistencia</h2></div>
-        <div class="card">
-            <table class="report-table">
-                <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Hora</th></tr></thead>
-                <tbody>
-                    ${assist.map(a => `<tr>
-                        <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
-                        <td><span class="badge" style="background:${(a.reporte||'').toUpperCase().includes('IN')?'#dcfce7':'#fee2e2'}">${(a.reporte||a.reportType||'').toUpperCase()}</span></td>
-                        <td>${a.storeId?.name || 'General'}</td>
-                        <td>${new Date(a.createdAt).toLocaleString()}</td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>
-        </div>`;
-}
-
-async function loadUsers() {
-    const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
-    let html = `<div class="card"><h2>👥 Usuarios</h2></div>`;
-    users.forEach(u => {
-        if(u.role === 'admin') return;
-        const assigned = (u.stores || []).map(s => s._id || s);
-        const available = stores.filter(s => !assigned.includes(s._id));
-        html += `<div class="card">
-            <b>${u.name.toUpperCase()}</b> <button onclick="deleteUser('${u._id}')" class="btn-delete">ELIMINAR</button>
-            <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
-                    ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
-                </div>
-                <div class="store-column" style="background:#e0f2fe" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>ASIGNADAS</small>
-                    ${assigned.map(id => { const s = stores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
-                </div>
-            </div>
-        </div>`;
-    });
-    document.getElementById("content").innerHTML = html;
-}
-
-async function loadStores() {
-    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>🏬 Tiendas</h2>
-            <div class="grid-filters"><input id="sN" placeholder="Nombre"><input id="sA" placeholder="Dirección"></div>
-            <button onclick="createStore()" class="btn-action" style="margin-top:10px; width:100%">AGREGAR TIENDA</button>
-        </div>
-        ${stores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.address}</small></div>`).join('')}`;
-}
-
-async function createStore() {
-    await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify({ name: document.getElementById("sN").value, address: document.getElementById("sA").value }) });
-    loadStores();
 }
 
 async function deleteUser(id) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }

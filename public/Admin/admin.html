@@ -200,8 +200,8 @@ async function loadUsers() {
             <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:20px;">
                 <b style="font-size:13px; color:var(--primary);">+ REGISTRAR NUEVO</b>
                 <div class="grid-filters" style="margin-top:10px;">
-                    <div><label>Nombre</label><input id="newUserName"></div>
-                    <div><label>ID / Teléfono</label><input id="newUserPhone"></div>
+                    <div><label>Nombre</label><input id="newUserName" type="text" placeholder="Ej: Juan Pérez"></div>
+                    <div><label>Correo Electrónico</label><input id="newUserEmail" type="email" placeholder="usuario@correo.com"></div>
                     <div><label>Rol</label>
                         <select id="newUserRole">
                             <option value="demostradora">Demostradora</option>
@@ -212,7 +212,7 @@ async function loadUsers() {
                 </div>
                 <button onclick="createUser()" class="btn-action" style="width:100%; background:#16a34a; margin-top:10px;">GUARDAR</button>
             </div>
-            <input type="text" id="userSearch" placeholder="🔍 Buscar por nombre o ID..." onkeyup="filterUserList()">
+            <input type="text" id="userSearch" placeholder="🔍 Buscar por nombre o correo..." onkeyup="filterUserList()">
         </div>
         <div id="userListContainer"></div>`;
     renderUserCards(allUsersCached);
@@ -225,7 +225,7 @@ function renderUserCards(users) {
         return `
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div><b>${u.name.toUpperCase()}</b><br><small>ID: ${u.phone || 'S/N'}</small></div>
+                <div><b>${u.name.toUpperCase()}</b><br><small>📧 ${u.email || u.phone || 'S/C'}</small></div>
                 <div style="display:flex; gap:5px;">
                     <select class="role-select" onchange="updateUserRole('${u._id}', this.value)">
                         <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
@@ -249,15 +249,31 @@ function renderUserCards(users) {
 
 function filterUserList() {
     const term = document.getElementById("userSearch").value.toLowerCase();
-    renderUserCards(allUsersCached.filter(u => u.name.toLowerCase().includes(term) || (u.phone && u.phone.includes(term))));
+    renderUserCards(allUsersCached.filter(u => 
+        u.name.toLowerCase().includes(term) || 
+        (u.email && u.email.toLowerCase().includes(term)) || 
+        (u.phone && u.phone.includes(term))
+    ));
 }
 
 async function createUser() {
     const name = document.getElementById("newUserName").value;
-    const phone = document.getElementById("newUserPhone").value;
+    const email = document.getElementById("newUserEmail").value;
     const role = document.getElementById("newUserRole").value;
-    if(!name || !phone) return alert("Faltan datos");
-    await fetchAPI(`${BACKEND_URL}/users`, { method:"POST", body: JSON.stringify({name, phone, role, agencyId: session.agencyId, password:"123"}) });
+    if(!name || !email) return alert("Faltan datos");
+    
+    // Enviamos 'email' al backend. Nota: Si el backend espera 'phone', podrías enviar {name, phone: email, ...}
+    await fetchAPI(`${BACKEND_URL}/users`, { 
+        method:"POST", 
+        body: JSON.stringify({
+            name, 
+            email, 
+            phone: email, // Mantenemos compatibilidad si el backend usa 'phone' como login
+            role, 
+            agencyId: session.agencyId, 
+            password:"123"
+        }) 
+    });
     loadUsers();
 }
 

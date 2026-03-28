@@ -205,14 +205,14 @@ function exportExcel() {
     // CAMBIO APLICADO: Se eliminó la columna "TIPO" y se renombraron las cabeceras
     const excelData = toExport.map(r => ({
         "FECHA": new Date(r.createdAt).toLocaleDateString(),
-        "USUARIO": r.userId?.name || "N/A",
+        "NOMBRE": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
         "ARTÍCULO": r.articulo || r.producto || "-",
-        "I_INI": r.inv_inicial || r.inventarioInicial || 0,
+        "INV INICIAL": r.inv_inicial || r.inventarioInicial || 0,
         "RESURTIDO": r.resurtido || 0,
         "VENTAS": r.ventas || r.cantidad || 0,
-        "I_FIN": r.inv_final || r.inventarioFinal || 0,
-        "OBS": r.observaciones || ""
+        "INV FINAL": r.inv_final || r.inventarioFinal || 0,
+        "COMENTARIOS": r.observaciones || ""
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelData);

@@ -128,31 +128,35 @@ function clearFilters() {
 function filterReports() {
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
-    const user = document.getElementById("fUser")?.value;
-    const store = document.getElementById("fStore")?.value;
+    const userSelect = document.getElementById("fUser")?.value;
+    const storeSelect = document.getElementById("fStore")?.value;
     const typeSelected = document.getElementById("fType")?.value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // 1. Normalización de Tipo
+        // 1. Extraer IDs de forma segura (soporta objeto o string)
+        const rUserId = r.userId?._id || r.userId || "";
+        const rStoreId = r.storeId?._id || r.storeId || "";
+        
+        // 2. Normalización de Tipo
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
         if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
 
-        // 2. Normalización de Fechas (Solo YYYY-MM-DD)
+        // 3. Normalización de Fechas
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
-        const matchUser = !user || user === "all" || (r.userId?._id || r.userId) === user;
-        const matchStore = !store || store === "all" || (r.storeId?._id || r.storeId) === store;
+        const matchUser = userSelect === "all" || rUserId === userSelect;
+        const matchStore = storeSelect === "all" || rStoreId === storeSelect;
         
-        // Búsqueda flexible para tipos (ej: 'inventario' match con 'Inventarios')
-        const matchType = !typeSelected || typeSelected === "all" || rTypeRaw.includes(typeSelected.substring(0, 5));
+        // Match flexible para el tipo de reporte
+        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected.substring(0, 5));
         
         return matchDate && matchUser && matchStore && matchType;
     });
 
     const container = document.getElementById("reportList");
     if (!filtered || filtered.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center; color:#64748b; padding:40px;">No hay reportes con estos filtros.</div>`;
+        container.innerHTML = `<div class="card" style="text-align:center; color:#64748b; padding:40px;">No se encontraron reportes con los criterios seleccionados.</div>`;
         return;
     }
 
@@ -165,7 +169,7 @@ function filterReports() {
                 <thead><tr><th>Producto</th><th>Inicial</th><th>Resurtido</th><th>Venta</th><th>Final</th></tr></thead>
                 <tbody>
                     <tr>
-                        <td>${r.articulo || '-'}</td>
+                        <td>${r.articulo || r.producto || '-'}</td>
                         <td>${r.inv_inicial || r.inventarioInicial || 0}</td>
                         <td>${r.resurtido || 0}</td>
                         <td>${r.ventas || r.cantidad || 0}</td>
@@ -182,17 +186,20 @@ function filterReports() {
 function exportExcel() {
     const start = document.getElementById("fStart").value;
     const end = document.getElementById("fEnd").value;
-    const user = document.getElementById("fUser").value;
-    const store = document.getElementById("fStore").value;
+    const userSelect = document.getElementById("fUser").value;
+    const storeSelect = document.getElementById("fStore").value;
     const typeSelected = document.getElementById("fType").value.toLowerCase();
 
     const toExport = allReportsRaw.filter(r => {
+        const rUserId = r.userId?._id || r.userId || "";
+        const rStoreId = r.storeId?._id || r.storeId || "";
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
         if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
+        
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
-        const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
-        const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
+        const matchUser = userSelect === "all" || rUserId === userSelect;
+        const matchStore = storeSelect === "all" || rStoreId === storeSelect;
         const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected.substring(0, 5));
         return matchDate && matchUser && matchStore && matchType;
     });
@@ -202,7 +209,7 @@ function exportExcel() {
         "USUARIO": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
         "TIPO": (r.reporte || r.reportType || "Gral").toUpperCase(),
-        "PRODUCTO": r.articulo || "-",
+        "PRODUCTO": r.articulo || r.producto || "-",
         "INICIAL": r.inv_inicial || r.inventarioInicial || 0,
         "RESURTIDO": r.resurtido || 0,
         "VENTAS": r.ventas || r.cantidad || 0,

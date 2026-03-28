@@ -340,14 +340,15 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-// CORRECCIÓN AQUÍ: Función asíncrona para eliminar y actualizar
+// CORRECCIÓN: Se añadió 'await' para asegurar que la petición termine antes de refrescar
 async function deleteUser(id) { 
     if(confirm("¿Estás seguro de que deseas eliminar este usuario?")) { 
         try {
             await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); 
-            // Recargamos la lista inmediatamente para que desaparezca visualmente
+            // Obligamos a esperar la carga de usuarios para refrescar la UI
             await loadUsers(); 
         } catch (error) {
+            console.error(error);
             alert("Error al eliminar el usuario");
         }
     } 

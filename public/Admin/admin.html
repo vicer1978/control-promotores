@@ -123,16 +123,17 @@ function filterReports() {
     const type = document.getElementById("fType").value;
 
     const filtered = allReportsRaw.filter(r => {
-        const rTypeClean = (r.reportType || "").toLowerCase();
-        if (['checkin', 'checkout'].includes(rTypeClean)) return false;
+        // CORRECCIÓN: Compatibilidad con campo 'reporte' o 'reportType'
+        const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
+        if (['checkin', 'checkout'].includes(rTypeRaw)) return false;
         
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
         
-        // CORRECCIÓN: Filtro de tipo insensible a mayúsculas
-        const matchType = type === "all" || rTypeClean.includes(type.toLowerCase());
+        // Filtro de tipo mejorado
+        const matchType = type === "all" || rTypeRaw.includes(type.toLowerCase());
         
         return matchDate && matchUser && matchStore && matchType;
     });
@@ -141,7 +142,7 @@ function filterReports() {
     container.innerHTML = filtered.map(r => `
         <div class="card">
             <button class="btn-delete" style="position:absolute; right:15px;" onclick="deleteReport('${r._id}')">BORRAR</button>
-            <span class="badge badge-inv">${(r.reportType || 'Gral').toUpperCase()}</span><br>
+            <span class="badge badge-inv">${(r.reporte || r.reportType || 'Gral').toUpperCase()}</span><br>
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
             <table class="report-table">
                 <thead><tr><th>Producto</th><th>Inicial</th><th>Resurtido</th><th>Venta</th><th>Final</th></tr></thead>
@@ -169,13 +170,13 @@ function exportExcel() {
     const type = document.getElementById("fType").value;
 
     const toExport = allReportsRaw.filter(r => {
-        const rTypeClean = (r.reportType || "").toLowerCase();
-        if (['checkin', 'checkout'].includes(rTypeClean)) return false;
+        const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
+        if (['checkin', 'checkout'].includes(rTypeRaw)) return false;
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
-        const matchType = type === "all" || rTypeClean.includes(type.toLowerCase());
+        const matchType = type === "all" || rTypeRaw.includes(type.toLowerCase());
         return matchDate && matchUser && matchStore && matchType;
     });
 
@@ -183,11 +184,12 @@ function exportExcel() {
         "FECHA": new Date(r.createdAt).toLocaleDateString(),
         "USUARIO": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
-        "TIPO": (r.reportType || "").toUpperCase(),
+        "TIPO": (r.reporte || r.reportType || "Gral").toUpperCase(),
         "PRODUCTO": r.articulo || "-",
-        "INICIAL": r.inv_inicial || 0,
-        "VENTAS": r.ventas || 0,
-        "FINAL": r.inv_final || 0,
+        "INICIAL": r.inv_inicial || r.inventarioInicial || 0,
+        "RESURTIDO": r.resurtido || 0,
+        "VENTAS": r.ventas || r.cantidad || 0,
+        "FINAL": r.inv_final || r.inventarioFinal || 0,
         "OBSERVACIONES": r.observaciones || ""
     }));
 
@@ -199,9 +201,8 @@ function exportExcel() {
 
 async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    // CORRECCIÓN: Filtrado robusto para asistencia
     const assist = data.filter(r => {
-        const type = (r.reportType || "").toLowerCase();
+        const type = (r.reporte || r.reportType || "").toLowerCase().trim();
         return type === 'checkin' || type === 'checkout';
     });
     
@@ -214,7 +215,7 @@ async function loadAttendance() {
                     ${assist.length > 0 ? assist.map(a => `
                         <tr>
                             <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
-                            <td><span class="badge" style="background:${a.reportType.toLowerCase()==='checkin'?'#dcfce7':'#fee2e2'}">${a.reportType.toUpperCase()}</span></td>
+                            <td><span class="badge" style="background:${(a.reporte || a.reportType || '').toLowerCase().includes('in')?'#dcfce7':'#fee2e2'}">${(a.reporte || a.reportType || 'EVENTO').toUpperCase()}</span></td>
                             <td>${a.storeId?.name || 'General / Ruta'}</td>
                             <td>${new Date(a.createdAt).toLocaleString()}</td>
                         </tr>`).join('') : '<tr><td colspan="4">No hay registros de asistencia</td></tr>'}

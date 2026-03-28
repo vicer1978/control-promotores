@@ -136,17 +136,14 @@ function filterReports() {
     const typeSel = document.getElementById("fType")?.value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // IDs: Soporta tanto el objeto como el ID plano del JSON
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         
-        // Excluir asistencia
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
-        // Fecha: Normalización para evitar errores de zona horaria
         const dateObj = new Date(r.createdAt);
-        const rDate = dateObj.toLocaleDateString('en-CA'); // Devuelve YYYY-MM-DD
+        const rDate = dateObj.toLocaleDateString('en-CA');
 
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = userSel === "all" || rUid === userSel;
@@ -186,7 +183,6 @@ function filterReports() {
 }
 
 function exportExcel() {
-    // Reutilizamos la misma lógica de filtrado para asegurar consistencia
     const start = document.getElementById("fStart").value;
     const end = document.getElementById("fEnd").value;
     const userSel = document.getElementById("fUser").value;
@@ -206,17 +202,17 @@ function exportExcel() {
                (typeSel === "all" || rType.includes(typeSel.substring(0, 4)));
     });
 
+    // CAMBIO APLICADO: Se eliminó la columna "TIPO" y se renombraron las cabeceras
     const excelData = toExport.map(r => ({
         "FECHA": new Date(r.createdAt).toLocaleDateString(),
         "USUARIO": r.userId?.name || "N/A",
         "TIENDA": r.storeId?.name || "N/A",
-        "TIPO": (r.reporte || r.reportType || "Gral").toUpperCase(),
-        "PRODUCTO": r.articulo || r.producto || "-",
-        "INICIAL": r.inv_inicial || r.inventarioInicial || 0,
+        "ARTÍCULO": r.articulo || r.producto || "-",
+        "I_INI": r.inv_inicial || r.inventarioInicial || 0,
         "RESURTIDO": r.resurtido || 0,
         "VENTAS": r.ventas || r.cantidad || 0,
-        "FINAL": r.inv_final || r.inventarioFinal || 0,
-        "OBSERVACIONES": r.observaciones || ""
+        "I_FIN": r.inv_final || r.inventarioFinal || 0,
+        "OBS": r.observaciones || ""
     }));
 
     const ws = XLSX.utils.json_to_sheet(excelData);

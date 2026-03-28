@@ -76,8 +76,13 @@ app.post("/checkin", auth, async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
 
+        // Validación de datos de entrada para evitar Error 500
+        if (!storeId || lat === undefined || lng === undefined) {
+            return res.status(400).json({ error: "Datos incompletos: storeId, lat y lng son obligatorios." });
+        }
+
         // Validación: Verificar si el último registro ya es un checkin activo
-        const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 });
+        const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (lastCheckin && lastCheckin.type === "checkin") {
             return res.status(400).json({ error: "Ya tienes una entrada activa. Registra salida primero." });
         }
@@ -86,24 +91,30 @@ app.post("/checkin", auth, async (req, res) => {
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: storeId,
-            location: { lat, lng },
+            location: { 
+                lat: parseFloat(lat), 
+                lng: parseFloat(lng) 
+            },
             type: "checkin",
             timestamp: new Date()
         });
 
-        // También lo guardamos como un reporte tipo 'checkin' para visibilidad en el dashboard general
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: storeId,
             reporte: "checkin",
-            location: { lat, lng }
+            location: { 
+                lat: parseFloat(lat), 
+                lng: parseFloat(lng) 
+            }
         });
 
         await Promise.all([newCheckin.save(), checkinReport.save()]);
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
-        res.status(500).json({ error: "Error al registrar entrada" });
+        console.error("❌ Error en checkin:", err);
+        res.status(500).json({ error: "Error al registrar entrada", detalle: err.message });
     }
 });
 
@@ -111,8 +122,7 @@ app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId } = req.body;
 
-        // Validación: No permitir checkout si no hay un checkin previo
-        const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 });
+        const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (!lastEvent || lastEvent.type === "checkout") {
             return res.status(400).json({ error: "No hay una entrada activa para registrar salida." });
         }
@@ -120,25 +130,31 @@ app.post("/checkout", auth, async (req, res) => {
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            storeId: storeId || lastEvent.storeId, // Usa la tienda del checkin si no se envía
-            location: { lat, lng },
+            storeId: storeId || lastEvent.storeId,
+            location: { 
+                lat: parseFloat(lat), 
+                lng: parseFloat(lng) 
+            },
             type: "checkout", 
             timestamp: new Date()
         });
 
-        // Guardar también en la colección de reportes para el historial del Admin
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: storeId || lastEvent.storeId,
             reporte: "checkout",
-            location: { lat, lng }
+            location: { 
+                lat: parseFloat(lat), 
+                lng: parseFloat(lng) 
+            }
         });
 
         await Promise.all([newCheckout.save(), checkoutReport.save()]);
         res.json({ message: "Salida registrada con éxito", checkout: newCheckout });
     } catch (err) {
-        res.status(500).json({ error: "Error al registrar salida" });
+        console.error("❌ Error en checkout:", err);
+        res.status(500).json({ error: "Error al registrar salida", detalle: err.message });
     }
 });
 
@@ -247,15 +263,24 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
 
 app.delete("/users/:id", auth, async (req, res) => {
     try {
-        if (req.params.id === req.user._id.toString()) {
+        const targetId = req.params.id;
+
+        // Validar que sea un ID de MongoDB válido antes de proceder
+        if (!mongoose.Types.ObjectId.isValid(targetId)) {
+            return res.status(400).json({ error: "ID de usuario malformado" });
+        }
+
+        if (targetId === req.user._id.toString()) {
             return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador" });
         }
-        const deletedUser = await User.findByIdAndDelete(req.params.id);
+
+        const deletedUser = await User.findByIdAndDelete(targetId);
         if (!deletedUser) return res.status(404).json({ error: "Usuario no encontrado" });
+
         res.json({ message: "Usuario eliminado correctamente" });
     } catch (err) {
         console.error("❌ Error al eliminar usuario:", err);
-        res.status(500).json({ error: "Error al eliminar usuario" });
+        res.status(500).json({ error: "Error al eliminar usuario", detalle: err.message });
     }
 });
 

@@ -87,7 +87,7 @@ async function loadReports() {
                 <div><label>Tipo Reporte</label>
                     <select id="fType">
                         <option value="all">Todos</option>
-                        <option value="inventario">Inventario</option>
+                        <option value="inventario">Inventarios</option>
                         <option value="ranking">Ranking / Degustación</option>
                         <option value="competencia">Competencia</option>
                         <option value="precios">Precios</option>
@@ -123,10 +123,8 @@ function filterReports() {
     const typeSelected = document.getElementById("fType").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // Normalización agresiva del tipo de reporte
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
         
-        // Excluir asistencia de los reportes generales
         if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
         
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
@@ -134,7 +132,8 @@ function filterReports() {
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
         
-        // El match de tipo ahora busca si la cadena contiene la palabra (ej: "inventario" match con "Inventario")
+        // MODIFICACIÓN CRÍTICA: Búsqueda flexible (contiene la palabra)
+        // Esto permite que "inventario" filtre reportes llamados "Inventarios"
         const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected);
         
         return matchDate && matchUser && matchStore && matchType;

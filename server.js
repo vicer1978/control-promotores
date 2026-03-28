@@ -71,7 +71,6 @@ app.post("/login", async (req, res) => {
 });
 
 // --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
-
 app.post("/checkin", auth, async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
@@ -108,7 +107,6 @@ app.post("/checkout", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE REPORTES ---
-
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -123,29 +121,21 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
-        // Mapeo dinámico para soportar tanto "comentarios" como "observaciones"
         const obs = req.body.observaciones || req.body.comentarios || "";
         
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            storeId: req.body.storeId, // Aseguramos que se guarde la tienda
-            
-            // Foto
+            storeId: req.body.storeId, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
-            
-            // Normalización estricta de números para evitar strings en la DB
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
             inv_final: Number(req.body.inv_final) || 0,
             precio: Number(req.body.precio) || 0,
             personas: Number(req.body.personas) || 0,
-            
             observaciones: obs,
-
-            // Guardamos ubicación si el frontend la envía
             location: (req.body.lat && req.body.lng) ? {
                 lat: Number(req.body.lat),
                 lng: Number(req.body.lng)
@@ -169,7 +159,6 @@ app.delete("/reports/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE USUARIOS Y RUTAS ---
-
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -218,8 +207,25 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
 });
 
-// --- GESTIÓN DE TIENDAS ---
+// NUEVO: RUTA PARA ELIMINAR USUARIO
+app.delete("/users/:id", auth, async (req, res) => {
+    try {
+        // Evitar que el administrador se elimine a sí mismo por error
+        if (req.params.id === req.user._id.toString()) {
+            return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador" });
+        }
+        
+        const deletedUser = await User.findByIdAndDelete(req.params.id);
+        if (!deletedUser) return res.status(404).json({ error: "Usuario no encontrado" });
+        
+        res.json({ message: "Usuario eliminado correctamente" });
+    } catch (err) {
+        console.error("❌ Error al eliminar usuario:", err);
+        res.status(500).json({ error: "Error al eliminar usuario" });
+    }
+});
 
+// --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
         const stores = await Store.find().sort({ name: 1 });
@@ -241,7 +247,6 @@ app.post("/stores", auth, async (req, res) => {
 });
 
 // --- MANEJO DE FRONTEND (Rutas de archivos) ---
-
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
 });
@@ -262,7 +267,6 @@ app.get("/", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
-// Captura cualquier otra ruta y envía al login
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

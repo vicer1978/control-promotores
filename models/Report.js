@@ -1,42 +1,27 @@
 const mongoose = require('mongoose');
 
 const ReportSchema = new mongoose.Schema({
-    // --- RELACIONES ---
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
-    // Si manejas agencias, asegúrate de que el userId siempre traiga una vinculada
     agencyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agency', required: true },
     
-    // --- CLASIFICACIÓN ---
-    reportType: { 
-    type: String, 
-    required: true, 
-    // Agregamos 'reporte_diario' y 'ranking' para que coincidan con tus botones
-    enum: ['ventas', 'ranking', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
-},
+    // --- CAMBIO CRUCIAL AQUÍ ---
+    reporte: { // Cambiado de reportType a reporte para que coincida con tu server.js
+        type: String, 
+        required: true, 
+        // Agregamos 'checkin' y 'checkout' a la lista permitida
+        enum: ['ventas', 'ranking', 'inventario', 'agotado', 'competencia', 'reporte_diario', 'checkin', 'checkout'] 
+    },
 
-    
-    // --- DATOS DEL PRODUCTO ---
     articulo: { type: String, default: "N/A" },
-    
-    // --- FLUJO COMPLETO (VENTAS E INVENTARIO) ---
-    // Usar nombres claros ayuda a que el backend procese el "Mega Formulario" sin confusiones
     inv_inicial: { type: Number, default: 0 },
     resurtido:   { type: Number, default: 0 }, 
-    cantidad:    { type: Number, default: 0 }, // Ventas Realizadas
+    cantidad:    { type: Number, default: 0 }, 
     inv_final:   { type: Number, default: 0 },
-    
     precio:      { type: Number, default: 0 },
-    
-    // --- DATOS DE DEGUSTACIÓN / CAMPO ---
-    personas: { type: Number, default: 0 }, // Impactos o personas degustadas
+    personas:    { type: Number, default: 0 }, 
     observaciones: { type: String }, 
-    
-    // --- EVIDENCIA Y TIEMPO ---
-    foto_url: { type: String },
-
-    // --- GEOLOCALIZACIÓN (Opcional pero RECOMENDADO) ---
-    // Para validar que el reporte se hizo REALMENTE en la tienda
+    foto_url:    { type: String },
     location: {
         lat: Number,
         lng: Number

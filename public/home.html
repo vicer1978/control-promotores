@@ -120,16 +120,19 @@
         document.getElementById("activeStoreName").innerText = storeName || "Sin tienda";
         document.getElementById("userRoleBadge").innerText = role.toUpperCase();
 
-        // CONFIGURACIÓN ACTUALIZADA: Se eliminaron los botones redundantes
-        // Ahora "reporte_diario" es el único acceso al mega-formulario de inventario
+        // CONFIGURACIÓN ACTUALIZADA:
+        // 'reporte_diario' activa Inventarios, Ventas y Resurtido.
+        // 'precios' activa el nuevo bloque de Precio Normal y Oferta.
         const tasks = {
             'demostradora': [
                 { id: 'reporte_diario', label: 'Reporte Diario', icon: '📋' },
+                { id: 'precios', label: 'Precios', icon: '🏷️' },
                 { id: 'ranking', label: 'Degustación', icon: '🍷' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ],
             'promotor': [
                 { id: 'reporte_diario', label: 'Inventario y Ventas', icon: '📊' },
+                { id: 'precios', label: 'Chequeo Precios', icon: '🏷️' },
                 { id: 'competencia', label: 'Competencia', icon: '🏁' }
             ]
         };
@@ -146,7 +149,6 @@
             `).join('');
         }
 
-        // Modificado para que siempre use report.html con el parámetro correcto
         function goTo(pageId) {
             window.location.href = `./report.html?type=${pageId}`;
         }

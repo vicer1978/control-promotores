@@ -129,10 +129,11 @@
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
         
-        // Reset visual
-        document.querySelectorAll('.form-group, #block-demo, #group-precios').forEach(el => el.classList.add('hidden'));
-        
-        s.fields.forEach(id => document.getElementById(id)?.classList.remove("hidden"));
+        s.fields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.classList.remove("hidden");
+        });
+
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
     };
 
@@ -162,24 +163,24 @@
         formData.append("storeId", storeId);
         formData.append("userId", userId);
 
-        // --- AJUSTE DE EMERGENCIA PARA EL TIPO ---
+        // Ajuste de reportType para compatibilidad con el servidor
         let finalType = typeFromUrl;
         if(typeFromUrl === 'reporte_diario') finalType = 'inventario'; 
         formData.append("reportType", finalType);
 
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
         
-        // Conversión a números para evitar errores de validación en el servidor
+        // Datos numéricos de inventario
         formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
         formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
         formData.append("ventas", Number(document.getElementById("ventas").value) || 0);
         formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
         
-        // Campos para Chequeo de Precios
+        // Datos numéricos de precios
         formData.append("precioNormal", Number(document.getElementById("precio_normal")?.value) || 0);
         formData.append("precioOferta", Number(document.getElementById("precio_oferta")?.value) || 0);
         
-        // Cantidad genérica (útil para reportes simples de ventas)
+        // Cantidad para otros tipos de reportes
         formData.append("cantidad", Number(document.getElementById("cantidad").value) || Number(document.getElementById("ventas").value) || 0);
 
         formData.append("observaciones", document.getElementById("comentarios").value || "");

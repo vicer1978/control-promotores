@@ -21,14 +21,16 @@
         
         /* Botones y Badges */
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn-delete { position: absolute; top: 15px; right: 15px; background: #fee2e2; color: #dc2626; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .btn-delete-report { position: absolute; top: 15px; right: 15px; background: #fee2e2; color: #dc2626; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .btn-delete-user { background: #dc2626; color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; margin-left: 10px; }
+        
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; display: inline-block; }
         .badge-v { background: #dcfce7; color: #166534; }
         .badge-d { background: #fef9c3; color: #854d0e; }
+        .badge-p { background: #e0f2fe; color: #0369a1; }
         .badge-checkin { background: #dcfce7; color: #16a34a; }
         .badge-checkout { background: #fee2e2; color: #e11d48; }
 
-        /* Formulario y Listas */
         input, select { padding: 10px; margin: 5px 0; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #f8fafc; border-radius: 8px; overflow: hidden; }
         .report-table th, .report-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
@@ -38,6 +40,7 @@
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
         
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
         .img-preview { 
             width: 100%; 
@@ -69,25 +72,15 @@
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// --- VALIDACIÓN DE SESIÓN MEJORADA ---
 function getSessionData() {
     const uId = localStorage.getItem("userId");
     const aId = localStorage.getItem("agencyId");
-    
-    // Verifica que el ID sea una cadena de 24 caracteres (formato MongoDB) para evitar "malformed ID"
-    if (!uId || uId === "undefined" || uId.length !== 24) {
-        console.error("ID de usuario no válido o inexistente.");
-        return null;
-    }
+    if (!uId || uId === "undefined" || uId.length !== 24) return null;
     return { userId: uId, agencyId: aId };
 }
 
 let session = getSessionData();
-
-// Redirección inmediata si no hay sesión válida
-if (!session) {
-    window.location.href = "../login.html";
-}
+if (!session) window.location.href = "../login.html";
 
 let allReportsRaw = [];
 let cachedUsers = [];
@@ -95,20 +88,12 @@ let allStores = [];
 let draggedStore = null;
 
 async function fetchAPI(url, options = {}) {
-    // Usamos consistentemente "userid" en minúsculas para evitar problemas de middleware
-    const headers = { 
-        "userid": session.userId,
-        "Content-Type": "application/json" 
-    };
+    const headers = { "userid": session.userId, "Content-Type": "application/json" };
     options.headers = { ...(options.headers || {}), ...headers };
-    
     const res = await fetch(url, options);
     if (!res.ok) {
         const error = await res.json();
-        if(res.status === 401) {
-            alert("Sesión expirada o inválida.");
-            logout();
-        }
+        if(res.status === 401) logout();
         alert("Error: " + (error.error || error.message));
         throw new Error(error.error);
     }
@@ -118,87 +103,67 @@ async function fetchAPI(url, options = {}) {
 function loadSection(section) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${section}`)?.classList.add('active');
-
     if (section === 'reports') loadReports();
     if (section === 'users') loadUsers();
     if (section === 'stores') loadStores();
     if (section === 'attendance') loadAttendance();
 }
 
-// --- SECCIÓN: ASISTENCIA (CHECK-IN / CHECK-OUT) ---
+// --- ASISTENCIA MEJORADA ---
 async function loadAttendance() {
-    document.getElementById("content").innerHTML = `<div class="loader">Cargando registros de asistencia...</div>`;
-    
+    document.getElementById("content").innerHTML = `<div class="card"><h2>Cargando asistencia...</h2></div>`;
     try {
-        const [users, data] = await Promise.all([
-            fetchAPI(`${BACKEND_URL}/users`),
-            fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
-        ]);
+        const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+        // Filtramos checkin/checkout e incluimos reporte_diario como actividad válida
+        const assist = data.filter(r => ['checkin', 'checkout', 'asistencia'].includes(r.reportType));
 
         document.getElementById("content").innerHTML = `
             <div class="card">
-                <h2>⏰ Control de Asistencia (Entradas y Salidas)</h2>
-                <p>Aquí puedes ver a qué hora inició y terminó su jornada el personal.</p>
-                <button onclick="loadAttendance()" class="btn-action" style="background:var(--info)">REFRESCAR LISTA</button>
+                <h2>⏰ Control de Asistencia</h2>
+                <button onclick="loadAttendance()" class="btn-action" style="background:var(--info)">REFRESCAR</button>
             </div>
-            <div id="attendanceList">
-                <div class="card">
-                    <table class="report-table">
-                        <thead>
+            <div class="card">
+                <table class="report-table">
+                    <thead>
+                        <tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha/Hora</th></tr>
+                    </thead>
+                    <tbody>
+                        ${assist.length ? assist.map(a => `
                             <tr>
-                                <th>Colaborador</th>
-                                <th>Evento</th>
-                                <th>Tienda / Ubicación</th>
-                                <th>Hora</th>
+                                <td>${(a.userId?.name || 'Sistema').toUpperCase()}</td>
+                                <td><span class="badge ${a.reportType==='checkin'?'badge-checkin':'badge-checkout'}">${a.reportType}</span></td>
+                                <td>${a.storeId?.name || 'N/A'}</td>
+                                <td>${new Date(a.createdAt).toLocaleString()}</td>
                             </tr>
-                        </thead>
-                        <tbody id="attendanceTableBody">
-                            <tr><td colspan="4">Buscando registros...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                        `).join('') : '<tr><td colspan="4">No hay registros hoy</td></tr>'}
+                    </tbody>
+                </table>
             </div>`;
-
-        const tbody = document.getElementById("attendanceTableBody");
-        
-        // Filtramos por reportes de tipo asistencia
-        const assist = data.filter(r => r.type === 'checkin' || r.type === 'checkout');
-        
-        if(assist.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4">No hay registros de entrada/salida hoy.</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = assist.map(a => `
-            <tr>
-                <td>${(a.userId?.name || 'Sistema').toUpperCase()}</td>
-                <td><span class="badge ${a.type==='checkin'?'badge-checkin':'badge-checkout'}">${a.type}</span></td>
-                <td>${a.storeId?.name || 'Ruta Finalizada'}</td>
-                <td>${new Date(a.timestamp || a.createdAt).toLocaleString()}</td>
-            </tr>
-        `).join('');
-
-    } catch (e) {
-        document.getElementById("content").innerHTML = `<h3>Error al cargar asistencia</h3>`;
-    }
+    } catch (e) { console.error(e); }
 }
 
-// --- GESTIÓN DE TIENDAS ---
+// --- TIENDAS CON COORDENADAS ---
 async function loadStores() {
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>🏬 Registrar Nueva Tienda</h2>
             <div class="grid-2">
-                <input type="text" id="sName" placeholder="Nombre de la Tienda (Ej: Walmart Celaya)">
+                <input type="text" id="sName" placeholder="Nombre de la Tienda">
                 <input type="text" id="sAddress" placeholder="Dirección">
             </div>
-            <button onclick="createStore()" class="btn-action" style="margin-top:10px; width:100%">GUARDAR TIENDA</button>
+            <div class="grid-2" style="margin-top:10px;">
+                <input type="number" step="any" id="sLat" placeholder="Latitud (Ej: 20.521)">
+                <input type="number" step="any" id="sLon" placeholder="Longitud (Ej: -100.81)">
+            </div>
+            <button onclick="createStore()" class="btn-action" style="margin-top:15px; width:100%">GUARDAR TIENDA</button>
         </div>
         <div id="storesList">
             ${allStores.map(s => `
                 <div class="card">
-                    <b>${s.name}</b><br><small>${s.address || 'Sin dirección'}</small>
+                    <b>${s.name}</b><br>
+                    <small>${s.address || 'Sin dirección'}</small><br>
+                    <small style="color:var(--info)">📍 ${s.lat || 0}, ${s.lon || 0}</small>
                 </div>
             `).join('')}
         </div>`;
@@ -207,47 +172,44 @@ async function loadStores() {
 async function createStore() {
     const name = document.getElementById("sName").value;
     const address = document.getElementById("sAddress").value;
+    const lat = document.getElementById("sLat").value;
+    const lon = document.getElementById("sLon").value;
     if(!name) return alert("Nombre obligatorio");
     await fetchAPI(`${BACKEND_URL}/stores`, {
         method: "POST",
-        body: JSON.stringify({ name, address })
+        body: JSON.stringify({ name, address, lat, lon })
     });
-    alert("Tienda creada");
     loadStores();
 }
 
-// --- GESTIÓN DE USUARIOS ---
+// --- USUARIOS CON ELIMINAR ---
 async function loadUsers() {
     cachedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allStores = await fetchAPI(`${BACKEND_URL}/stores`);
-
     let html = `
         <div class="card">
             <h2>👥 Registrar Nuevo Usuario</h2>
             <div class="grid-2">
-                <input type="text" id="uName" placeholder="Nombre Completo">
+                <input type="text" id="uName" placeholder="Nombre">
                 <input type="email" id="uEmail" placeholder="Email">
                 <input type="password" id="uPass" placeholder="Password">
                 <select id="uRole">
                     <option value="promotor">Promotor</option>
                     <option value="demostradora">Demostradora</option>
-                    <option value="admin">Administrador</option>
                 </select>
             </div>
             <button onclick="createUser()" class="btn-action" style="margin-top:10px; width:100%">CREAR USUARIO</button>
-        </div>
-        <h2>Listado de Personal y Rutas</h2>`;
+        </div>`;
 
     cachedUsers.forEach(u => {
+        if(u.role === 'admin') return;
         const assigned = (u.stores || []).map(s => s._id || s);
         const available = allStores.filter(s => !assigned.includes(s._id));
         html += `<div class="card">
-            <strong>${u.name.toUpperCase()}</strong> (${u.email})
-            <select onchange="updateUserRole('${u._id}', this.value)" style="width:150px; margin-left:10px;">
-                <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-                <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-                <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
-            </select>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong>${u.name.toUpperCase()}</strong>
+                <button onclick="deleteUser('${u._id}')" class="btn-delete-user">ELIMINAR USUARIO</button>
+            </div>
             <div class="store-list">
                 <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>DISPONIBLES</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
@@ -264,6 +226,12 @@ async function loadUsers() {
     document.getElementById("content").innerHTML = html;
 }
 
+async function deleteUser(id) {
+    if(!confirm("¿Seguro que deseas eliminar a este usuario?")) return;
+    await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" });
+    loadUsers();
+}
+
 async function createUser() {
     const name = document.getElementById("uName").value;
     const email = document.getElementById("uEmail").value;
@@ -273,16 +241,10 @@ async function createUser() {
         method: "POST",
         body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId })
     });
-    alert("Usuario creado exitosamente");
     loadUsers();
 }
 
-async function updateUserRole(id, role) {
-    await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "PUT", body: JSON.stringify({ role }) });
-    alert("Rol actualizado");
-}
-
-// --- GESTIÓN DE REPORTES ---
+// --- REPORTES (MEGA FILTRO) ---
 async function loadReports() {
     [cachedUsers, allReportsRaw] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users`),
@@ -291,11 +253,16 @@ async function loadReports() {
 
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>📊 Filtros de Reportes</h2>
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px;">
+            <h2>📊 Reportes y Actividad</h2>
+            <div class="grid-3">
                 <input type="date" id="fDate">
-                <select id="fType"><option value="all">Tipo: Todos</option><option value="ventas">Ventas</option><option value="degustacion">Degustación</option></select>
-                <select id="fRole"><option value="all">Rol: Todos</option><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option></select>
+                <select id="fType">
+                    <option value="all">Todos los tipos</option>
+                    <option value="inventario_completo">Inventario</option>
+                    <option value="ranking">Degustación</option>
+                    <option value="competencia">Competencia</option>
+                    <option value="precios">Precios</option>
+                </select>
                 <button onclick="filterReports()" class="btn-action">FILTRAR</button>
             </div>
             <button onclick="exportExcel()" class="btn-action" style="background:var(--success); margin-top:10px; width:100%;">DESCARGAR EXCEL</button>
@@ -306,35 +273,42 @@ async function loadReports() {
 
 function renderList(data) {
     const container = document.getElementById("reportList");
-    // Filtramos para reportes de actividad únicamente
-    const filteredData = data.filter(r => r.reportType === 'ventas' || r.reportType === 'degustacion');
+    // Filtramos para ignorar los checkins técnicos de la tabla de reportes operativos
+    const filteredData = data.filter(r => !['checkin', 'checkout'].includes(r.reportType));
 
     container.innerHTML = filteredData.map(r => {
         const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
-        const isV = r.reportType === 'ventas';
+        let badgeClass = 'badge-v';
+        if(r.reportType === 'precios') badgeClass = 'badge-p';
+        if(r.reportType === 'ranking') badgeClass = 'badge-d';
+
         return `
         <div class="card">
-            <button class="btn-delete" onclick="deleteReport('${r._id}')">BORRAR</button>
-            <span class="badge ${isV?'badge-v':'badge-d'}">${(r.reportType || 'Gral').toUpperCase()}</span><br>
-            <b>${(u?.name || 'S/N').toUpperCase()}</b> | <span>📍 ${r.storeId?.name || 'S/T'}</span>
-            ${isV ? `
-                <table class="report-table">
-                    <tr><th>Producto</th><th>Venta</th><th>I. Inicial</th><th>I. Final</th></tr>
-                    <tr><td>${r.articulo || '-'}</td><td>${r.cantidad || 0}</td><td>${r.inventarioInicial || 0}</td><td>${r.inventarioFinal || 0}</td></tr>
-                </table>
-            ` : `
-                <div style="margin-top:10px; background:#fff7ed; padding:10px; border-radius:8px; border:1px solid #ffedd5;">
-                    <b>Artículo:</b> ${r.articulo}<br><b>Detalle:</b> ${r.observaciones || r.comentarios || 'Sin observaciones'}
-                </div>
-            `}
-            ${r.foto_url ? `
-                <div style="margin-top:10px;">
-                    <a href="${BACKEND_URL}${r.foto_url}" target="_blank">
-                        <img src="${BACKEND_URL}${r.foto_url}" class="img-preview" alt="Evidencia">
-                    </a>
-                </div>
-            ` : ''}
-            <div style="margin-top:8px; font-size:11px; color:#64748b">Fecha: ${new Date(r.createdAt).toLocaleString()}</div>
+            <button class="btn-delete-report" onclick="deleteReport('${r._id}')">BORRAR</button>
+            <span class="badge ${badgeClass}">${(r.reportType || 'Gral').toUpperCase()}</span><br>
+            <b>${(u?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
+            
+            <table class="report-table">
+                <thead>
+                    <tr><th>Artículo</th>
+                    ${r.reportType === 'precios' ? '<th>P. Normal</th><th>P. Oferta</th>' : '<th>Cant/Venta</th><th>I. Ini</th><th>I. Fin</th>'}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${r.articulo || '-'}</td>
+                        ${r.reportType === 'precios' ? 
+                            `<td>$${r.precioNormal || 0}</td><td>$${r.precioOferta || 0}</td>` : 
+                            `<td>${r.ventas || r.cantidad || 0}</td><td>${r.inv_inicial || 0}</td><td>${r.inv_final || 0}</td>`
+                        }
+                    </tr>
+                </tbody>
+            </table>
+            
+            ${r.observaciones ? `<p style="font-size:12px; background:#f1f5f9; padding:8px; border-radius:5px;"><b>Obs:</b> ${r.observaciones}</p>` : ''}
+            
+            ${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="img-preview" onclick="window.open(this.src)">` : ''}
+            <div style="margin-top:8px; font-size:11px; color:#94a3b8">Hora: ${new Date(r.createdAt).toLocaleString()}</div>
         </div>`;
     }).join('');
 }
@@ -342,31 +316,24 @@ function renderList(data) {
 function filterReports() {
     const dSel = document.getElementById("fDate").value;
     const tSel = document.getElementById("fType").value;
-    const rSel = document.getElementById("fRole").value;
 
     const filtered = allReportsRaw.filter(r => {
-        const u = cachedUsers.find(u => u._id === (r.userId?._id || r.userId));
         const matchD = !dSel || new Date(r.createdAt).toISOString().split('T')[0] === dSel;
         const matchT = tSel === "all" || r.reportType === tSel;
-        const matchR = rSel === "all" || (u?.role || "").toLowerCase() === rSel;
-        return matchD && matchT && matchR;
+        return matchD && matchT;
     });
     renderList(filtered);
 }
 
 async function deleteReport(id) { 
-    if(confirm("¿Borrar este reporte?")) { 
-        await fetch(`${BACKEND_URL}/reports/${id}`, { 
-            method: 'DELETE', 
-            headers: { "userid": session.userId } 
-        }); 
+    if(confirm("¿Borrar reporte?")) { 
+        await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userid": session.userId } }); 
         loadReports(); 
     } 
 }
 
 function dragStart(id) { draggedStore = id; }
 function allowDrop(e) { e.preventDefault(); }
-
 async function dropStore(e, uId, type) {
     e.preventDefault();
     const user = cachedUsers.find(u => u._id === uId);
@@ -378,27 +345,25 @@ async function dropStore(e, uId, type) {
 }
 
 function exportExcel() {
-    const data = allReportsRaw
-        .filter(r => r.reportType === 'ventas' || r.reportType === 'degustacion')
-        .map(r => ({ 
-            "FECHA": new Date(r.createdAt).toLocaleDateString(), 
-            "TIPO": r.reportType?.toUpperCase(),
-            "USUARIO": r.userId?.name, 
-            "TIENDA": r.storeId?.name,
-            "PRODUCTO": r.articulo, 
-            "DETALLE/VENTA": r.reportType === 'ventas' ? r.cantidad : r.observaciones 
-        }));
+    const data = allReportsRaw.map(r => ({ 
+        "FECHA": new Date(r.createdAt).toLocaleDateString(), 
+        "TIPO": r.reportType,
+        "USUARIO": r.userId?.name, 
+        "TIENDA": r.storeId?.name,
+        "ARTICULO": r.articulo,
+        "VENTAS": r.ventas || r.cantidad,
+        "I_INI": r.inv_inicial,
+        "I_FIN": r.inv_final,
+        "PRECIO": r.precioNormal,
+        "OBS": r.observaciones
+    }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, "Reporte_StorePulse_Maestro.xlsx");
+    XLSX.writeFile(wb, "StorePulse_Admin_Report.xlsx");
 }
 
-function logout() { 
-    localStorage.clear(); 
-    window.location.href = "../login.html"; 
-}
-
+function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = loadReports;
 </script>
 </body>

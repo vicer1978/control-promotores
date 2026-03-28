@@ -108,40 +108,51 @@ async function loadReports() {
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="filterReports()" class="btn-action" style="flex:2">APLICAR FILTROS</button>
-                <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXCEL PROFESIONAL</button>
+                <button onclick="clearFilters()" class="btn-action" style="background:#64748b; flex:1">LIMPIAR</button>
+                <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXCEL</button>
             </div>
         </div>
         <div id="reportList"></div>`;
     filterReports();
 }
 
+function clearFilters() {
+    document.getElementById("fStart").value = "";
+    document.getElementById("fEnd").value = "";
+    document.getElementById("fType").value = "all";
+    document.getElementById("fUser").value = "all";
+    document.getElementById("fStore").value = "all";
+    filterReports();
+}
+
 function filterReports() {
-    const start = document.getElementById("fStart").value;
-    const end = document.getElementById("fEnd").value;
-    const user = document.getElementById("fUser").value;
-    const store = document.getElementById("fStore").value;
-    const typeSelected = document.getElementById("fType").value.toLowerCase();
+    const start = document.getElementById("fStart")?.value;
+    const end = document.getElementById("fEnd")?.value;
+    const user = document.getElementById("fUser")?.value;
+    const store = document.getElementById("fStore")?.value;
+    const typeSelected = document.getElementById("fType")?.value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
+        // 1. Normalización de Tipo
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
-        
         if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
-        
+
+        // 2. Normalización de Fechas (Solo YYYY-MM-DD)
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
-        const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
-        const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
-        const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
         
-        // MODIFICACIÓN CRÍTICA: Búsqueda flexible (contiene la palabra)
-        // Esto permite que "inventario" filtre reportes llamados "Inventarios"
-        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected);
+        const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
+        const matchUser = !user || user === "all" || (r.userId?._id || r.userId) === user;
+        const matchStore = !store || store === "all" || (r.storeId?._id || r.storeId) === store;
+        
+        // Búsqueda flexible para tipos (ej: 'inventario' match con 'Inventarios')
+        const matchType = !typeSelected || typeSelected === "all" || rTypeRaw.includes(typeSelected.substring(0, 5));
         
         return matchDate && matchUser && matchStore && matchType;
     });
 
     const container = document.getElementById("reportList");
-    if (filtered.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center; color:#64748b;">No hay reportes que coincidan con los filtros.</div>`;
+    if (!filtered || filtered.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center; color:#64748b; padding:40px;">No hay reportes con estos filtros.</div>`;
         return;
     }
 
@@ -182,7 +193,7 @@ function exportExcel() {
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
-        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected);
+        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected.substring(0, 5));
         return matchDate && matchUser && matchStore && matchType;
     });
 

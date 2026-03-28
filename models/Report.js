@@ -9,11 +9,12 @@ const ReportSchema = new mongoose.Schema({
     
     // --- CLASIFICACIÓN ---
     reportType: { 
-        type: String, 
-        required: true, 
-        // Agregamos 'ranking' porque es el ID que usa tu frontend para Degustación
-        enum: ['ventas', 'ranking', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
-    },
+    type: String, 
+    required: true, 
+    // Agregamos 'reporte_diario' y 'ranking' para que coincidan con tus botones
+    enum: ['ventas', 'ranking', 'inventario', 'agotado', 'competencia', 'reporte_diario'] 
+},
+
     
     // --- DATOS DEL PRODUCTO ---
     articulo: { type: String, default: "N/A" },

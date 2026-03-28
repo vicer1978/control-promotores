@@ -61,7 +61,7 @@
                 <input type="number" id="cantidad" value="0">
             </div>
 
-            <div class="form-group" id="group-foto">
+            <div class="form-group hidden" id="group-foto">
                 <label>Foto de Evidencia</label>
                 <input type="file" id="foto" accept="image/*" capture="environment" onchange="previewImage(this)" class="hidden">
                 <div class="photo-preview" id="preview" onclick="document.getElementById('foto').click()">
@@ -69,7 +69,7 @@
                 </div>
             </div>
 
-            <div class="form-group" id="group-comentarios">
+            <div class="form-group hidden" id="group-comentarios">
                 <label id="label-comentarios">Comentarios / Observaciones</label>
                 <textarea id="comentarios" rows="4" placeholder="Escribe aquí los detalles..."></textarea>
             </div>
@@ -90,24 +90,28 @@
     if (!userId || userId.length !== 24) window.location.href = "login.html";
 
     const config = {
-        'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
-        'ranking': { title: 'Degustación', fields: ['group-articulo', 'group-comentarios', 'group-foto'], labelArt: 'Producto Degustado' },
-        'reporte_diario': { title: 'Reporte Diario Completo', fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] },
-        'competencia': { title: 'Competencia', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
-        'inventario': { title: 'Inventario', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] }
-    };
+    'reporte_diario': { 
+        title: 'Reporte Diario Completo', 
+        fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] 
+    },
+    'ranking': { 
+        title: 'Degustación', 
+        fields: ['group-articulo', 'group-comentarios', 'group-foto'],
+        labelArt: 'Producto Degustado'
+    },
+    'competencia': { 
+        title: 'Competencia', 
+        fields: ['group-articulo', 'group-foto', 'group-comentarios'],
+        labelArt: 'Marca Competencia'
+    }
+};
+
 
     window.onload = () => {
-        const s = config[typeFromUrl] || config['ventas'];
+        const s = config[typeFromUrl] || config['report'];
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
-        
-        // Ocultar todos primero para evitar duplicados
-        document.querySelectorAll('.form-group, #block-demo').forEach(el => el.classList.add('hidden'));
-        
-        // Mostrar solo los configurados
         s.fields.forEach(id => document.getElementById(id)?.classList.remove("hidden"));
-        
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
     };
 
@@ -136,21 +140,11 @@
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
-        
-        // CORRECCIÓN: El servidor espera 'reporte_diario' (según el enum del modelo)
-        formData.append("reportType", typeFromUrl || 'ventas');
-        
+        formData.append("reportType", (typeFromUrl === 'reporte_diario') ? 'inventario_completo' : typeFromUrl);
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
-        
-        // Campos de Inventario
         formData.append("inv_inicial", document.getElementById("inv_inicial").value || 0);
         formData.append("resurtido", document.getElementById("resurtido").value || 0);
-        
-        // CORRECCIÓN: 'ventas' del form debe ir al campo 'cantidad' del modelo si es Reporte Diario
-        const ventasValor = document.getElementById("ventas").value || 0;
-        const cantidadGral = document.getElementById("cantidad").value || 0;
-        formData.append("cantidad", typeFromUrl === 'reporte_diario' ? ventasValor : cantidadGral);
-        
+        formData.append("ventas", document.getElementById("ventas").value || 0);
         formData.append("inv_final", document.getElementById("inv_final").value || 0);
         formData.append("observaciones", document.getElementById("comentarios").value || "");
 
@@ -163,16 +157,15 @@
                 headers: { "userId": userId },
                 body: formData
             });
-
             if(res.ok) {
                 alert("✅ Reporte guardado con éxito");
                 window.location.href = "./home.html";
             } else {
                 const err = await res.json();
-                alert("❌ Error: " + (err.detalles || err.error || "Falla al enviar"));
+                alert("❌ Error: " + (err.error || "Falla al enviar"));
             }
         } catch (err) {
-            alert("❌ Error de conexión al servidor");
+            alert("❌ Error de conexión");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }

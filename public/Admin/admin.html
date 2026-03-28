@@ -163,26 +163,50 @@ function filterReports() {
         </div>`).join('');
 }
 
-// --- ASISTENCIA ---
+// --- ASISTENCIA (MODIFICADA) ---
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    
+    // Filtrar solo registros de entrada y salida
     const assist = reports.filter(r => {
         const type = (r.reporte || r.reportType || "").toLowerCase();
         return type.includes('checkin') || type.includes('checkout');
     });
     
     document.getElementById("content").innerHTML = `
-        <div class="card"><h2>⏰ Asistencia</h2></div>
+        <div class="card"><h2>⏰ Control de Asistencia</h2></div>
         <div class="card">
             <table class="report-table">
-                <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Hora</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Colaborador</th>
+                        <th>Evento</th>
+                        <th>Tienda</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    ${assist.map(a => `<tr>
-                        <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
-                        <td><span class="badge" style="background:${(a.reporte||'').toUpperCase().includes('IN')?'#dcfce7':'#fee2e2'}">${(a.reporte||a.reportType).toUpperCase()}</span></td>
-                        <td>${a.storeId?.name || 'General'}</td>
-                        <td>${new Date(a.createdAt).toLocaleString()}</td>
-                    </tr>`).join('')}
+                    ${assist.map(a => {
+                        const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
+                        const colorBadge = isCheckin ? '#dcfce7' : '#fee2e2';
+                        const colorText = isCheckin ? '#16a34a' : '#dc2626';
+                        const fechaObj = new Date(a.createdAt);
+                        const fechaStr = fechaObj.toLocaleDateString();
+                        const horaStr = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                        return `<tr>
+                            <td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td>
+                            <td>
+                                <span class="badge" style="background:${colorBadge}; color:${colorText}">
+                                    ${isCheckin ? 'ENTRADA' : 'SALIDA'}
+                                </span>
+                            </td>
+                            <td>${a.storeId?.name || 'General'}</td>
+                            <td>${fechaStr}</td>
+                            <td>${horaStr}</td>
+                        </tr>`;
+                    }).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -340,12 +364,10 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-// CORRECCIÓN: Se añadió 'await' para asegurar que la petición termine antes de refrescar
 async function deleteUser(id) { 
     if(confirm("¿Estás seguro de que deseas eliminar este usuario?")) { 
         try {
             await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); 
-            // Obligamos a esperar la carga de usuarios para refrescar la UI
             await loadUsers(); 
         } catch (error) {
             console.error(error);

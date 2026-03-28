@@ -71,9 +71,17 @@ app.post("/login", async (req, res) => {
 });
 
 // --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
+
 app.post("/checkin", auth, async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
+
+        // Validación: Verificar si el último registro ya es un checkin activo
+        const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 });
+        if (lastCheckin && lastCheckin.type === "checkin") {
+            return res.status(400).json({ error: "Ya tienes una entrada activa. Registra salida primero." });
+        }
+
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -82,7 +90,17 @@ app.post("/checkin", auth, async (req, res) => {
             type: "checkin",
             timestamp: new Date()
         });
-        await newCheckin.save();
+
+        // También lo guardamos como un reporte tipo 'checkin' para visibilidad en el dashboard general
+        const checkinReport = new Report({
+            userId: req.user._id,
+            agencyId: req.user.agencyId,
+            storeId: storeId,
+            reporte: "checkin",
+            location: { lat, lng }
+        });
+
+        await Promise.all([newCheckin.save(), checkinReport.save()]);
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
         res.status(500).json({ error: "Error al registrar entrada" });
@@ -91,15 +109,33 @@ app.post("/checkin", auth, async (req, res) => {
 
 app.post("/checkout", auth, async (req, res) => {
     try {
-        const { lat, lng } = req.body;
+        const { lat, lng, storeId } = req.body;
+
+        // Validación: No permitir checkout si no hay un checkin previo
+        const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 });
+        if (!lastEvent || lastEvent.type === "checkout") {
+            return res.status(400).json({ error: "No hay una entrada activa para registrar salida." });
+        }
+
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            storeId: storeId || lastEvent.storeId, // Usa la tienda del checkin si no se envía
             location: { lat, lng },
             type: "checkout", 
             timestamp: new Date()
         });
-        await newCheckout.save();
+
+        // Guardar también en la colección de reportes para el historial del Admin
+        const checkoutReport = new Report({
+            userId: req.user._id,
+            agencyId: req.user.agencyId,
+            storeId: storeId || lastEvent.storeId,
+            reporte: "checkout",
+            location: { lat, lng }
+        });
+
+        await Promise.all([newCheckout.save(), checkoutReport.save()]);
         res.json({ message: "Salida registrada con éxito", checkout: newCheckout });
     } catch (err) {
         res.status(500).json({ error: "Error al registrar salida" });
@@ -107,6 +143,7 @@ app.post("/checkout", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE REPORTES ---
+
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -159,6 +196,7 @@ app.delete("/reports/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE USUARIOS Y RUTAS ---
+
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -207,17 +245,13 @@ app.put("/users/:userId/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar tiendas" }); }
 });
 
-// NUEVO: RUTA PARA ELIMINAR USUARIO
 app.delete("/users/:id", auth, async (req, res) => {
     try {
-        // Evitar que el administrador se elimine a sí mismo por error
         if (req.params.id === req.user._id.toString()) {
             return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador" });
         }
-        
         const deletedUser = await User.findByIdAndDelete(req.params.id);
         if (!deletedUser) return res.status(404).json({ error: "Usuario no encontrado" });
-        
         res.json({ message: "Usuario eliminado correctamente" });
     } catch (err) {
         console.error("❌ Error al eliminar usuario:", err);
@@ -226,6 +260,7 @@ app.delete("/users/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE TIENDAS ---
+
 app.get("/stores", auth, async (req, res) => {
     try {
         const stores = await Store.find().sort({ name: 1 });
@@ -247,6 +282,7 @@ app.post("/stores", auth, async (req, res) => {
 });
 
 // --- MANEJO DE FRONTEND (Rutas de archivos) ---
+
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
 });

@@ -262,13 +262,12 @@ async function createUser() {
     const role = document.getElementById("newUserRole").value;
     if(!name || !email) return alert("Faltan datos");
     
-    // Enviamos 'email' al backend. Nota: Si el backend espera 'phone', podrías enviar {name, phone: email, ...}
     await fetchAPI(`${BACKEND_URL}/users`, { 
         method:"POST", 
         body: JSON.stringify({
             name, 
             email, 
-            phone: email, // Mantenemos compatibilidad si el backend usa 'phone' como login
+            phone: email, 
             role, 
             agencyId: session.agencyId, 
             password:"123"
@@ -341,7 +340,19 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
+// CORRECCIÓN AQUÍ: Función asíncrona para eliminar y actualizar
+async function deleteUser(id) { 
+    if(confirm("¿Estás seguro de que deseas eliminar este usuario?")) { 
+        try {
+            await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); 
+            // Recargamos la lista inmediatamente para que desaparezca visualmente
+            await loadUsers(); 
+        } catch (error) {
+            alert("Error al eliminar el usuario");
+        }
+    } 
+}
+
 async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userid": session.userId } }); loadReports(); } }
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = () => loadSection('reports');

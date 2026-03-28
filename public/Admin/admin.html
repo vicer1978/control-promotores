@@ -120,25 +120,32 @@ function filterReports() {
     const end = document.getElementById("fEnd").value;
     const user = document.getElementById("fUser").value;
     const store = document.getElementById("fStore").value;
-    const type = document.getElementById("fType").value;
+    const typeSelected = document.getElementById("fType").value.toLowerCase();
 
     const filtered = allReportsRaw.filter(r => {
-        // CORRECCIÓN: Compatibilidad con campo 'reporte' o 'reportType'
+        // Normalización agresiva del tipo de reporte
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
-        if (['checkin', 'checkout'].includes(rTypeRaw)) return false;
+        
+        // Excluir asistencia de los reportes generales
+        if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
         
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
         
-        // Filtro de tipo mejorado
-        const matchType = type === "all" || rTypeRaw.includes(type.toLowerCase());
+        // El match de tipo ahora busca si la cadena contiene la palabra (ej: "inventario" match con "Inventario")
+        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected);
         
         return matchDate && matchUser && matchStore && matchType;
     });
 
     const container = document.getElementById("reportList");
+    if (filtered.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center; color:#64748b;">No hay reportes que coincidan con los filtros.</div>`;
+        return;
+    }
+
     container.innerHTML = filtered.map(r => `
         <div class="card">
             <button class="btn-delete" style="position:absolute; right:15px;" onclick="deleteReport('${r._id}')">BORRAR</button>
@@ -167,16 +174,16 @@ function exportExcel() {
     const end = document.getElementById("fEnd").value;
     const user = document.getElementById("fUser").value;
     const store = document.getElementById("fStore").value;
-    const type = document.getElementById("fType").value;
+    const typeSelected = document.getElementById("fType").value.toLowerCase();
 
     const toExport = allReportsRaw.filter(r => {
         const rTypeRaw = (r.reporte || r.reportType || "").toLowerCase().trim();
-        if (['checkin', 'checkout'].includes(rTypeRaw)) return false;
+        if (rTypeRaw.includes('checkin') || rTypeRaw.includes('checkout')) return false;
         const rDate = new Date(r.createdAt).toISOString().split('T')[0];
         const matchDate = (!start || rDate >= start) && (!end || rDate <= end);
         const matchUser = user === "all" || (r.userId?._id || r.userId) === user;
         const matchStore = store === "all" || (r.storeId?._id || r.storeId) === store;
-        const matchType = type === "all" || rTypeRaw.includes(type.toLowerCase());
+        const matchType = typeSelected === "all" || rTypeRaw.includes(typeSelected);
         return matchDate && matchUser && matchStore && matchType;
     });
 
@@ -203,7 +210,7 @@ async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const assist = data.filter(r => {
         const type = (r.reporte || r.reportType || "").toLowerCase().trim();
-        return type === 'checkin' || type === 'checkout';
+        return type.includes('checkin') || type.includes('checkout');
     });
     
     document.getElementById("content").innerHTML = `
@@ -212,13 +219,15 @@ async function loadAttendance() {
             <table class="report-table">
                 <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Hora</th></tr></thead>
                 <tbody>
-                    ${assist.length > 0 ? assist.map(a => `
-                        <tr>
+                    ${assist.length > 0 ? assist.map(a => {
+                        const t = (a.reporte || a.reportType || "").toUpperCase();
+                        return `<tr>
                             <td>${(a.userId?.name || 'S/N').toUpperCase()}</td>
-                            <td><span class="badge" style="background:${(a.reporte || a.reportType || '').toLowerCase().includes('in')?'#dcfce7':'#fee2e2'}">${(a.reporte || a.reportType || 'EVENTO').toUpperCase()}</span></td>
+                            <td><span class="badge" style="background:${t.includes('IN')?'#dcfce7':'#fee2e2'}">${t}</span></td>
                             <td>${a.storeId?.name || 'General / Ruta'}</td>
                             <td>${new Date(a.createdAt).toLocaleString()}</td>
-                        </tr>`).join('') : '<tr><td colspan="4">No hay registros de asistencia</td></tr>'}
+                        </tr>`;
+                    }).join('') : '<tr><td colspan="4">No hay registros de asistencia</td></tr>'}
                 </tbody>
             </table>
         </div>`;

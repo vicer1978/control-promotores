@@ -133,12 +133,10 @@ function filterReports() {
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         
-        // Excluir asistencia de los reportes generales
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         
-        // Lógica de filtrado por tipo (incluyendo soporte para reporte_diario -> inventario)
         let matchType = true;
         if(typeSel !== "all") {
             if(typeSel === 'inventario') {
@@ -154,13 +152,14 @@ function filterReports() {
     });
 
     document.getElementById("reportList").innerHTML = filtered.map(r => {
-        const type = (r.reporte || r.reportType || '').toLowerCase();
-        const isPrecios = type.includes('precio');
+        const rType = (r.reportType || r.reporte || '').toLowerCase();
+        // Detección robusta de si es reporte de precios
+        const isPrecios = rType.includes('precio') || r.precio_normal > 0 || r.precio > 0;
         
         return `
         <div class="card">
             <button class="btn-delete" style="position:absolute; right:15px;" onclick="deleteReport('${r._id}')">BORRAR</button>
-            <span class="badge badge-inv">${(r.reporte || r.reportType || 'Gral').toUpperCase()}</span><br>
+            <span class="badge badge-inv">${(r.reportType || r.reporte || 'Gral').toUpperCase()}</span><br>
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
             <table class="report-table">
                 ${isPrecios ? `
@@ -168,7 +167,7 @@ function filterReports() {
                 <tbody>
                     <tr>
                         <td>${r.articulo || '-'}</td>
-                        <td>$${r.precio || r.precio_normal || 0}</td>
+                        <td>$${r.precio_normal || r.precio || 0}</td>
                         <td>$${r.precio_oferta || 0}</td>
                     </tr>
                 </tbody>
@@ -281,25 +280,6 @@ function renderUserCards(users) {
     }).join('');
 }
 
-function filterUserList() {
-    const term = document.getElementById("userSearch").value.toLowerCase();
-    renderUserCards(allUsersCached.filter(u => u.name.toLowerCase().includes(term) || (u.email && u.email.toLowerCase().includes(term))));
-}
-
-async function createUser() {
-    const name = document.getElementById("newUserName").value;
-    const email = document.getElementById("newUserEmail").value;
-    const role = document.getElementById("newUserRole").value;
-    if(!name || !email) return alert("Faltan datos");
-    await fetchAPI(`${BACKEND_URL}/users`, { method:"POST", body: JSON.stringify({name, email, phone: email, role, agencyId: session.agencyId, password:"123"}) });
-    loadUsers();
-}
-
-async function updateUserRole(uId, role) {
-    await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:"PUT", body: JSON.stringify({role}) });
-    alert("Rol actualizado");
-}
-
 // --- TIENDAS ---
 async function loadStores() {
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);
@@ -317,23 +297,15 @@ async function loadStores() {
         ${stores.map(s => `<div class="card"><b>${s.name}</b><br><small>${s.address}</small><br><small style="color:var(--info)">📍 ${s.coordinates ? s.coordinates.join(', ') : 'Sin GPS'}</small></div>`).join('')}`;
 }
 
-async function createStore() {
-    const body = { name: document.getElementById("sN").value, address: document.getElementById("sA").value, coordinates: [parseFloat(document.getElementById("sLat").value || 0), parseFloat(document.getElementById("sLon").value || 0)]};
-    await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify(body) });
-    loadStores();
-}
-
-// --- UTILIDADES (CORREGIDO EXPORT) ---
-function exportExcel() {
+async function exportExcel() {
     const typeSel = document.getElementById("fType").value;
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
     const userSel = document.getElementById("fUser")?.value;
     const storeSel = document.getElementById("fStore")?.value;
 
-    // Filtrar datos para el Excel igual que en la vista
-    const dataToExport = allReportsRaw.filter(r => {
-        const rType = (r.reporte || r.reportType || "").toLowerCase();
+    const filteredData = allReportsRaw.filter(r => {
+        const rType = (r.reportType || r.reporte || "").toLowerCase();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
         
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
@@ -350,58 +322,70 @@ function exportExcel() {
                (userSel === "all" || rUid === userSel) &&
                (storeSel === "all" || rSid === storeSel) && matchType;
     }).map(r => {
-        const type = (r.reporte || r.reportType || '').toLowerCase();
-        const isPrecios = type.includes('precio');
+        const rType = (r.reportType || r.reporte || '').toLowerCase();
+        const isPrecios = rType.includes('precio') || r.precio_normal > 0 || r.precio > 0;
         
-        // Base de columnas
         let row = {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
             "HORA": new Date(r.createdAt).toLocaleTimeString(),
             "USUARIO": r.userId?.name || "N/A",
             "TIENDA": r.storeId?.name || "N/A",
-            "TIPO": type.toUpperCase(),
+            "TIPO": (r.reportType || r.reporte || 'GRAL').toUpperCase(),
             "ARTÍCULO": r.articulo || r.producto || "-"
         };
 
         if (isPrecios) {
-            row["PRECIO NORMAL"] = r.precio || r.precio_normal || 0;
+            row["PRECIO NORMAL"] = r.precio_normal || r.precio || 0;
             row["PRECIO OFERTA"] = r.precio_oferta || 0;
         } else {
             row["I_INI"] = r.inv_inicial || 0;
             row["RESURTIDO"] = r.resurtido || 0;
-            row["VENTAS"] = r.ventas || r.cantidad || 0;
+            row["VENTA"] = r.ventas || r.cantidad || 0;
             row["I_FIN"] = r.inv_final || 0;
         }
-
+        
         row["OBSERVACIONES"] = r.observaciones || "";
         return row;
     });
 
-    if(dataToExport.length === 0) return alert("No hay datos para exportar con estos filtros.");
+    if(filteredData.length === 0) return alert("No hay datos para exportar con estos filtros");
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, `Reporte_StorePulse_${typeSel}_${Date.now()}.xlsx`);
+    XLSX.writeFile(wb, `Reportes_StorePulse_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-let draggedStore = null;
-function dragStart(id) { draggedStore = id; }
-function allowDrop(e) { e.preventDefault(); }
-async function dropStore(e, uId, type) {
-    e.preventDefault();
-    const user = allUsersCached.find(u => u._id === uId);
+// --- OTRAS FUNCIONES ---
+async function deleteReport(id) {
+    if(!confirm("¿Borrar reporte?")) return;
+    await fetchAPI(`${BACKEND_URL}/reports/${id}`, { method: "DELETE" });
+    loadReports();
+}
+
+function logout() { localStorage.clear(); window.location.href = "../index.html"; }
+
+// Arrastrar y Soltar para Tiendas
+let draggedStoreId = null;
+function dragStart(id) { draggedStoreId = id; }
+function allowDrop(ev) { ev.preventDefault(); }
+async function dropStore(ev, userId, action) {
+    ev.preventDefault();
+    const user = allUsersCached.find(u => u._id === userId);
     let stores = (user.stores || []).map(s => s._id || s);
-    if(type === 'assign') { if(!stores.includes(draggedStore)) stores.push(draggedStore); }
-    else { stores = stores.filter(id => id !== draggedStore); }
-    await fetchAPI(`${BACKEND_URL}/users/${uId}/stores`, { method: "PUT", body: JSON.stringify({stores}) });
+    
+    if (action === 'assign' && !stores.includes(draggedStoreId)) {
+        stores.push(draggedStoreId);
+    } else if (action === 'avail') {
+        stores = stores.filter(id => id !== draggedStoreId);
+    }
+    
+    await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify({ stores })
+    });
     loadUsers();
 }
-
-async function deleteUser(id) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
-async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userid": session.userId } }); loadReports(); } }
-function logout() { localStorage.clear(); window.location.href = "../login.html"; }
-window.onload = () => loadSection('reports');
 </script>
 </body>
 </html>

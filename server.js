@@ -99,7 +99,7 @@ app.post("/checkin", auth, async (req, res) => {
         });
         await newCheckin.save();
 
-        // 2. Guardar Reporte Espejo (Historial) - Separado para evitar que un fallo de esquema bloquee la app
+        // 2. Guardar Reporte Espejo (Historial)
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -177,19 +177,26 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: req.body.storeId, 
-            reporte: req.body.reporte || req.body.reportType, // Unifica nombres de campo
+            // Soporta varios nombres de campo que el celular pueda enviar
+            reporte: req.body.reporte || req.body.reportType || req.body.type, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
+            
+            // Conversión segura a número para evitar fallos de validación
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
             inv_final: Number(req.body.inv_final) || 0,
-            precio: Number(req.body.precio) || 0,
+            
+            // Manejo especial para precios (soporta precio_normal desde el front)
+            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
+            precio_oferta: Number(req.body.precio_oferta) || 0,
+            
             personas: Number(req.body.personas) || 0,
             observaciones: obs,
             location: (req.body.lat && req.body.lng) ? {
                 lat: Number(req.body.lat),
                 lng: Number(req.body.lng)
-            } : undefined
+            } : { lat: 0, lng: 0 }
         };
 
         const report = new Report(reportData);
@@ -298,7 +305,7 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
-// --- MANEJO DE FRONTEND (Rutas de archivos) ---
+// --- MANEJO DE FRONTEND ---
 
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));

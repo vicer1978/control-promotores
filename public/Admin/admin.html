@@ -132,42 +132,67 @@ function filterReports() {
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
+        
+        // Excluir asistencia de los reportes generales
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
+        
+        // Lógica de filtrado por tipo (incluyendo soporte para reporte_diario -> inventario)
+        let matchType = true;
+        if(typeSel !== "all") {
+            if(typeSel === 'inventario') {
+                matchType = (rType === 'inventario' || rType === 'reporte_diario');
+            } else {
+                matchType = rType.includes(typeSel.substring(0, 4));
+            }
+        }
+
         return (!start || rDate >= start) && (!end || rDate <= end) &&
                (userSel === "all" || rUid === userSel) &&
-               (storeSel === "all" || rSid === storeSel) &&
-               (typeSel === "all" || rType.includes(typeSel.substring(0, 4)));
+               (storeSel === "all" || rSid === storeSel) && matchType;
     });
 
-    document.getElementById("reportList").innerHTML = filtered.map(r => `
+    document.getElementById("reportList").innerHTML = filtered.map(r => {
+        const type = (r.reporte || r.reportType || '').toLowerCase();
+        const isPrecios = type.includes('precio');
+        
+        return `
         <div class="card">
             <button class="btn-delete" style="position:absolute; right:15px;" onclick="deleteReport('${r._id}')">BORRAR</button>
             <span class="badge badge-inv">${(r.reporte || r.reportType || 'Gral').toUpperCase()}</span><br>
             <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
             <table class="report-table">
+                ${isPrecios ? `
+                <thead><tr><th>Producto</th><th>Precio Normal</th><th>Precio Oferta</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>${r.articulo || '-'}</td>
+                        <td>$${r.precio || r.precio_normal || 0}</td>
+                        <td>$${r.precio_oferta || 0}</td>
+                    </tr>
+                </tbody>
+                ` : `
                 <thead><tr><th>Producto</th><th>I_INI</th><th>RESURTIDO</th><th>VENTA</th><th>I_FIN</th></tr></thead>
                 <tbody>
                     <tr>
                         <td>${r.articulo || r.producto || '-'}</td>
-                        <td>${r.inv_inicial || r.inventarioInicial || 0}</td>
+                        <td>${r.inv_inicial || 0}</td>
                         <td>${r.resurtido || 0}</td>
                         <td>${r.ventas || r.cantidad || 0}</td>
-                        <td>${r.inv_final || r.inventarioFinal || 0}</td>
+                        <td>${r.inv_final || 0}</td>
                     </tr>
                 </tbody>
+                `}
             </table>
             ${r.observaciones ? `<p style="font-size:12px; margin-top:8px;"><b>Nota:</b> ${r.observaciones}</p>` : ''}
             ${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="img-preview" onclick="window.open(this.src)">` : ''}
-        </div>`).join('');
+        </div>`}).join('');
 }
 
-// --- ASISTENCIA (MODIFICADA) ---
+// --- ASISTENCIA ---
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    
-    // Filtrar solo registros de entrada y salida
     const assist = reports.filter(r => {
         const type = (r.reporte || r.reportType || "").toLowerCase();
         return type.includes('checkin') || type.includes('checkout');
@@ -178,33 +203,18 @@ async function loadAttendance() {
         <div class="card">
             <table class="report-table">
                 <thead>
-                    <tr>
-                        <th>Colaborador</th>
-                        <th>Evento</th>
-                        <th>Tienda</th>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                    </tr>
+                    <tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th></tr>
                 </thead>
                 <tbody>
                     ${assist.map(a => {
                         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
-                        const colorBadge = isCheckin ? '#dcfce7' : '#fee2e2';
-                        const colorText = isCheckin ? '#16a34a' : '#dc2626';
                         const fechaObj = new Date(a.createdAt);
-                        const fechaStr = fechaObj.toLocaleDateString();
-                        const horaStr = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
                         return `<tr>
                             <td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td>
-                            <td>
-                                <span class="badge" style="background:${colorBadge}; color:${colorText}">
-                                    ${isCheckin ? 'ENTRADA' : 'SALIDA'}
-                                </span>
-                            </td>
+                            <td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td>
                             <td>${a.storeId?.name || 'General'}</td>
-                            <td>${fechaStr}</td>
-                            <td>${horaStr}</td>
+                            <td>${fechaObj.toLocaleDateString()}</td>
+                            <td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                         </tr>`;
                     }).join('')}
                 </tbody>
@@ -224,8 +234,8 @@ async function loadUsers() {
             <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:20px;">
                 <b style="font-size:13px; color:var(--primary);">+ REGISTRAR NUEVO</b>
                 <div class="grid-filters" style="margin-top:10px;">
-                    <div><label>Nombre</label><input id="newUserName" type="text" placeholder="Ej: Juan Pérez"></div>
-                    <div><label>Correo Electrónico</label><input id="newUserEmail" type="email" placeholder="usuario@correo.com"></div>
+                    <div><label>Nombre</label><input id="newUserName" type="text"></div>
+                    <div><label>Correo</label><input id="newUserEmail" type="email"></div>
                     <div><label>Rol</label>
                         <select id="newUserRole">
                             <option value="demostradora">Demostradora</option>
@@ -236,7 +246,7 @@ async function loadUsers() {
                 </div>
                 <button onclick="createUser()" class="btn-action" style="width:100%; background:#16a34a; margin-top:10px;">GUARDAR</button>
             </div>
-            <input type="text" id="userSearch" placeholder="🔍 Buscar por nombre o correo..." onkeyup="filterUserList()">
+            <input type="text" id="userSearch" placeholder="🔍 Buscar..." onkeyup="filterUserList()">
         </div>
         <div id="userListContainer"></div>`;
     renderUserCards(allUsersCached);
@@ -260,10 +270,10 @@ function renderUserCards(users) {
                 </div>
             </div>
             <div class="store-list">
-                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>📍 DISPONIBLES</small>
+                <div class="store-column" ondrop="dropStore(event,'${u._id}','avail')" ondragover="allowDrop(event)"><small>📍 DISP.</small>
                     ${available.map(s => `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>`).join('')}
                 </div>
-                <div class="store-column" style="background:#f0f9ff" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>✅ ASIGNADAS</small>
+                <div class="store-column" style="background:#f0f9ff" ondrop="dropStore(event,'${u._id}','assign')" ondragover="allowDrop(event)"><small>✅ ASIG.</small>
                     ${assigned.map(id => { const s = cachedStores.find(x => x._id === id); return s ? `<div class="store-item" draggable="true" ondragstart="dragStart('${s._id}')">${s.name}</div>` : ''; }).join('')}
                 </div>
             </div>
@@ -273,11 +283,7 @@ function renderUserCards(users) {
 
 function filterUserList() {
     const term = document.getElementById("userSearch").value.toLowerCase();
-    renderUserCards(allUsersCached.filter(u => 
-        u.name.toLowerCase().includes(term) || 
-        (u.email && u.email.toLowerCase().includes(term)) || 
-        (u.phone && u.phone.includes(term))
-    ));
+    renderUserCards(allUsersCached.filter(u => u.name.toLowerCase().includes(term) || (u.email && u.email.toLowerCase().includes(term))));
 }
 
 async function createUser() {
@@ -285,18 +291,7 @@ async function createUser() {
     const email = document.getElementById("newUserEmail").value;
     const role = document.getElementById("newUserRole").value;
     if(!name || !email) return alert("Faltan datos");
-    
-    await fetchAPI(`${BACKEND_URL}/users`, { 
-        method:"POST", 
-        body: JSON.stringify({
-            name, 
-            email, 
-            phone: email, 
-            role, 
-            agencyId: session.agencyId, 
-            password:"123"
-        }) 
-    });
+    await fetchAPI(`${BACKEND_URL}/users`, { method:"POST", body: JSON.stringify({name, email, phone: email, role, agencyId: session.agencyId, password:"123"}) });
     loadUsers();
 }
 
@@ -323,32 +318,71 @@ async function loadStores() {
 }
 
 async function createStore() {
-    const body = { 
-        name: document.getElementById("sN").value, 
-        address: document.getElementById("sA").value,
-        coordinates: [parseFloat(document.getElementById("sLat").value || 0), parseFloat(document.getElementById("sLon").value || 0)]
-    };
+    const body = { name: document.getElementById("sN").value, address: document.getElementById("sA").value, coordinates: [parseFloat(document.getElementById("sLat").value || 0), parseFloat(document.getElementById("sLon").value || 0)]};
     await fetchAPI(`${BACKEND_URL}/stores`, { method: "POST", body: JSON.stringify(body) });
     loadStores();
 }
 
-// --- UTILIDADES ---
+// --- UTILIDADES (CORREGIDO EXPORT) ---
 function exportExcel() {
-    const data = allReportsRaw.map(r => ({
-        "FECHA": new Date(r.createdAt).toLocaleDateString(),
-        "USUARIO": r.userId?.name || "N/A",
-        "TIENDA": r.storeId?.name || "N/A",
-        "ARTÍCULO": r.articulo || r.producto || "-",
-        "I_INI": r.inv_inicial || 0,
-        "RESURTIDO": r.resurtido || 0,
-        "VENTAS": r.ventas || 0,
-        "I_FIN": r.inv_final || 0,
-        "OBS": r.observaciones || ""
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const typeSel = document.getElementById("fType").value;
+    const start = document.getElementById("fStart")?.value;
+    const end = document.getElementById("fEnd")?.value;
+    const userSel = document.getElementById("fUser")?.value;
+    const storeSel = document.getElementById("fStore")?.value;
+
+    // Filtrar datos para el Excel igual que en la vista
+    const dataToExport = allReportsRaw.filter(r => {
+        const rType = (r.reporte || r.reportType || "").toLowerCase();
+        if (rType.includes('checkin') || rType.includes('checkout')) return false;
+        
+        const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
+        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
+        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+
+        let matchType = true;
+        if(typeSel !== 'all') {
+            if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
+            else matchType = rType.includes(typeSel.substring(0, 4));
+        }
+
+        return (!start || rDate >= start) && (!end || rDate <= end) &&
+               (userSel === "all" || rUid === userSel) &&
+               (storeSel === "all" || rSid === storeSel) && matchType;
+    }).map(r => {
+        const type = (r.reporte || r.reportType || '').toLowerCase();
+        const isPrecios = type.includes('precio');
+        
+        // Base de columnas
+        let row = {
+            "FECHA": new Date(r.createdAt).toLocaleDateString(),
+            "HORA": new Date(r.createdAt).toLocaleTimeString(),
+            "USUARIO": r.userId?.name || "N/A",
+            "TIENDA": r.storeId?.name || "N/A",
+            "TIPO": type.toUpperCase(),
+            "ARTÍCULO": r.articulo || r.producto || "-"
+        };
+
+        if (isPrecios) {
+            row["PRECIO NORMAL"] = r.precio || r.precio_normal || 0;
+            row["PRECIO OFERTA"] = r.precio_oferta || 0;
+        } else {
+            row["I_INI"] = r.inv_inicial || 0;
+            row["RESURTIDO"] = r.resurtido || 0;
+            row["VENTAS"] = r.ventas || r.cantidad || 0;
+            row["I_FIN"] = r.inv_final || 0;
+        }
+
+        row["OBSERVACIONES"] = r.observaciones || "";
+        return row;
+    });
+
+    if(dataToExport.length === 0) return alert("No hay datos para exportar con estos filtros.");
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, "Reporte_StorePulse.xlsx");
+    XLSX.writeFile(wb, `Reporte_StorePulse_${typeSel}_${Date.now()}.xlsx`);
 }
 
 let draggedStore = null;
@@ -364,18 +398,7 @@ async function dropStore(e, uId, type) {
     loadUsers();
 }
 
-async function deleteUser(id) { 
-    if(confirm("¿Estás seguro de que deseas eliminar este usuario?")) { 
-        try {
-            await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); 
-            await loadUsers(); 
-        } catch (error) {
-            console.error(error);
-            alert("Error al eliminar el usuario");
-        }
-    } 
-}
-
+async function deleteUser(id) { if(confirm("¿Eliminar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: "DELETE" }); loadUsers(); } }
 async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetch(`${BACKEND_URL}/reports/${id}`, { method: 'DELETE', headers: { "userid": session.userId } }); loadReports(); } }
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = () => loadSection('reports');

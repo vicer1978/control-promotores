@@ -163,26 +163,23 @@
         formData.append("storeId", storeId);
         formData.append("userId", userId);
 
-        // Ajuste de reportType para compatibilidad con el servidor
         let finalType = typeFromUrl;
         if(typeFromUrl === 'reporte_diario') finalType = 'inventario'; 
         formData.append("reportType", finalType);
 
         formData.append("articulo", document.getElementById("articulo").value || "N/A");
         
-        // Datos numéricos de inventario
+        // Datos de inventario
         formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
         formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
         formData.append("ventas", Number(document.getElementById("ventas").value) || 0);
         formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
         
-        // Datos numéricos de precios
-        formData.append("precioNormal", Number(document.getElementById("precio_normal")?.value) || 0);
-        formData.append("precioOferta", Number(document.getElementById("precio_oferta")?.value) || 0);
+        // CORRECCIÓN: Nombres de campos para Precios que coinciden con el Servidor
+        formData.append("precio_normal", Number(document.getElementById("precio_normal")?.value) || 0);
+        formData.append("precio_oferta", Number(document.getElementById("precio_oferta")?.value) || 0);
         
-        // Cantidad para otros tipos de reportes
         formData.append("cantidad", Number(document.getElementById("cantidad").value) || Number(document.getElementById("ventas").value) || 0);
-
         formData.append("observaciones", document.getElementById("comentarios").value || "");
 
         const fotoInput = document.getElementById("foto");

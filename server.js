@@ -99,18 +99,15 @@ app.post("/checkin", auth, async (req, res) => {
         });
         await newCheckin.save();
 
-        // 2. Guardar en Reportes (Historial) - Se hace por separado para no bloquear la respuesta
+        // 2. Guardar Reporte Espejo (Historial) - Separado para evitar que un fallo de esquema bloquee la app
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: storeId,
-            reporte: "checkin", // Coincide con el Enum de tu Report.js corregido
-            location: { 
-                lat: Number(lat), 
-                lng: Number(lng) 
-            }
+            reporte: "checkin",
+            location: { lat: Number(lat), lng: Number(lng) }
         });
-        checkinReport.save().catch(e => console.error("⚠️ Error guardando reporte espejo:", e));
+        checkinReport.save().catch(e => console.error("⚠️ Error reporte espejo checkin:", e.message));
 
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
@@ -146,12 +143,9 @@ app.post("/checkout", auth, async (req, res) => {
             agencyId: req.user.agencyId,
             storeId: storeId || lastEvent.storeId,
             reporte: "checkout",
-            location: { 
-                lat: Number(lat), 
-                lng: Number(lng) 
-            }
+            location: { lat: Number(lat), lng: Number(lng) }
         });
-        checkoutReport.save().catch(e => console.error("⚠️ Error guardando reporte espejo:", e));
+        checkoutReport.save().catch(e => console.error("⚠️ Error reporte espejo checkout:", e.message));
 
         res.json({ message: "Salida registrada con éxito", checkout: newCheckout });
     } catch (err) {
@@ -183,6 +177,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: req.body.storeId, 
+            reporte: req.body.reporte || req.body.reportType, // Unifica nombres de campo
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,
@@ -270,7 +265,7 @@ app.delete("/users/:id", auth, async (req, res) => {
             return res.status(400).json({ error: "ID de usuario malformado" });
         }
         if (targetId === req.user._id.toString()) {
-            return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador" });
+            return res.status(400).json({ error: "No puedes eliminar tu propia cuenta" });
         }
         const deletedUser = await User.findByIdAndDelete(targetId);
         if (!deletedUser) return res.status(404).json({ error: "Usuario no encontrado" });
@@ -303,22 +298,28 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
-// --- MANEJO DE FRONTEND ---
+// --- MANEJO DE FRONTEND (Rutas de archivos) ---
+
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
 });
+
 app.get("/admin/super", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html"));
 });
+
 app.get("/dashboard", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "dashboard.html"));
 });
+
 app.get("/home", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "home.html"));
 });
+
 app.get("/", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
+
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

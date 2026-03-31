@@ -327,7 +327,6 @@ async function exportExcel() {
         
         let row = {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
-            "HORA": new Date(r.createdAt).toLocaleTimeString(),
             "USUARIO": r.userId?.name || "N/A",
             "TIENDA": r.storeId?.name || "N/A",
             "TIPO": (r.reportType || r.reporte || 'GRAL').toUpperCase(),

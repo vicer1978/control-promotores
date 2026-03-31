@@ -49,7 +49,15 @@
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
 let session = { userId: localStorage.getItem("userId"), agencyId: localStorage.getItem("agencyId") };
-if (!session.userId) window.location.href = "../login.html";
+
+// Verificación de sesión y carga de bienvenida
+if (!session.userId) {
+    window.location.href = "../login.html";
+} else {
+    window.onload = () => {
+        showWelcomeMessage();
+    };
+}
 
 let allReportsRaw = [];
 let allUsersCached = [];
@@ -60,6 +68,20 @@ async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), ...headers };
     const res = await fetch(url, options);
     return res.json();
+}
+
+function showWelcomeMessage() {
+    document.getElementById("content").innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;">
+            <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">
+                StorePulse Admin
+            </h1>
+            <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">
+                Control de operación en tiempo real.
+            </p>
+            <div style="width: 80px; height: 6px; background: var(--gold); margin-top: 30px; border-radius: 10px;"></div>
+        </div>
+    `;
 }
 
 function loadSection(section) {
@@ -153,7 +175,6 @@ function filterReports() {
 
     document.getElementById("reportList").innerHTML = filtered.map(r => {
         const rType = (r.reportType || r.reporte || '').toLowerCase();
-        // Detección robusta de si es reporte de precios
         const isPrecios = rType.includes('precio') || r.precio_normal > 0 || r.precio > 0;
         
         return `

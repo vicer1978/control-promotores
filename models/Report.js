@@ -24,15 +24,21 @@ const ReportSchema = new mongoose.Schema({
         type: String, 
         required: true, 
         trim: true, 
-        // Se incluyen 'precios' y otros tipos para evitar el Error 500
+        // Se incluyen todos los tipos nuevos para evitar Error 500
         enum: [
             'ventas', 
             'ranking', 
             'inventario', 
+            'inventarios',      // <--- Agregado (Promotor)
             'agotado', 
+            'agotados',        // <--- Agregado (Promotor)
+            'preagotados',     // <--- Agregado (Promotor)
             'competencia', 
+            'competencia_p',   // <--- Agregado (Promotor)
             'reporte_diario', 
-            'precios',    // <--- Agregado para chequeo de precios
+            'precios',         
+            'exhibiciones',    // <--- Agregado (Promotor)
+            'fotos_anaquel',   // <--- Agregado (Promotor)
             'checkin', 
             'checkout'
         ] 
@@ -47,12 +53,14 @@ const ReportSchema = new mongoose.Schema({
     // --- FLUJO DE INVENTARIO Y VENTAS ---
     inv_inicial: { type: Number, default: 0 },
     resurtido:   { type: Number, default: 0 }, 
+    ventas:      { type: Number, default: 0 }, // <--- Agregado para compatibilidad con Demos
     cantidad:    { type: Number, default: 0 }, 
     inv_final:   { type: Number, default: 0 },
     
     // --- CAMPOS DE PRECIOS ---
     precio:        { type: Number, default: 0 }, // Usado como Precio Normal
-    precio_oferta: { type: Number, default: 0 }, // <--- Nuevo campo para ofertas
+    precio_normal: { type: Number, default: 0 }, // <--- Agregado para consistencia
+    precio_oferta: { type: Number, default: 0 }, 
     
     // --- DATOS DE CAMPO ---
     personas: { 

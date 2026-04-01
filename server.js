@@ -71,7 +71,6 @@ app.post("/login", async (req, res) => {
 });
 
 // --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
-
 app.post("/checkin", auth, async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
@@ -85,7 +84,6 @@ app.post("/checkin", auth, async (req, res) => {
             return res.status(400).json({ error: "Ya tienes una entrada activa. Registra salida primero." });
         }
 
-        // 1. Guardar Asistencia (Prioridad)
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -99,7 +97,6 @@ app.post("/checkin", auth, async (req, res) => {
         });
         await newCheckin.save();
 
-        // 2. Guardar Reporte Espejo (Historial)
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -155,7 +152,6 @@ app.post("/checkout", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE REPORTES ---
-
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -177,18 +173,20 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: req.body.storeId, 
-            // Soporta varios nombres de campo que el celular pueda enviar
-            reporte: req.body.reporte || req.body.reportType || req.body.type, 
+            // Soporta múltiples formas en que el front envía el tipo de reporte
+            reporte: req.body.reportType || req.body.reporte || req.body.type, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
             
-            // Conversión segura a número para evitar fallos de validación
+            // Conversión segura a número y soporte para campo 'ventas'
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
+            ventas: Number(req.body.ventas) || 0, 
             inv_final: Number(req.body.inv_final) || 0,
             
-            // Manejo especial para precios (soporta precio_normal desde el front)
+            // Soporte para precio normal y oferta
             precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
+            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
             precio_oferta: Number(req.body.precio_oferta) || 0,
             
             personas: Number(req.body.personas) || 0,
@@ -216,7 +214,6 @@ app.delete("/reports/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE USUARIOS Y RUTAS ---
-
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -284,10 +281,11 @@ app.delete("/users/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE TIENDAS ---
-
 app.get("/stores", auth, async (req, res) => {
     try {
-        const stores = await Store.find().sort({ name: 1 });
+        // Filtrado por agencia para administradores
+        const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
+        const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
     } catch (err) { res.status(500).json({ error: "Error al obtener tiendas" }); }
 });
@@ -306,7 +304,6 @@ app.post("/stores", auth, async (req, res) => {
 });
 
 // --- MANEJO DE FRONTEND ---
-
 app.get("/admin", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html"));
 });
@@ -327,6 +324,7 @@ app.get("/", (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
+// Ruta comodín para SPA o errores 404 dirigida al login
 app.get(/.*/, (req, res) => {
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

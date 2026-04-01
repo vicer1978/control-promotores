@@ -12,13 +12,14 @@ const UserSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { 
         type: String, 
-        default: 'promotor',
-        enum: ['promotor', 'demostradora', 'admin', 'super-admin'] // Añadimos restricción de roles
+        default: 'Promotor', // Sugerencia: Usar Capitalizado para coincidir con tu UI
+        trim: true,
+        enum: ['Promotor', 'Demostradora', 'Admin', 'Super-Admin', 'promotor', 'demostradora'] 
     }, 
     agencyId: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Agency',
-        index: true // Optimiza el filtrado en el panel Admin
+        index: true 
     },
     stores: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Store' }]
 }, { timestamps: true });

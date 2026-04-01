@@ -3,144 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StorePulse - Tareas</title>
+    <title>StorePulse - Tareas de Promotoría</title>
     <style>
-        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; }
-        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
-
-        .header {
-            display:flex;
-            align-items:center;
-            padding:15px 20px;
-            background:white;
-            box-shadow:0 2px 10px rgba(0,0,0,0.05);
-            position: sticky;
-            top: 0;
-            z-index: 10;
+        :root { 
+            --primary: #0B1F3A; 
+            --gold: #D4AF37; 
+            --bg: #F5F7FA; 
+            --text: #333; 
+            --white: #ffffff;
+            --danger: #ef4444;
         }
-        .back-btn { font-size:20px; cursor:pointer; margin-right:15px; color: var(--primary); text-decoration: none; }
-        .title { font-weight:bold; font-size:18px; color: var(--primary); flex: 1; }
-
-        .container { padding:20px; max-width: 600px; margin: auto; }
         
-        .info-tienda {
+        body { 
+            margin:0; 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+        }
+
+        /* HEADER ESTILO APP */
+        .header-status {
             background: var(--primary);
             color: white;
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            padding: 30px 20px;
+            text-align: center;
+            border-radius: 0 0 25px 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* GRID DE REPORTES */
-        .grid-reportes {
+        .store-tag {
+            background: var(--gold);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.75rem;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        /* GRID DE MENÚ */
+        .container { padding: 20px; max-width: 500px; margin: auto; }
+        
+        .menu-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 15px;
+            margin-top: 10px;
         }
 
-        .card-reporte {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
+        .menu-item {
+            background: var(--white);
+            padding: 20px 10px;
+            border-radius: 20px;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.03);
             cursor: pointer;
-            transition: transform 0.2s;
-            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+            border: 1px solid #eee;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 120px;
         }
 
-        .card-reporte:active { transform: scale(0.95); background: #f8fafc; }
-        .card-reporte i { font-size: 2rem; margin-bottom: 10px; display: block; }
-        .card-reporte span { font-weight: 600; font-size: 0.9rem; color: var(--primary); }
+        .menu-item:active { 
+            transform: scale(0.95); 
+            background: #f1f5f9; 
+        }
 
-        /* Colores sutiles para los iconos */
-        .icon-ventas { color: #22c55e; }
-        .icon-precios { color: #3b82f6; }
-        .icon-agotados { color: #ef4444; }
-        .icon-inventario { color: #f59e0b; }
-        .icon-fotos { color: #8b5cf6; }
+        .menu-item img {
+            width: 45px;
+            height: 45px;
+            margin-bottom: 12px;
+        }
+
+        .menu-item span {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+
+        /* BOTÓN DE SALIDA */
+        .footer-action {
+            margin-top: 25px;
+        }
+
+        .btn-exit {
+            width: 100%;
+            padding: 16px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+        }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <a href="dashboard.html" class="back-btn">⬅</a>
-    <div class="title">Módulos de Reporte</div>
+<div class="header-status">
+    <div class="store-tag">PROMOTOR</div>
+    <h2 id="activeStoreName" style="margin: 5px 0;">Walmart Buenavista</h2>
+    <div style="font-size: 0.85rem; opacity: 0.9;">
+        <span class="status-dot"></span> Operación en curso
+    </div>
 </div>
 
 <div class="container">
-    <div class="info-tienda">
-        <span>🏪</span>
-        <div>
-            <small style="opacity: 0.8; display: block;">Tienda activa:</small>
-            <strong id="currentStore">Cargando...</strong>
-        </div>
-    </div>
-
-    <div class="grid-reportes">
-        <div class="card-reporte" onclick="irAReporte('ventas')">
-            <i class="icon-ventas">💰</i>
-            <span>Ventas</span>
+    <div class="menu-grid">
+        <div class="menu-item" onclick="irAReporte('inventario')">
+            <img src="https://cdn-icons-png.flaticon.com/512/2897/2897785.png" alt="Icon">
+            <span>Inventario y Ventas</span>
         </div>
 
-        <div class="card-reporte" onclick="irAReporte('precios')">
-            <i class="icon-precios">🏷️</i>
-            <span>Precios</span>
-        </div>
-
-        <div class="card-reporte" onclick="irAReporte('agotados')">
-            <i class="icon-agotados">🚫</i>
+        <div class="menu-item" onclick="irAReporte('agotados')">
+            <img src="https://cdn-icons-png.flaticon.com/512/5952/5952766.png" alt="Icon">
             <span>Agotados</span>
         </div>
 
-        <div class="card-reporte" onclick="irAReporte('preagotados')">
-            <i class="icon-agotados">⚠️</i>
+        <div class="menu-item" onclick="irAReporte('preagotados')">
+            <img src="https://cdn-icons-png.flaticon.com/512/4222/4222031.png" alt="Icon">
             <span>Pre-agotados</span>
         </div>
 
-        <div class="card-reporte" onclick="irAReporte('inventarios')">
-            <i class="icon-inventario">📦</i>
-            <span>Inventarios</span>
+        <div class="menu-item" onclick="irAReporte('precios')">
+            <img src="https://cdn-icons-png.flaticon.com/512/1162/1162251.png" alt="Icon">
+            <span>Chequeo Precios</span>
         </div>
 
-        <div class="card-reporte" onclick="irAReporte('exhibiciones')">
-            <i class="icon-inventario">✨</i>
+        <div class="menu-item" onclick="irAReporte('competencia')">
+            <img src="https://cdn-icons-png.flaticon.com/512/900/900667.png" alt="Icon">
+            <span>Competencia</span>
+        </div>
+
+        <div class="menu-item" onclick="irAReporte('exhibicion')">
+            <img src="https://cdn-icons-png.flaticon.com/512/2331/2331966.png" alt="Icon">
             <span>Exhibiciones</span>
         </div>
 
-        <div class="card-reporte" onclick="irAReporte('competencia')">
-            <i class="icon-precios">🏁</i>
-            <span>Precios Competencia</span>
-        </div>
-
-        <div class="card-reporte" onclick="irAReporte('fotos_anaquel')">
-            <i class="icon-fotos">📸</i>
+        <div class="menu-item" onclick="irAReporte('fotos')">
+            <img src="https://cdn-icons-png.flaticon.com/512/1040/1040241.png" alt="Icon">
             <span>Fotos Anaquel</span>
         </div>
+
+        <div class="menu-item" onclick="irAReporte('diario')">
+            <img src="https://cdn-icons-png.flaticon.com/512/3482/3482458.png" alt="Icon">
+            <span>Reporte Diario</span>
+        </div>
+    </div>
+
+    <div class="footer-action">
+        <button class="btn-exit" onclick="volverAlPanel()">VOLVER AL PANEL / SALIDA</button>
     </div>
 </div>
 
 <script>
     window.onload = function() {
+        // Recuperar el nombre de la tienda donde se hizo el check-in
         const storeName = localStorage.getItem("activeStoreName");
-        if (!storeName) {
-            window.location.href = "dashboard.html";
-            return;
+        if (storeName) {
+            document.getElementById("activeStoreName").innerText = storeName;
         }
-        document.getElementById("currentStore").innerText = storeName;
     };
 
     function irAReporte(tipo) {
-        // Redirige a report.html enviando el tipo por URL
-        window.location.href = `report.html?type=${tipo}`;
+        // Guardamos el tipo para que report.html sepa qué campos mostrar
+        localStorage.setItem("currentReportType", tipo);
+        window.location.href = "report.html";
+    }
+
+    function volverAlPanel() {
+        // Regresa a la lista de tiendas para poder cerrar el turno general
+        window.location.href = "dashboard.html";
     }
 </script>
 

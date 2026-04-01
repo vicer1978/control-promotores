@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StorePulse - Tareas</title>
+    <style>
+        :root { --primary: #0B1F3A; --gold: #D4AF37; --bg: #F5F7FA; --text: #333; }
+        body { margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); }
+
+        .header {
+            display:flex;
+            align-items:center;
+            padding:15px 20px;
+            background:white;
+            box-shadow:0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .back-btn { font-size:20px; cursor:pointer; margin-right:15px; color: var(--primary); text-decoration: none; }
+        .title { font-weight:bold; font-size:18px; color: var(--primary); flex: 1; }
+
+        .container { padding:20px; max-width: 600px; margin: auto; }
+        
+        .info-tienda {
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* GRID DE REPORTES */
+        .grid-reportes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .card-reporte {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
+        }
+
+        .card-reporte:active { transform: scale(0.95); background: #f8fafc; }
+        .card-reporte i { font-size: 2rem; margin-bottom: 10px; display: block; }
+        .card-reporte span { font-weight: 600; font-size: 0.9rem; color: var(--primary); }
+
+        /* Colores sutiles para los iconos */
+        .icon-ventas { color: #22c55e; }
+        .icon-precios { color: #3b82f6; }
+        .icon-agotados { color: #ef4444; }
+        .icon-inventario { color: #f59e0b; }
+        .icon-fotos { color: #8b5cf6; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <a href="dashboard.html" class="back-btn">⬅</a>
+    <div class="title">Módulos de Reporte</div>
+</div>
+
+<div class="container">
+    <div class="info-tienda">
+        <span>🏪</span>
+        <div>
+            <small style="opacity: 0.8; display: block;">Tienda activa:</small>
+            <strong id="currentStore">Cargando...</strong>
+        </div>
+    </div>
+
+    <div class="grid-reportes">
+        <div class="card-reporte" onclick="irAReporte('ventas')">
+            <i class="icon-ventas">💰</i>
+            <span>Ventas</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('precios')">
+            <i class="icon-precios">🏷️</i>
+            <span>Precios</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('agotados')">
+            <i class="icon-agotados">🚫</i>
+            <span>Agotados</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('preagotados')">
+            <i class="icon-agotados">⚠️</i>
+            <span>Pre-agotados</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('inventarios')">
+            <i class="icon-inventario">📦</i>
+            <span>Inventarios</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('exhibiciones')">
+            <i class="icon-inventario">✨</i>
+            <span>Exhibiciones</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('competencia')">
+            <i class="icon-precios">🏁</i>
+            <span>Precios Competencia</span>
+        </div>
+
+        <div class="card-reporte" onclick="irAReporte('fotos_anaquel')">
+            <i class="icon-fotos">📸</i>
+            <span>Fotos Anaquel</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.onload = function() {
+        const storeName = localStorage.getItem("activeStoreName");
+        if (!storeName) {
+            window.location.href = "dashboard.html";
+            return;
+        }
+        document.getElementById("currentStore").innerText = storeName;
+    };
+
+    function irAReporte(tipo) {
+        // Redirige a report.html enviando el tipo por URL
+        window.location.href = `report.html?type=${tipo}`;
+    }
+</script>
+
+</body>
+</html>

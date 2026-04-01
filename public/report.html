@@ -28,7 +28,7 @@
 <body>
 
 <header>
-    <button class="back-btn" onclick="location.href='./home.html'">✕</button>
+    <button class="back-btn" onclick="history.back()">✕</button>
     <span id="headerTitle">Nuevo Reporte</span>
 </header>
 
@@ -70,7 +70,7 @@
             </div>
 
             <div class="form-group hidden" id="group-cantidad">
-                <label id="label-cantidad">Cantidad General</label>
+                <label id="label-cantidad">Cantidad / Piezas</label>
                 <input type="number" id="cantidad" value="0">
             </div>
 
@@ -97,31 +97,27 @@
     const urlParams = new URLSearchParams(window.location.search);
     const typeFromUrl = urlParams.get('type');
     const userId = localStorage.getItem("userId");
+    const userRole = localStorage.getItem("role") || "Promotor";
     const storeId = localStorage.getItem("activeStoreId") || localStorage.getItem("currentStoreId");
     const agencyId = localStorage.getItem("agencyId");
 
     if (!userId || userId.length !== 24) window.location.href = "login.html";
 
     const config = {
-        'reporte_diario': { 
-            title: 'Reporte Diario Completo', 
-            fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] 
-        },
-        'ranking': { 
-            title: 'Degustación', 
-            fields: ['group-articulo', 'group-comentarios', 'group-foto'],
-            labelArt: 'Producto Degustado'
-        },
-        'competencia': { 
-            title: 'Competencia', 
-            fields: ['group-articulo', 'group-foto', 'group-comentarios'],
-            labelArt: 'Marca Competencia'
-        },
-        'precios': { 
-            title: 'Chequeo de Precios', 
-            fields: ['group-articulo', 'group-precios', 'group-comentarios'],
-            labelArt: 'Marca / Producto'
-        }
+        // --- REPORTES DEMOSTRADORA (ORIGINALES) ---
+        'reporte_diario': { title: 'Reporte Diario Completo', fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] },
+        'ranking': { title: 'Degustación', fields: ['group-articulo', 'group-comentarios', 'group-foto'], labelArt: 'Producto Degustado' },
+        'competencia': { title: 'Competencia', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
+        
+        // --- REPORTES PROMOTOR (NUEVOS) ---
+        'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
+        'precios': { title: 'Chequeo de Precios', fields: ['group-articulo', 'group-precios', 'group-comentarios'], labelArt: 'Marca / Producto' },
+        'agotados': { title: 'Reporte de Agotados', fields: ['group-articulo', 'group-comentarios', 'group-foto'] },
+        'preagotados': { title: 'Reporte de Pre-Agotados', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
+        'inventarios': { title: 'Levantamiento de Inventario', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
+        'exhibiciones': { title: 'Exhibiciones Adicionales', fields: ['group-comentarios', 'group-foto'], labelArt: 'Ubicación / Detalle' },
+        'competencia_p': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios', 'group-comentarios'], labelArt: 'Marca Competencia' },
+        'fotos_anaquel': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
     };
 
     window.onload = () => {
@@ -135,6 +131,11 @@
         });
 
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
+        
+        // Si el reporte no requiere artículo (ej. Fotos Anaquel), ocultamos el campo
+        if(!s.fields.includes('group-articulo')) {
+            document.getElementById('group-articulo').classList.add('hidden');
+        }
     };
 
     function calcularFinal() {
@@ -163,34 +164,27 @@
         formData.append("storeId", storeId);
         formData.append("userId", userId);
 
-        // Determinación robusta del tipo de reporte para el servidor
-        let finalType = typeFromUrl;
-        if(typeFromUrl === 'reporte_diario') finalType = 'inventario';
-        if(typeFromUrl === 'precios') finalType = 'precios';
+        let finalType = typeFromUrl === 'reporte_diario' ? 'inventario' : typeFromUrl;
         formData.append("reportType", finalType);
 
-        formData.append("articulo", document.getElementById("articulo").value || "N/A");
+        formData.append("articulo", document.getElementById("articulo")?.value || "N/A");
         
-        // Si es reporte de precios, forzamos inventarios a 0 para evitar errores en el backend
-        if (finalType === 'precios') {
-            formData.append("inv_inicial", 0);
-            formData.append("resurtido", 0);
-            formData.append("ventas", 0);
-            formData.append("inv_final", 0);
+        // Manejo de Precios
+        if (finalType.includes('precios') || finalType === 'competencia_p') {
             formData.append("precio_normal", Number(document.getElementById("precio_normal").value) || 0);
             formData.append("precio_oferta", Number(document.getElementById("precio_oferta").value) || 0);
-        } else {
-            // Datos de inventario normales
+        }
+
+        // Manejo de Inventarios/Ventas (Demos)
+        if (finalType === 'inventario') {
             formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
             formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
             formData.append("ventas", Number(document.getElementById("ventas").value) || 0);
             formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
-            formData.append("precio_normal", 0);
-            formData.append("precio_oferta", 0);
         }
-        
-        // Otros campos generales
-        formData.append("cantidad", Number(document.getElementById("cantidad")?.value) || Number(document.getElementById("ventas")?.value) || 0);
+
+        // Campo Cantidad General (Para reportes de promotor que lo usen)
+        formData.append("cantidad", Number(document.getElementById("cantidad")?.value) || 0);
         formData.append("observaciones", document.getElementById("comentarios").value || "");
 
         const fotoInput = document.getElementById("foto");
@@ -205,18 +199,23 @@
 
             if(res.ok) {
                 alert("✅ Reporte guardado con éxito");
-                window.location.href = "./home.html";
+                // Redirección inteligente por rol
+                if(userRole.toLowerCase() === 'promotor') {
+                    window.location.href = "./dashboard_tareas.html";
+                } else {
+                    window.location.href = "./home.html";
+                }
             } else {
                 const err = await res.json();
                 alert("❌ Error: " + (err.error || "Falla al enviar el reporte"));
             }
         } catch (err) {
-            console.error("Error de conexión:", err);
             alert("❌ Error de conexión al servidor");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>
+
 </body>
 </html>

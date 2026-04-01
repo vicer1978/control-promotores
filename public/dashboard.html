@@ -259,6 +259,7 @@
     function startCheckin() {
         const btn = document.getElementById("btnCheckin");
         const userId = localStorage.getItem("userId");
+        const userRole = (localStorage.getItem("role") || "Promotor").toLowerCase();
         
         if (!navigator.geolocation) return alert("GPS no disponible.");
 
@@ -282,15 +283,19 @@
 
                 const data = await res.json();
                 if (res.ok) {
-                    // LIMPIEZA Y SINCRONIZACIÓN PARA EL REPORTE DIARIO
                     localStorage.removeItem("dailyReportData"); 
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
                     
                     alert(`✅ Entrada exitosa en ${selectedStore.name}`);
                     
-                    // IMPORTANTE: Aquí redirigimos a home.html
-                    window.location.href = "./home.html"; 
+                    // LÓGICA DE REDIRECCIÓN POR ROL
+                    if (userRole === "demostradora") {
+                        window.location.href = "./home.html"; 
+                    } else {
+                        // El promotor va a la nueva pantalla de tareas
+                        window.location.href = "./dashboard_tareas.html"; 
+                    }
                 } else {
                     alert("❌ " + (data.error || "Error al marcar entrada"));
                     resetBtn(btn);

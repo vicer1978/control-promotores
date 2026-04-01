@@ -36,7 +36,7 @@
     <div class="card">
         <h3 id="formTitle">Cargando...</h3>
         <form id="reportForm">
-            <div class="form-group" id="group-articulo">
+            <div class="form-group hidden" id="group-articulo">
                 <label id="label-articulo">Nombre del Artículo / Marca</label>
                 <input type="text" id="articulo" placeholder="articulo y presentación">
             </div>
@@ -70,7 +70,7 @@
             </div>
 
             <div class="form-group hidden" id="group-cantidad">
-                <label id="label-cantidad">Cantidad / Piezas</label>
+                <label id="label-cantidad">Cantidad / Piezas / Ventas</label>
                 <input type="number" id="cantidad" value="0">
             </div>
 
@@ -78,7 +78,7 @@
                 <label>Foto de Evidencia</label>
                 <input type="file" id="foto" accept="image/*" capture="environment" onchange="previewImage(this)" class="hidden">
                 <div class="photo-preview" id="preview" onclick="document.getElementById('foto').click()">
-                    <span style="color:#94a3b8; font-size: 14px; text-align: center;">📸<br>Toca para tomar foto</span>
+                    <span style="color:#94a3b8; font-size: 14px; text-align: center;">📸<br>Toca para tomar foto o subir archivo</span>
                 </div>
             </div>
 
@@ -95,47 +95,46 @@
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
-    const typeFromUrl = urlParams.get('type');
+    const typeFromUrl = urlParams.get('type') || localStorage.getItem("currentReportType");
     const userId = localStorage.getItem("userId");
     const userRole = localStorage.getItem("role") || "Promotor";
-    const storeId = localStorage.getItem("activeStoreId") || localStorage.getItem("currentStoreId");
+    const storeId = localStorage.getItem("activeStoreId");
     const agencyId = localStorage.getItem("agencyId");
 
-    if (!userId || userId.length !== 24) window.location.href = "login.html";
-
     const config = {
-        // --- REPORTES DEMOSTRADORA (ORIGINALES) ---
+        // --- REPORTES DEMOSTRADORA ---
         'reporte_diario': { title: 'Reporte Diario Completo', fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] },
         'ranking': { title: 'Degustación', fields: ['group-articulo', 'group-comentarios', 'group-foto'], labelArt: 'Producto Degustado' },
-        'competencia': { title: 'Competencia', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
+        'competencia': { title: 'Competencia (Demo)', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
         
-        // --- REPORTES PROMOTOR (NUEVOS) ---
-        'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
-        'precios': { title: 'Chequeo de Precios', fields: ['group-articulo', 'group-precios', 'group-comentarios'], labelArt: 'Marca / Producto' },
-        'agotados': { title: 'Reporte de Agotados', fields: ['group-articulo', 'group-comentarios', 'group-foto'] },
-        'preagotados': { title: 'Reporte de Pre-Agotados', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
-        'inventarios': { title: 'Levantamiento de Inventario', fields: ['group-articulo', 'group-cantidad', 'group-comentarios'] },
-        'exhibiciones': { title: 'Exhibiciones Adicionales', fields: ['group-comentarios', 'group-foto'], labelArt: 'Ubicación / Detalle' },
-        'competencia_p': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios', 'group-comentarios'], labelArt: 'Marca Competencia' },
-        'fotos_anaquel': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
+        // --- REPORTES PROMOTOR (Actualizados según tu solicitud) ---
+        'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Vendida' },
+        'precios': { title: 'Chequeo de Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
+        'agotados': { title: 'Reporte de Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
+        'preagotados': { title: 'Reporte de Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
+        'inventario': { title: 'Levantamiento de Inventario', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Física' },
+        'exhibicion': { title: 'Exhibiciones Adicionales', fields: ['group-comentarios', 'group-foto'], labelCom: 'Descripción de la Exhibición' },
+        'competencia_p': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios'], labelArt: 'Marca Competencia' },
+        'fotos': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
     };
 
     window.onload = () => {
+        if (!userId) window.location.href = "login.html";
+        
         const s = config[typeFromUrl] || config['reporte_diario'];
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
         
+        // Mostrar campos según configuración
         s.fields.forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.remove("hidden");
         });
 
+        // Personalización de etiquetas
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
-        
-        // Si el reporte no requiere artículo (ej. Fotos Anaquel), ocultamos el campo
-        if(!s.fields.includes('group-articulo')) {
-            document.getElementById('group-articulo').classList.add('hidden');
-        }
+        if(s.labelCant) document.getElementById("label-cantidad").innerText = s.labelCant;
+        if(s.labelCom) document.getElementById("label-comentarios").innerText = s.labelCom;
     };
 
     function calcularFinal() {
@@ -163,28 +162,29 @@
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
+        formData.append("reportType", typeFromUrl);
 
-        let finalType = typeFromUrl === 'reporte_diario' ? 'inventario' : typeFromUrl;
-        formData.append("reportType", finalType);
-
-        formData.append("articulo", document.getElementById("articulo")?.value || "N/A");
+        // Captura de datos condicional
+        if(!document.getElementById("group-articulo").classList.contains("hidden")) {
+            formData.append("articulo", document.getElementById("articulo").value || "N/A");
+        }
         
-        // Manejo de Precios
-        if (finalType.includes('precios') || finalType === 'competencia_p') {
+        if(!document.getElementById("group-precios").classList.contains("hidden")) {
             formData.append("precio_normal", Number(document.getElementById("precio_normal").value) || 0);
             formData.append("precio_oferta", Number(document.getElementById("precio_oferta").value) || 0);
         }
 
-        // Manejo de Inventarios/Ventas (Demos)
-        if (finalType === 'inventario') {
+        if(!document.getElementById("block-demo").classList.contains("hidden")) {
             formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
             formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
             formData.append("ventas", Number(document.getElementById("ventas").value) || 0);
             formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
         }
 
-        // Campo Cantidad General (Para reportes de promotor que lo usen)
-        formData.append("cantidad", Number(document.getElementById("cantidad")?.value) || 0);
+        if(!document.getElementById("group-cantidad").classList.contains("hidden")) {
+            formData.append("cantidad", Number(document.getElementById("cantidad").value) || 0);
+        }
+
         formData.append("observaciones", document.getElementById("comentarios").value || "");
 
         const fotoInput = document.getElementById("foto");
@@ -198,24 +198,18 @@
             });
 
             if(res.ok) {
-                alert("✅ Reporte guardado con éxito");
-                // Redirección inteligente por rol
-                if(userRole.toLowerCase() === 'promotor') {
-                    window.location.href = "./dashboard_tareas.html";
-                } else {
-                    window.location.href = "./home.html";
-                }
+                alert("✅ Reporte enviado correctamente");
+                window.location.href = userRole.toLowerCase() === 'promotor' ? "./dashboard_tareas.html" : "./home.html";
             } else {
                 const err = await res.json();
-                alert("❌ Error: " + (err.error || "Falla al enviar el reporte"));
+                alert("❌ Error: " + (err.error || "Falla al enviar"));
             }
         } catch (err) {
-            alert("❌ Error de conexión al servidor");
+            alert("❌ Error de conexión");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>
-
 </body>
 </html>

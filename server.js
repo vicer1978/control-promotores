@@ -283,7 +283,7 @@ app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "h
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
 // Catch-all para cualquier otra ruta
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/uploads/')) return res.status(404).send('Archivo no encontrado');
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });

@@ -39,23 +39,29 @@ header h1 {
 .container {
   padding: 20px;
 }
-.button {
-  background: var(--secondary);
-  border: none;
-  padding: 10px;
-  border-radius: 8px;
-  margin: 5px 0;
-  width: 100%;
-  font-weight: bold;
-  cursor: pointer;
-}
 .card {
   background: white;
   border-radius: 10px;
   padding: 15px;
   margin: 10px 0;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
+.card-content { flex: 1; }
+.card-photo {
+  width: 70px;
+  height: 70px;
+  border-radius: 8px;
+  background: #eee;
+  margin-left: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #ddd;
+}
+.card-photo img { width: 100%; height: 100%; object-fit: cover; }
+
 select {
   width: 100%;
   padding: 10px;
@@ -68,88 +74,90 @@ select {
 
 <header>
   <button class="back" onclick="goBack()">⬅</button>
-  <h1>Historial de Check-ins</h1>
+  <h1>Historial de Asistencia</h1>
 </header>
 
 <div class="container">
   <select id="filtro" onchange="filtrar()">
-    <option value="todos">Todos</option>
-    <option value="promotor">Promotor</option>
-    <option value="demostradora">Demostradora</option>
+    <option value="todos">Todos los eventos</option>
+    <option value="checkin">Entradas (Check-in)</option>
+    <option value="checkout">Salidas (Check-out)</option>
   </select>
 
   <div id="lista"></div>
 </div>
 
 <script>
-// 🔹 BACKEND FIJO
 const BACKEND_URL = "https://storepulse.onrender.com";
 
-// Flecha de retroceso
 function goBack() { window.history.back(); }
 
-// Datos cargados desde backend
 let checkins = [];
-
-// Obtener agencyId
 const agencyId = localStorage.getItem("agencyId");
+const userId = localStorage.getItem("userId");
 
-// 🔹 Cargar checkins desde backend
 async function loadCheckins() {
   try {
-    const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`);
+    const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`, {
+        headers: { "userid": userId }
+    });
     if(!res.ok) throw new Error("Error al obtener datos");
     const data = await res.json();
     checkins = data;
     render(checkins);
   } catch(err) {
     console.error(err);
-    document.getElementById("lista").innerHTML = "<p style='color:red;'>⚠️ No se pudo conectar al servidor</p>";
+    document.getElementById("lista").innerHTML = "<p style='color:red;'>⚠️ Error al conectar al servidor</p>";
   }
 }
 
-// Renderizar tarjetas
 function render(data){
   const lista = document.getElementById("lista");
   lista.innerHTML = "";
 
+  if(data.length === 0) {
+      lista.innerHTML = "<p style='text-align:center; color:#999;'>No hay registros aún.</p>";
+      return;
+  }
+
   data.forEach(c => {
-    let contenido = "";
-    if(c.tipo === 'promotor'){
-      contenido = `
-        <b>Tipo:</b> Promotor<br>
-        Inventario: ${c.inventario || "-"}<br>
-        Precio: ${c.precio || "-"}
-      `;
-    } else {
-      contenido = `
-        <b>Tipo:</b> Demostradora<br>
-        Degustaciones: ${c.degustaciones || "-"}<br>
-        Ventas: ${c.ventas || "-"}
-      `;
+    const usuario = c.userId?.name || "Desconocido";
+    const tienda = c.storeId?.name || "Tienda";
+    const esEntrada = c.type === 'checkin';
+    const colorTipo = esEntrada ? '#22c55e' : '#ef4444';
+    
+    // Si hay foto, preparamos el HTML
+    let fotoHtml = '';
+    if(c.foto_url) {
+        const fullUrl = `${BACKEND_URL}${c.foto_url}`;
+        fotoHtml = `<div class="card-photo" onclick="window.open('${fullUrl}', '_blank')">
+                        <img src="${fullUrl}" alt="Evidencia">
+                    </div>`;
     }
 
     lista.innerHTML += `
       <div class="card">
-        ${contenido}<br><br>
-        <small>${new Date(c.date || c.fecha).toLocaleString()}</small>
+        <div class="card-content">
+            <b style="color:${colorTipo}">${c.type.toUpperCase()}</b> - ${usuario}<br>
+            <span>🏪 ${tienda}</span><br>
+            <small>🕒 ${new Date(c.timestamp).toLocaleString()}</small>
+        </div>
+        ${fotoHtml}
       </div>
     `;
   });
 }
 
-// Filtrar por tipo
 function filtrar(){
   const valor = document.getElementById("filtro").value;
   if(valor === 'todos'){
     render(checkins);
   } else {
-    const filtrados = checkins.filter(c => c.tipo === valor);
+    const filtrados = checkins.filter(c => c.type === valor);
     render(filtrados);
   }
 }
 
-// Inicializar
 loadCheckins();
 </script>
 

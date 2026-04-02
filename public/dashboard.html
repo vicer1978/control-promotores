@@ -166,7 +166,7 @@
         <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
         <p style="color: #64748b; line-height: 1.5;">Se requiere <b>foto de evidencia</b> y ubicación GPS para iniciar operación.</p>
         
-        <input type="file" id="checkinCamera" accept="image/*" capture="camera" style="display: none;">
+        <input type="file" id="checkinCamera" accept="image/*" capture="environment" style="display: none;">
         
         <button class="btn-checkin" id="btnCheckin" onclick="triggerCamera()">TOMAR FOTO E INICIAR</button>
         <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
@@ -257,12 +257,10 @@
         document.getElementById("modal").style.display = "none";
     }
 
-    // Paso 1: Disparar la cámara
     function triggerCamera() {
         document.getElementById('checkinCamera').click();
     }
 
-    // Paso 2: Cuando se toma la foto, iniciar el proceso de Check-in
     document.getElementById('checkinCamera').onchange = function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -282,7 +280,6 @@
 
         navigator.geolocation.getCurrentPosition(async pos => {
             try {
-                // Usamos FormData para enviar la imagen y los datos
                 const formData = new FormData();
                 formData.append("storeId", selectedStore._id);
                 formData.append("lat", pos.coords.latitude);
@@ -293,7 +290,6 @@
                     method: "POST",
                     headers: { 
                         "userid": userId 
-                        // Nota: No se pone Content-Type cuando es FormData, el navegador lo pone solo
                     },
                     body: formData
                 });
@@ -373,7 +369,7 @@
     function resetBtn(btn) {
         btn.innerText = "TOMAR FOTO E INICIAR";
         btn.disabled = false;
-        document.getElementById('checkinCamera').value = ""; // Limpiar el input de cámara
+        document.getElementById('checkinCamera').value = ""; 
     }
 
     function logout() {
@@ -381,6 +377,5 @@
         window.location.href = "./login.html";
     }
 </script>
-
 </body>
 </html>

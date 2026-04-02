@@ -102,12 +102,9 @@
     const agencyId = localStorage.getItem("agencyId");
 
     const config = {
-        // --- REPORTES DEMOSTRADORA ---
         'reporte_diario': { title: 'Reporte Diario Completo', fields: ['group-articulo', 'block-demo', 'group-foto', 'group-comentarios'] },
         'ranking': { title: 'Degustación', fields: ['group-articulo', 'group-comentarios', 'group-foto'], labelArt: 'Producto Degustado' },
         'competencia': { title: 'Competencia (Demo)', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
-        
-        // --- REPORTES PROMOTOR (Actualizados según tu solicitud) ---
         'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Vendida' },
         'precios': { title: 'Chequeo de Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
         'agotados': { title: 'Reporte de Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
@@ -120,18 +117,13 @@
 
     window.onload = () => {
         if (!userId) window.location.href = "login.html";
-        
         const s = config[typeFromUrl] || config['reporte_diario'];
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
-        
-        // Mostrar campos según configuración
         s.fields.forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.remove("hidden");
         });
-
-        // Personalización de etiquetas
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
         if(s.labelCant) document.getElementById("label-cantidad").innerText = s.labelCant;
         if(s.labelCom) document.getElementById("label-comentarios").innerText = s.labelCom;
@@ -156,15 +148,30 @@
 
     async function saveReport() {
         const btn = document.getElementById("btnSend");
-        btn.disabled = true; btn.innerText = "ENVIANDO...";
+        btn.disabled = true; btn.innerText = "OBTENIENDO GPS...";
+
+        // Función para obtener coordenadas antes de enviar
+        const getCoords = () => {
+            return new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    () => resolve({ lat: 0, lng: 0 }),
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            });
+        };
+
+        const coords = await getCoords();
+        btn.innerText = "ENVIANDO...";
 
         const formData = new FormData();
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
         formData.append("reportType", typeFromUrl);
+        formData.append("lat", coords.lat);
+        formData.append("lng", coords.lng);
 
-        // Captura de datos condicional
         if(!document.getElementById("group-articulo").classList.contains("hidden")) {
             formData.append("articulo", document.getElementById("articulo").value || "N/A");
         }
@@ -202,14 +209,15 @@
                 window.location.href = userRole.toLowerCase() === 'promotor' ? "./dashboard_tareas.html" : "./home.html";
             } else {
                 const err = await res.json();
-                alert("❌ Error: " + (err.error || "Falla al enviar"));
+                alert("❌ Error: " + (err.detalles || err.error || "Falla al enviar"));
             }
         } catch (err) {
-            alert("❌ Error de conexión");
+            alert("❌ Error de conexión con el servidor");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
 </script>
+
 </body>
 </html>

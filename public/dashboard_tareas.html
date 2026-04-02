@@ -116,7 +116,7 @@
 
 <div class="header-status">
     <div class="store-tag">PROMOTOR</div>
-    <h2 id="activeStoreName" style="margin: 5px 0;">Walmart Buenavista</h2>
+    <h2 id="activeStoreName" style="margin: 5px 0;">Cargando Tienda...</h2>
     <div style="font-size: 0.85rem; opacity: 0.9;">
         <span class="status-dot"></span> Operación en curso
     </div>
@@ -159,36 +159,53 @@
             <span>Fotos Anaquel</span>
         </div>
 
-        <div class="menu-item" onclick="irAReporte('diario')">
+        <div class="menu-item" onclick="irAReporte('reporte_diario')">
             <img src="https://cdn-icons-png.flaticon.com/512/3482/3482458.png" alt="Icon">
             <span>Reporte Diario</span>
         </div>
     </div>
 
     <div class="footer-action">
-        <button class="btn-exit" onclick="volverAlPanel()">VOLVER AL PANEL / SALIDA</button>
+        <button class="btn-exit" onclick="volverAlPanel()">VOLVER AL PANEL / TERMINAR TIENDA</button>
     </div>
 </div>
 
 <script>
     window.onload = function() {
-        // Recuperar el nombre de la tienda donde se hizo el check-in
+        const storeId = localStorage.getItem("activeStoreId");
         const storeName = localStorage.getItem("activeStoreName");
+
+        // Si no hay una tienda activa, forzar regreso al dashboard principal
+        if (!storeId) {
+            alert("⚠️ No hay una tienda seleccionada. Por favor, selecciona una tienda primero.");
+            window.location.href = "dashboard.html";
+            return;
+        }
+
         if (storeName) {
             document.getElementById("activeStoreName").innerText = storeName;
         }
     };
 
     function irAReporte(tipo) {
-        // Guardamos el tipo para que report.html sepa qué campos mostrar
+        // Guardamos el tipo en localStorage como respaldo
         localStorage.setItem("currentReportType", tipo);
-        window.location.href = "report.html";
+        // Enviamos por URL para que report.html lo detecte de inmediato
+        window.location.href = `report.html?type=${tipo}`;
     }
 
     function volverAlPanel() {
-        // Regresa a la lista de tiendas para poder cerrar el turno general
-        window.location.href = "dashboard.html";
+        if(confirm("¿Deseas volver a la lista de tiendas? Podrás regresar a esta pantalla siempre que no cierres tu turno general.")){
+            window.location.href = "dashboard.html";
+        }
     }
+
+    // Manejo de iconos si fallan los enlaces externos
+    document.querySelectorAll('.menu-item img').forEach(img => {
+        img.onerror = function() {
+            this.src = "https://cdn-icons-png.flaticon.com/512/660/660611.png"; // Icono de respaldo
+        };
+    });
 </script>
 
 </body>

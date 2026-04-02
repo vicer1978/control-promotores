@@ -171,9 +171,7 @@
 </div>
 
 <script>
-    const BACKEND_URL = window.location.hostname === 'localhost' 
-        ? 'http://localhost:3000' 
-        : 'https://storepulse.onrender.com';
+    const BACKEND_URL = "https://storepulse.onrender.com";
     
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
@@ -283,17 +281,16 @@
 
                 const data = await res.json();
                 if (res.ok) {
+                    // Limpiar datos de reportes previos para evitar errores de imagen
                     localStorage.removeItem("dailyReportData"); 
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
                     
                     alert(`✅ Entrada exitosa en ${selectedStore.name}`);
                     
-                    // LÓGICA DE REDIRECCIÓN POR ROL
                     if (userRole === "demostradora") {
                         window.location.href = "./home.html"; 
                     } else {
-                        // El promotor va a la nueva pantalla de tareas
                         window.location.href = "./dashboard_tareas.html"; 
                     }
                 } else {
@@ -304,14 +301,15 @@
                 alert("Error de red.");
                 resetBtn(btn);
             }
-        }, () => {
-            alert("Activa el GPS de tu celular.");
+        }, (err) => {
+            console.error(err);
+            alert("Activa el GPS o concede permisos de ubicación.");
             resetBtn(btn);
-        }, { enableHighAccuracy: true });
+        }, { enableHighAccuracy: true, timeout: 8000 });
     }
 
     async function finalizarTurno() {
-        if (!confirm("¿Deseas cerrar tu turno por hoy? Esto marcará tu hora de salida oficial.")) return;
+        if (!confirm("¿Deseas cerrar tu turno por hoy?")) return;
 
         const btn = document.getElementById("btnCheckout");
         const userId = localStorage.getItem("userId");
@@ -334,7 +332,7 @@
                 });
 
                 if (res.ok) {
-                    alert("✅ Turno cerrado con éxito. ¡Buen trabajo!");
+                    alert("✅ Turno cerrado con éxito.");
                     logout();
                 } else {
                     const data = await res.json();
@@ -351,7 +349,7 @@
             alert("Es necesario el GPS para registrar tu salida.");
             btn.innerText = "CERRAR TURNO / SALIDA";
             btn.disabled = false;
-        });
+        }, { enableHighAccuracy: true, timeout: 8000 });
     }
 
     function resetBtn(btn) {
@@ -364,5 +362,6 @@
         window.location.href = "./login.html";
     }
 </script>
+
 </body>
 </html>

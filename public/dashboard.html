@@ -135,6 +135,7 @@
     <p id="userRole">Cargando...</p>
     <div class="drawer-nav">
         <button onclick="toggleMenu()">🏠 Inicio</button>
+        <button id="adminBtn" style="display:none;" onclick="location.href='admin.html'">📊 Panel de Administración</button>
         <button onclick="logout()" class="logout-btn">🚪 Cerrar Sesión</button>
     </div>
 </div>
@@ -166,7 +167,7 @@
         <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
         <p style="color: #64748b; line-height: 1.5;">Se requiere <b>foto de evidencia</b> y ubicación GPS para iniciar operación.</p>
         
-        <input type="file" id="checkinCamera" accept="image/*" capture="environment" style="display: none;">
+        <input type="file" id="checkinCamera" accept="image/*" capture="environment" style="display: none;" onclick="this.value=null;">
         
         <button class="btn-checkin" id="btnCheckin" onclick="triggerCamera()">TOMAR FOTO E INICIAR</button>
         <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
@@ -175,7 +176,7 @@
 
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
-    
+
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
         const name = localStorage.getItem("name") || "Usuario";
@@ -193,6 +194,11 @@
             if (role.toLowerCase() === "demostradora") {
                 elUserRole.style.color = "var(--gold)";
             }
+        }
+
+        // LÓGICA PARA MOSTRAR BOTÓN DE ADMIN
+        if (role.toLowerCase() === "admin" || role.toLowerCase() === "superadmin") {
+            document.getElementById("adminBtn").style.display = "block";
         }
 
         document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
@@ -271,6 +277,7 @@
     async function startCheckin(fotoFile) {
         const btn = document.getElementById("btnCheckin");
         const userId = localStorage.getItem("userId");
+        const agencyId = localStorage.getItem("agencyId"); // Obtener agencyId
         const userRole = (localStorage.getItem("role") || "Promotor").toLowerCase();
         
         if (!navigator.geolocation) return alert("GPS no disponible.");
@@ -282,6 +289,7 @@
             try {
                 const formData = new FormData();
                 formData.append("storeId", selectedStore._id);
+                formData.append("agencyId", agencyId); // Enviar agencyId para los reportes de admin
                 formData.append("lat", pos.coords.latitude);
                 formData.append("lng", pos.coords.longitude);
                 formData.append("photo", fotoFile);
@@ -377,5 +385,6 @@
         window.location.href = "./login.html";
     }
 </script>
+
 </body>
 </html>

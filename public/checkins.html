@@ -39,29 +39,40 @@ header h1 {
 .container {
   padding: 20px;
 }
+.button {
+  background: var(--secondary);
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  margin: 5px 0;
+  width: 100%;
+  font-weight: bold;
+  cursor: pointer;
+}
 .card {
   background: white;
   border-radius: 10px;
   padding: 15px;
   margin: 10px 0;
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  display: flex;
+  display: flex; /* Para alinear info y foto */
   justify-content: space-between;
   align-items: center;
 }
-.card-content { flex: 1; }
-.card-photo {
+.card-info {
+  flex: 1;
+}
+.photo-thumb {
   width: 70px;
   height: 70px;
   border-radius: 8px;
-  background: #eee;
-  margin-left: 10px;
-  overflow: hidden;
-  cursor: pointer;
+  background-size: cover;
+  background-position: center;
   border: 1px solid #ddd;
+  margin-left: 15px;
+  cursor: pointer;
+  background-color: #eee;
 }
-.card-photo img { width: 100%; height: 100%; object-fit: cover; }
-
 select {
   width: 100%;
   padding: 10px;
@@ -74,32 +85,38 @@ select {
 
 <header>
   <button class="back" onclick="goBack()">⬅</button>
-  <h1>Historial de Asistencia</h1>
+  <h1>Historial de Check-ins</h1>
 </header>
 
 <div class="container">
   <select id="filtro" onchange="filtrar()">
-    <option value="todos">Todos los eventos</option>
-    <option value="checkin">Entradas (Check-in)</option>
-    <option value="checkout">Salidas (Check-out)</option>
+    <option value="todos">Todos</option>
+    <option value="promotor">Promotor</option>
+    <option value="demostradora">Demostradora</option>
   </select>
 
   <div id="lista"></div>
 </div>
 
 <script>
+// 🔹 BACKEND FIJO
 const BACKEND_URL = "https://storepulse.onrender.com";
 
+// Flecha de retroceso
 function goBack() { window.history.back(); }
 
+// Datos cargados desde backend
 let checkins = [];
+
+// Obtener agencyId y userId para la autenticación
 const agencyId = localStorage.getItem("agencyId");
 const userId = localStorage.getItem("userId");
 
+// 🔹 Cargar checkins desde backend
 async function loadCheckins() {
   try {
     const res = await fetch(`${BACKEND_URL}/checkins/${agencyId}`, {
-        headers: { "userid": userId }
+        headers: { "userid": userId } // Necesario para el middleware de auth
     });
     if(!res.ok) throw new Error("Error al obtener datos");
     const data = await res.json();
@@ -107,57 +124,72 @@ async function loadCheckins() {
     render(checkins);
   } catch(err) {
     console.error(err);
-    document.getElementById("lista").innerHTML = "<p style='color:red;'>⚠️ Error al conectar al servidor</p>";
+    document.getElementById("lista").innerHTML = "<p style='color:red;'>⚠️ No se pudo conectar al servidor</p>";
   }
 }
 
+// Renderizar tarjetas
 function render(data){
   const lista = document.getElementById("lista");
   lista.innerHTML = "";
 
-  if(data.length === 0) {
-      lista.innerHTML = "<p style='text-align:center; color:#999;'>No hay registros aún.</p>";
-      return;
-  }
-
   data.forEach(c => {
-    const usuario = c.userId?.name || "Desconocido";
-    const tienda = c.storeId?.name || "Tienda";
-    const esEntrada = c.type === 'checkin';
-    const colorTipo = esEntrada ? '#22c55e' : '#ef4444';
+    let contenido = "";
     
-    // Si hay foto, preparamos el HTML
-    let fotoHtml = '';
-    if(c.foto_url) {
-        const fullUrl = `${BACKEND_URL}${c.foto_url}`;
-        fotoHtml = `<div class="card-photo" onclick="window.open('${fullUrl}', '_blank')">
-                        <img src="${fullUrl}" alt="Evidencia">
-                    </div>`;
+    // Identificar si es promotor o demo según el rol del usuario que hizo el checkin
+    const role = (c.userId?.role || "promotor").toLowerCase();
+    const userName = c.userId?.name || "Usuario";
+    const storeName = c.storeId?.name || "Tienda no registrada";
+    const typeLabel = c.type === 'checkout' ? '🔴 SALIDA' : '🟢 ENTRADA';
+
+    if(role === 'promotor' || role === 'vendedor'){
+      contenido = `
+        <b>${typeLabel}</b><br>
+        <span>👤 ${userName}</span><br>
+        <small>🏪 ${storeName}</small><br>
+        <small>📦 Inv: ${c.inventario || "-"}</small> | <small>🏷️ Precio: ${c.precio || "-"}</small>
+      `;
+    } else {
+      contenido = `
+        <b>${typeLabel}</b><br>
+        <span>👤 ${userName}</span><br>
+        <small>🏪 ${storeName}</small><br>
+        <small>🥂 Deg: ${c.degustaciones || "-"}</small> | <small>💰 Ventas: ${c.ventas || "-"}</small>
+      `;
     }
+
+    // URL de la foto
+    const fullUrl = c.foto_url ? `${BACKEND_URL}${c.foto_url}` : null;
 
     lista.innerHTML += `
       <div class="card">
-        <div class="card-content">
-            <b style="color:${colorTipo}">${c.type.toUpperCase()}</b> - ${usuario}<br>
-            <span>🏪 ${tienda}</span><br>
-            <small>🕒 ${new Date(c.timestamp).toLocaleString()}</small>
+        <div class="card-info">
+          ${contenido}<br>
+          <small style="color:#999;">📅 ${new Date(c.timestamp || c.date).toLocaleString()}</small>
         </div>
-        ${fotoHtml}
+        ${fullUrl ? 
+          `<div class="photo-thumb" style="background-image: url('${fullUrl}')" onclick="window.open('${fullUrl}', '_blank')"></div>` 
+          : '<div style="font-size:10px; color:#ccc; width:70px; text-align:center;">Sin foto</div>'}
       </div>
     `;
   });
 }
 
+// Filtrar por tipo (basado en el rol del usuario del registro)
 function filtrar(){
   const valor = document.getElementById("filtro").value;
   if(valor === 'todos'){
     render(checkins);
   } else {
-    const filtrados = checkins.filter(c => c.type === valor);
+    const filtrados = checkins.filter(c => {
+        const userRole = (c.userId?.role || "promotor").toLowerCase();
+        return userRole === valor;
+    });
     render(filtrados);
   }
 }
 
+// Inicializar
 loadCheckins();
 </script>
 

@@ -164,8 +164,11 @@
 <div class="modal" id="modal">
     <div class="modal-content">
         <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
-        <p style="color: #64748b; line-height: 1.5;">Para iniciar operación, el sistema validará tu ubicación GPS actual.</p>
-        <button class="btn-checkin" id="btnCheckin" onclick="startCheckin()">INICIAR OPERACIÓN</button>
+        <p style="color: #64748b; line-height: 1.5;">Se requiere <b>foto de evidencia</b> y ubicación GPS para iniciar operación.</p>
+        
+        <input type="file" id="checkinCamera" accept="image/*" capture="camera" style="display: none;">
+        
+        <button class="btn-checkin" id="btnCheckin" onclick="triggerCamera()">TOMAR FOTO E INICIAR</button>
         <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
     </div>
 </div>
@@ -254,39 +257,54 @@
         document.getElementById("modal").style.display = "none";
     }
 
-    function startCheckin() {
+    // Paso 1: Disparar la cámara
+    function triggerCamera() {
+        document.getElementById('checkinCamera').click();
+    }
+
+    // Paso 2: Cuando se toma la foto, iniciar el proceso de Check-in
+    document.getElementById('checkinCamera').onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            startCheckin(file);
+        }
+    };
+
+    async function startCheckin(fotoFile) {
         const btn = document.getElementById("btnCheckin");
         const userId = localStorage.getItem("userId");
         const userRole = (localStorage.getItem("role") || "Promotor").toLowerCase();
         
         if (!navigator.geolocation) return alert("GPS no disponible.");
 
-        btn.innerText = "LOCALIZANDO...";
+        btn.innerText = "PROCESANDO ASISTENCIA...";
         btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(async pos => {
             try {
+                // Usamos FormData para enviar la imagen y los datos
+                const formData = new FormData();
+                formData.append("storeId", selectedStore._id);
+                formData.append("lat", pos.coords.latitude);
+                formData.append("lng", pos.coords.longitude);
+                formData.append("photo", fotoFile);
+
                 const res = await fetch(`${BACKEND_URL}/checkin`, {
                     method: "POST",
                     headers: { 
-                        "Content-Type": "application/json", 
                         "userid": userId 
+                        // Nota: No se pone Content-Type cuando es FormData, el navegador lo pone solo
                     },
-                    body: JSON.stringify({
-                        storeId: selectedStore._id,
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude
-                    })
+                    body: formData
                 });
 
                 const data = await res.json();
                 if (res.ok) {
-                    // Limpiar datos de reportes previos para evitar errores de imagen
                     localStorage.removeItem("dailyReportData"); 
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
                     
-                    alert(`✅ Entrada exitosa en ${selectedStore.name}`);
+                    alert(`✅ Entrada y evidencia registrada en ${selectedStore.name}`);
                     
                     if (userRole === "demostradora") {
                         window.location.href = "./home.html"; 
@@ -303,7 +321,7 @@
             }
         }, (err) => {
             console.error(err);
-            alert("Activa el GPS o concede permisos de ubicación.");
+            alert("Es obligatorio el GPS para validar tu asistencia.");
             resetBtn(btn);
         }, { enableHighAccuracy: true, timeout: 8000 });
     }
@@ -353,8 +371,9 @@
     }
 
     function resetBtn(btn) {
-        btn.innerText = "INICIAR OPERACIÓN";
+        btn.innerText = "TOMAR FOTO E INICIAR";
         btn.disabled = false;
+        document.getElementById('checkinCamera').value = ""; // Limpiar el input de cámara
     }
 
     function logout() {

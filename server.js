@@ -94,8 +94,8 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE ASISTENCIA (CHECK-IN / CHECK-OUT) ---
-app.post("/checkin", auth, async (req, res) => {
+// --- GESTIÓN DE ASISTENCIA CON FOTO (CHECK-IN / CHECK-OUT) ---
+app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
         if (!storeId || lat === undefined || lng === undefined) {
@@ -107,12 +107,15 @@ app.post("/checkin", auth, async (req, res) => {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
         }
 
+        const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkin",
+            foto_url: fotoUrl,
             timestamp: new Date()
         });
         await newCheckin.save();
@@ -122,6 +125,7 @@ app.post("/checkin", auth, async (req, res) => {
             agencyId: req.user.agencyId,
             storeId: storeId,
             reporte: "checkin",
+            foto_url: fotoUrl,
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkinReport.save();
@@ -182,12 +186,19 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
         const obs = req.body.observaciones || req.body.comentarios || "";
+        
+        // NORMALIZACIÓN: Corregir error de validación 'exhibicion' vs 'exhibiciones'
+        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
+        if (tipoReporte.toLowerCase().includes("exhibicion")) {
+            tipoReporte = "exhibicion";
+        }
+
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
             storeId: req.body.storeId, 
-            reporte: req.body.reportType || req.body.reporte || req.body.type, 
+            reporte: tipoReporte, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
             cantidad: Number(req.body.cantidad) || 0,
             inv_inicial: Number(req.body.inv_inicial) || 0,

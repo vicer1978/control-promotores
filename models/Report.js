@@ -24,21 +24,22 @@ const ReportSchema = new mongoose.Schema({
         type: String, 
         required: true, 
         trim: true, 
-        // Se incluyen todos los tipos nuevos para evitar Error 500
+        // Se incluyen todos los tipos posibles para evitar errores de validación (Enum)
         enum: [
             'ventas', 
             'ranking', 
             'inventario', 
-            'inventarios',      // <--- Agregado (Promotor)
+            'inventarios',      
             'agotado', 
-            'agotados',        // <--- Agregado (Promotor)
-            'preagotados',     // <--- Agregado (Promotor)
+            'agotados',        
+            'preagotados',     
             'competencia', 
-            'competencia_p',   // <--- Agregado (Promotor)
+            'competencia_p',   
             'reporte_diario', 
             'precios',         
-            'exhibiciones',    // <--- Agregado (Promotor)
-            'fotos_anaquel',   // <--- Agregado (Promotor)
+            'exhibicion',      // <--- Agregado para corregir el error de validación
+            'exhibiciones',    
+            'fotos_anaquel',   
             'checkin', 
             'checkout'
         ] 
@@ -53,13 +54,13 @@ const ReportSchema = new mongoose.Schema({
     // --- FLUJO DE INVENTARIO Y VENTAS ---
     inv_inicial: { type: Number, default: 0 },
     resurtido:   { type: Number, default: 0 }, 
-    ventas:      { type: Number, default: 0 }, // <--- Agregado para compatibilidad con Demos
+    ventas:      { type: Number, default: 0 }, 
     cantidad:    { type: Number, default: 0 }, 
     inv_final:   { type: Number, default: 0 },
     
     // --- CAMPOS DE PRECIOS ---
-    precio:        { type: Number, default: 0 }, // Usado como Precio Normal
-    precio_normal: { type: Number, default: 0 }, // <--- Agregado para consistencia
+    precio:        { type: Number, default: 0 }, 
+    precio_normal: { type: Number, default: 0 }, 
     precio_oferta: { type: Number, default: 0 }, 
     
     // --- DATOS DE CAMPO ---

@@ -13,27 +13,35 @@ const checkinSchema = new Schema({
     ref: "Agency",
     required: true
   },
-  storeId: { // Agregado: para saber en qué tienda se hizo el registro
+  storeId: { 
     type: Schema.Types.ObjectId,
     ref: "Store",
     required: true
   },
-  // Cambiado: agrupado en 'location' para coincidir con el server.js
   location: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }
   },
-  // Agregado: CRUCIAL para diferenciar Check-in de Check-out
   type: {
     type: String,
     enum: ["checkin", "checkout"],
     required: true
   },
-  photo: String,
-  timestamp: { // Usamos este campo para la hora exacta del evento
+  // Mantenemos photo por compatibilidad
+  photo: String, 
+  
+  // Agregado: para guardar la ruta de la imagen de evidencia (asistencia)
+  foto_url: { 
+    type: String, 
+    default: null 
+  },
+  
+  timestamp: { 
     type: Date,
     default: Date.now
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true // Crea automáticamente createdAt y updatedAt
+});
 
 module.exports = mongoose.model("Checkin", checkinSchema);

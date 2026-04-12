@@ -351,37 +351,23 @@ async function exportExcel() {
                (userSel === "all" || rUid === userSel) &&
                (storeSel === "all" || rSid === storeSel) && matchType;
     }).map(r => {
-        const rType = (r.reportType || r.reporte || '').toLowerCase();
-        const isPrecios = rType.includes('precio') || r.precio_normal > 0 || r.precio > 0;
-        
-        let row = {
+        // Mapeo simplificado a las columnas solicitadas
+        return {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
             "USUARIO": r.userId?.name || "N/A",
             "TIENDA": r.storeId?.name || "N/A",
-            "TIPO": (r.reportType || r.reporte || 'GRAL').toUpperCase(),
-            "ARTÍCULO": r.articulo || r.producto || "-"
+            "ARTICULO": r.articulo || r.producto || "-",
+            "CANTIDAD": r.ventas || r.cantidad || 0,
+            "OBSERVACIONES": r.observaciones || ""
         };
-
-        if (isPrecios) {
-            row["PRECIO NORMAL"] = r.precio_normal || r.precio || 0;
-            row["PRECIO OFERTA"] = r.precio_oferta || 0;
-        } else {
-            row["I_INI"] = r.inv_inicial || 0;
-            row["RESURTIDO"] = r.resurtido || 0;
-            row["VENTA"] = r.ventas || r.cantidad || 0;
-            row["I_FIN"] = r.inv_final || 0;
-        }
-        
-        row["OBSERVACIONES"] = r.observaciones || "";
-        return row;
     });
 
     if(filteredData.length === 0) return alert("No hay datos para exportar con estos filtros");
 
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reportes");
-    XLSX.writeFile(wb, `Reportes_StorePulse_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Reportes Operativos");
+    XLSX.writeFile(wb, `Reporte_Promotoria_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 // --- OTRAS FUNCIONES ---

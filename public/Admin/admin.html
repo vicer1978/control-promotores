@@ -61,6 +61,34 @@ let allReportsRaw = [];
 let allUsersCached = [];
 let cachedStores = [];
 
+// Definición de tipos de reporte por rol
+const REPORT_TYPES_BY_ROLE = {
+    all: [
+        { val: "inventario", text: "Ventas" },
+        { val: "ranking", text: "Degustación" },
+        { val: "competencia", text: "Competencia" },
+        { val: "precios", text: "Precios" },
+        { val: "exhibicion", text: "Exhibiciones" },
+        { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
+        { val: "foto", text: "Fotos Anaquel" }
+    ],
+    demostradora: [
+        { val: "inventario", text: "Ventas" },
+        { val: "ranking", text: "Degustación" },
+        { val: "precios", text: "Precios" }
+    ],
+    promotor: [
+        { val: "precios", text: "Precios" },
+        { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
+        { val: "inventario", text: "Inventarios" },
+        { val: "exhibicion", text: "Exhibiciones Adicionales" },
+        { val: "foto", text: "Fotos Anaquel" },
+        { val: "competencia", text: "Competencia" }
+    ]
+};
+
 async function fetchAPI(url, options = {}) {
     const headers = { "userid": session.userId, "Content-Type": "application/json" };
     options.headers = { ...(options.headers || {}), ...headers };
@@ -98,7 +126,6 @@ async function loadReports() {
         cachedStores = stores;
         allReportsRaw = Array.isArray(reports) ? reports : [];
 
-        // Extraer ciudades únicas de las tiendas para el filtro
         const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
 
         document.getElementById("content").innerHTML = `
@@ -108,7 +135,7 @@ async function loadReports() {
                     <div><label>Desde</label><input type="date" id="fStart"></div>
                     <div><label>Hasta</label><input type="date" id="fEnd"></div>
                     <div><label>Rol</label>
-                        <select id="fRole" onchange="filterReports()">
+                        <select id="fRole" onchange="updateReportOptions()">
                             <option value="all">Todos</option>
                             <option value="demostradora">Demostradora</option>
                             <option value="promotor">Promotor</option>
@@ -123,11 +150,7 @@ async function loadReports() {
                     <div><label>Tipo Reporte</label>
                         <select id="fType">
                             <option value="all">Todos</option>
-                            <option value="inventario">Ventas</option>
-                            <option value="ranking">Degustación</option>
-                            <option value="competencia">Competencia</option>
-                            <option value="precios">Precios</option>
-                            <option value="exhibicion">Exhibiciones</option>
+                            ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
                         </select>
                     </div>
                     <div><label>Ciudad</label>
@@ -153,6 +176,17 @@ async function loadReports() {
     } catch (e) { console.error(e); }
 }
 
+function updateReportOptions() {
+    const role = document.getElementById("fRole").value;
+    const typeSelect = document.getElementById("fType");
+    const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
+
+    typeSelect.innerHTML = `<option value="all">Todos</option>` + 
+        options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
+    
+    filterReports(); // Filtrar automáticamente al cambiar rol
+}
+
 function filterReports() {
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
@@ -174,7 +208,6 @@ function filterReports() {
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
 
-        // Lógica de filtrado
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = true;
         if(typeSel !== "all") {
@@ -182,12 +215,9 @@ function filterReports() {
             else matchType = rType.includes(typeSel.substring(0, 4));
         }
 
-        return (!start || rDate >= start) && 
-               (!end || rDate <= end) &&
-               matchRole &&
-               (userSel === "all" || rUid === userSel) &&
-               matchType &&
-               (citySel === "all" || rCity === citySel) &&
+        return (!start || rDate >= start) && (!end || rDate <= end) &&
+               matchRole && (userSel === "all" || rUid === userSel) &&
+               matchType && (citySel === "all" || rCity === citySel) &&
                (storeSel === "all" || rSid === storeSel);
     });
 
@@ -367,6 +397,7 @@ async function exportExcel() {
             "ROL": allUsersCached.find(u => u._id === (r.userId?._id || r.userId))?.role || "N/A",
             "TIENDA": r.storeId?.name || "N/A",
             "CIUDAD": cachedStores.find(s => s._id === (r.storeId?._id || r.storeId))?.address?.split(',').pop().trim() || "N/A",
+            "TIPO": (r.reportType || r.reporte || 'GRAL').toUpperCase(),
             "ARTICULO": r.articulo || r.producto || "-",
             "CANTIDAD": r.ventas || r.cantidad || 0,
             "OBSERVACIONES": r.observaciones || ""

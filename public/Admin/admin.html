@@ -130,7 +130,6 @@ async function loadReports() {
         document.getElementById("content").innerHTML = `
             <div class="card">
                 <h2>📊 Reportes por Categoría</h2>
-                <p style="font-size:12px; color:#64748b; margin-bottom:15px;">Selecciona un tipo de reporte para visualizar los datos en pantalla.</p>
                 <div class="grid-filters">
                     <div><label>Desde</label><input type="date" id="fStart"></div>
                     <div><label>Hasta</label><input type="date" id="fEnd"></div>
@@ -171,11 +170,7 @@ async function loadReports() {
                     <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXPORTAR EXCEL</button>
                 </div>
             </div>
-            <div id="reportList">
-                <div class="card" style="text-align:center; color:#64748b; border: 2px dashed #cbd5e1; background:transparent;">
-                    Esperando filtros... Selecciona un tipo de reporte y presiona Visualizar.
-                </div>
-            </div>`;
+            <div id="reportList"></div>`;
     } catch (e) { console.error(e); }
 }
 
@@ -190,11 +185,7 @@ function updateReportOptions() {
 
 function filterReports() {
     const typeSel = document.getElementById("fType")?.value.toLowerCase();
-    
-    if(!typeSel) {
-        alert("Por favor, selecciona un Tipo de Reporte para visualizar los datos correctamente.");
-        return;
-    }
+    if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
 
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
@@ -216,10 +207,7 @@ function filterReports() {
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
 
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
-        
-        let matchType = false;
-        if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
-        else matchType = rType.includes(typeSel.substring(0, 4));
+        let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
 
         return (!start || rDate >= start) && (!end || rDate <= end) &&
                matchRole && (userSel === "all" || rUid === userSel) &&
@@ -232,16 +220,21 @@ function filterReports() {
 
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
-    
     if (data.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos para esta categoría en el rango seleccionado.</div>`;
+        container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
         return;
     }
 
-    // Identificar columnas dinámicas ignorando metadatos
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt'];
-    const dynamicKeys = Object.keys(data[0]).filter(k => !exclude.includes(k));
+    // 1. Identificar qué llaves realmente contienen datos útiles en este set de resultados
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
+    
+    // Filtramos las llaves que tienen al menos un valor distinto de cero o vacío en todo el set
+    const dynamicKeys = Object.keys(data[0]).filter(key => {
+        if (exclude.includes(key)) return false;
+        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0 && item[key] !== "0");
+    });
 
+    // 2. Encabezados
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     
@@ -265,8 +258,8 @@ function renderTableReport(data, type) {
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
         
         dynamicKeys.forEach(k => {
-            let val = r[k] !== undefined ? r[k] : '-';
-            if(k.includes('precio')) val = `$${val}`;
+            let val = (r[k] !== undefined && r[k] !== null) ? r[k] : '-';
+            if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== '-') val = `$${val}`;
             rowData += `<td>${val}</td>`;
         });
 
@@ -291,8 +284,8 @@ async function loadAttendance() {
     
     document.getElementById("content").innerHTML = `
         <div class="card"><h2>⏰ Control de Asistencia</h2></div>
-        <div class="card">
-            <table class="report-table">
+        <div class="card" style="overflow-x:auto; padding:0;">
+            <table class="report-table" style="margin:0;">
                 <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead>
                 <tbody>
                     ${assist.map(a => {
@@ -387,7 +380,7 @@ async function loadStores() {
 
 async function exportExcel() {
     const typeSel = document.getElementById("fType").value;
-    if(!typeSel) return alert("Selecciona un tipo de reporte para exportar.");
+    if(!typeSel) return alert("Selecciona un tipo.");
     
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
@@ -399,21 +392,22 @@ async function exportExcel() {
         return matchType && (!start || rDate >= start) && (!end || rDate <= end);
     });
 
-    if(filteredRaw.length === 0) return alert("No hay datos para exportar");
+    if(filteredRaw.length === 0) return alert("No hay datos");
 
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url'];
-    
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'location', 'coordenadas'];
+    const activeKeys = Object.keys(filteredRaw[0]).filter(key => {
+        if (exclude.includes(key)) return false;
+        return filteredRaw.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+    });
+
     const excelData = filteredRaw.map(r => {
         let obj = {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
             "USUARIO": r.userId?.name || "N/A",
             "TIENDA": r.storeId?.name || "N/A"
         };
-        // Agregar dinámicamente el resto de campos que no estén excluidos
-        Object.keys(r).forEach(key => {
-            if(!exclude.includes(key) && key !== 'createdAt') {
-                obj[key.toUpperCase()] = r[key];
-            }
+        activeKeys.forEach(key => {
+            obj[key.toUpperCase()] = r[key];
         });
         return obj;
     });
@@ -421,7 +415,7 @@ async function exportExcel() {
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reporte");
-    XLSX.writeFile(wb, `StorePulse_${typeSel}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `StorePulse_${typeSel}.xlsx`);
 }
 
 async function deleteReport(id) {

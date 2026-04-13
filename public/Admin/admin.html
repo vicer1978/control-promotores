@@ -217,7 +217,6 @@ function filterReports() {
 
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         
-        // Match estricto por tipo
         let matchType = false;
         if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
         else matchType = rType.includes(typeSel.substring(0, 4));
@@ -239,27 +238,21 @@ function renderTableReport(data, type) {
         return;
     }
 
-    let headers = `<th>Fecha</th><th>Usuario</th><th>Tienda</th>`;
+    // Identificar columnas dinámicas ignorando metadatos
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt'];
+    const dynamicKeys = Object.keys(data[0]).filter(k => !exclude.includes(k));
+
+    let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
+    dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     
-    // Columnas dinámicas según el tipo
-    if (type.includes('precio')) {
-        headers += `<th>Producto</th><th>P. Normal</th><th>P. Oferta</th><th>Obs</th>`;
-    } else if (type === 'foto' || type.includes('exhibi') || type === 'competencia') {
-        headers += `<th>Concepto</th><th>Evidencia</th><th>Observaciones</th>`;
-    } else if (type === 'agotado' || type === 'preagotado') {
-        headers += `<th>Artículo</th><th>Estatus</th><th>Observaciones</th>`;
-    } else if (type === 'ranking') {
-        headers += `<th>Actividad</th><th>Muestra</th><th>Venta</th><th>Obs</th>`;
-    } else {
-        // Ventas / Inventarios
-        headers += `<th>Artículo</th><th>I. Inicial</th><th>Venta</th><th>I. Final</th><th>Obs</th>`;
-    }
+    const hasPhoto = data.some(r => r.foto_url);
+    if (hasPhoto) headers += `<th>EVIDENCIA</th>`;
 
     let html = `
     <div class="card" style="overflow-x: auto; padding: 0;">
         <table class="report-table" style="margin-top:0;">
             <thead style="background: var(--primary); color: white;">
-                <tr>${headers}<th>Acción</th></tr>
+                <tr>${headers}<th>ACCIÓN</th></tr>
             </thead>
             <tbody>
     `;
@@ -268,21 +261,18 @@ function renderTableReport(data, type) {
         const fecha = new Date(r.createdAt).toLocaleDateString();
         const usuario = r.userId?.name || 'S/N';
         const tienda = r.storeId?.name || 'S/T';
-        const obs = r.observaciones || '-';
         
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
+        
+        dynamicKeys.forEach(k => {
+            let val = r[k] !== undefined ? r[k] : '-';
+            if(k.includes('precio')) val = `$${val}`;
+            rowData += `<td>${val}</td>`;
+        });
 
-        if (type.includes('precio')) {
-            rowData += `<td>${r.articulo || '-'}</td><td>$${r.precio_normal || r.precio || 0}</td><td>$${r.precio_oferta || 0}</td><td>${obs}</td>`;
-        } else if (type === 'foto' || type.includes('exhibi') || type === 'competencia') {
-            const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : 'No foto';
-            rowData += `<td>${(r.reportType || r.reporte || 'Evidencia').toUpperCase()}</td><td>${img}</td><td>${obs}</td>`;
-        } else if (type === 'agotado' || type === 'preagotado') {
-            rowData += `<td>${r.articulo || '-'}</td><td><span class="badge" style="background:#fee2e2; color:#dc2626">${type.toUpperCase()}</span></td><td>${obs}</td>`;
-        } else if (type === 'ranking') {
-            rowData += `<td>${r.articulo || 'Degustación'}</td><td>${r.cantidad || 0}</td><td>${r.ventas || 0}</td><td>${obs}</td>`;
-        } else {
-            rowData += `<td>${r.articulo || r.producto || '-'}</td><td>${r.inv_inicial || 0}</td><td>${r.ventas || r.cantidad || 0}</td><td>${r.inv_final || 0}</td><td>${obs}</td>`;
+        if (hasPhoto) {
+            const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-';
+            rowData += `<td>${img}</td>`;
         }
 
         return `<tr>${rowData}<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Borrar</button></td></tr>`;
@@ -291,8 +281,6 @@ function renderTableReport(data, type) {
     html += `</tbody></table></div>`;
     container.innerHTML = html;
 }
-
-// --- RESTO DEL CÓDIGO (ASISTENCIA, USUARIOS, TIENDAS) SE MANTIENE IGUAL ---
 
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
@@ -401,38 +389,45 @@ async function exportExcel() {
     const typeSel = document.getElementById("fType").value;
     if(!typeSel) return alert("Selecciona un tipo de reporte para exportar.");
     
-    // Filtramos exactamente igual que la vista en pantalla
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
-    const filteredData = allReportsRaw.filter(r => {
+    
+    const filteredRaw = allReportsRaw.filter(r => {
         const rType = (r.reporte || r.reportType || "").toLowerCase();
         let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         return matchType && (!start || rDate >= start) && (!end || rDate <= end);
-    }).map(r => {
-        return {
-            "FECHA": new Date(r.createdAt).toLocaleDateString(),
-            "USUARIO": r.userId?.name || "N/A",
-            "TIENDA": r.storeId?.name || "N/A",
-            "TIPO": (r.reportType || r.reporte || 'GRAL').toUpperCase(),
-            "ARTICULO": r.articulo || r.producto || "-",
-            "VALOR_1": r.inv_inicial || r.precio_normal || r.cantidad || 0,
-            "VALOR_2": r.ventas || r.precio_oferta || 0,
-            "OBSERVACIONES": r.observaciones || ""
-        };
     });
 
-    if(filteredData.length === 0) return alert("No hay datos para exportar");
-    const ws = XLSX.utils.json_to_sheet(filteredData);
+    if(filteredRaw.length === 0) return alert("No hay datos para exportar");
+
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url'];
+    
+    const excelData = filteredRaw.map(r => {
+        let obj = {
+            "FECHA": new Date(r.createdAt).toLocaleDateString(),
+            "USUARIO": r.userId?.name || "N/A",
+            "TIENDA": r.storeId?.name || "N/A"
+        };
+        // Agregar dinámicamente el resto de campos que no estén excluidos
+        Object.keys(r).forEach(key => {
+            if(!exclude.includes(key) && key !== 'createdAt') {
+                obj[key.toUpperCase()] = r[key];
+            }
+        });
+        return obj;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reporte Filtrado");
+    XLSX.utils.book_append_sheet(wb, ws, "Reporte");
     XLSX.writeFile(wb, `StorePulse_${typeSel}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 async function deleteReport(id) {
     if(!confirm("¿Borrar reporte?")) return;
     await fetchAPI(`${BACKEND_URL}/reports/${id}`, { method: "DELETE" });
-    filterReports(); // Refrescar vista actual
+    filterReports();
 }
 
 function logout() { localStorage.clear(); window.location.href = "../index.html"; }

@@ -218,22 +218,31 @@ function filterReports() {
     renderTableReport(filtered, typeSel);
 }
 
+// Declaramos esta variable global para que exportExcel sepa qué columnas se están viendo actualmente
+let currentDynamicKeys = [];
+
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
     if (data.length === 0) {
         container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
+        currentDynamicKeys = [];
         return;
     }
 
     const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
     
-    const dynamicKeys = Object.keys(data[0]).filter(key => {
+    // Filtro estricto: Si el rol seleccionado es demostradora, forzamos la eliminación de 'cantidad'
+    const roleSel = document.getElementById("fRole")?.value;
+
+    currentDynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;
+        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad') return false;
+        
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0 && item[key] !== "0");
     });
 
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
-    dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
+    currentDynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     
     const hasPhoto = data.some(r => r.foto_url);
     if (hasPhoto) headers += `<th>EVIDENCIA</th>`;
@@ -254,7 +263,7 @@ function renderTableReport(data, type) {
         
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
         
-        dynamicKeys.forEach(k => {
+        currentDynamicKeys.forEach(k => {
             let val = (r[k] !== undefined && r[k] !== null) ? r[k] : '-';
             if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== '-') val = `$${val}`;
             rowData += `<td>${val}</td>`;
@@ -410,23 +419,15 @@ async function exportExcel() {
 
     if(filteredRaw.length === 0) return alert("No hay datos para exportar.");
 
-    // 2. Definir columnas dinámicas a incluir (excluyendo basura técnica)
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'location', 'coordenadas', 'createdAt'];
-    
-    // Si es demostradora en inventarios, quitamos cantidad si así lo pide la lógica visual
-    const activeKeys = Object.keys(filteredRaw[0]).filter(key => {
-        if (exclude.includes(key)) return false;
-        return filteredRaw.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
-    });
-
-    // 3. Mapear a formato Excel limpio
+    // 2. Usar las llaves que se calcularon en la última filtración visual (currentDynamicKeys)
+    // Esto garantiza que si en pantalla no hay 'cantidad', en el Excel tampoco.
     const excelData = filteredRaw.map(r => {
         let obj = {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
             "USUARIO": r.userId?.name || "N/A",
             "TIENDA": r.storeId?.name || "N/A"
         };
-        activeKeys.forEach(key => {
+        currentDynamicKeys.forEach(key => {
             let label = key.replace('_', ' ').toUpperCase();
             obj[label] = r[key];
         });

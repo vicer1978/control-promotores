@@ -94,9 +94,7 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE ASISTENCIA CON FOTO (CHECK-IN / CHECK-OUT) ---
-
-// NUEVA RUTA: Obtener historial de checkins por agencia (Para checkins.html)
+// --- GESTIÓN DE ASISTENCIA ---
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
         const { agencyId } = req.params;
@@ -117,50 +115,41 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         if (!storeId || lat === undefined || lng === undefined) {
             return res.status(400).json({ error: "Datos incompletos" });
         }
-
         const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (lastCheckin && lastCheckin.type === "checkin") {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
         }
-
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
-
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            storeId: storeId,
+            storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkin",
             foto_url: fotoUrl,
             timestamp: new Date()
         });
         await newCheckin.save();
-
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            storeId: storeId,
+            storeId,
             reporte: "checkin",
             foto_url: fotoUrl,
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkinReport.save();
-
         res.json({ message: "Entrada registrada", checkin: newCheckin });
-    } catch (err) {
-        res.status(500).json({ error: "Error en checkin", detalle: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: "Error en checkin", detalle: err.message }); }
 });
 
 app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId } = req.body;
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        
         if (!lastEvent || lastEvent.type === "checkout") {
             return res.status(400).json({ error: "No hay una entrada activa." });
         }
-
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -170,7 +159,6 @@ app.post("/checkout", auth, async (req, res) => {
             timestamp: new Date()
         });
         await newCheckout.save();
-
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -179,11 +167,8 @@ app.post("/checkout", auth, async (req, res) => {
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkoutReport.save();
-
         res.json({ message: "Salida registrada con éxito" });
-    } catch (err) {
-        res.status(500).json({ error: "Error en checkout" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error en checkout" }); }
 });
 
 // --- GESTIÓN DE REPORTES ---
@@ -194,20 +179,14 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .populate('storeId', 'name')
             .sort({ createdAt: -1 });
         res.json(reports);
-    } catch (err) {
-        res.status(500).json({ error: "Error al cargar reportes" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error al cargar reportes" }); }
 });
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
         const obs = req.body.observaciones || req.body.comentarios || "";
-        
-        // NORMALIZACIÓN: Corregir error de validación 'exhibicion' vs 'exhibiciones'
         let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
-        if (tipoReporte.toLowerCase().includes("exhibicion")) {
-            tipoReporte = "exhibicion";
-        }
+        if (tipoReporte.toLowerCase().includes("exhibicion")) tipoReporte = "exhibicion";
 
         const reportData = {
             ...req.body,
@@ -226,18 +205,13 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             precio_oferta: Number(req.body.precio_oferta) || 0,
             personas: Number(req.body.personas) || 0,
             observaciones: obs,
-            location: (req.body.lat && req.body.lng) ? {
-                lat: Number(req.body.lat),
-                lng: Number(req.body.lng)
-            } : { lat: 0, lng: 0 }
+            location: (req.body.lat && req.body.lng) ? { lat: Number(req.body.lat), lng: Number(req.body.lng) } : { lat: 0, lng: 0 }
         };
 
         const report = new Report(reportData);
         await report.save();
         res.json({ message: "Reporte guardado con éxito", id: report._id });
-    } catch (err) { 
-        res.status(500).json({ error: "Error interno al guardar", detalles: err.message }); 
-    }
+    } catch (err) { res.status(500).json({ error: "Error interno", detalles: err.message }); }
 });
 
 app.delete("/reports/:id", auth, async (req, res) => {
@@ -247,50 +221,72 @@ app.delete("/reports/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
-// --- GESTIÓN DE USUARIOS Y TIENDAS ---
+// --- GESTIÓN DE USUARIOS (EXTENDIDO PARA ADMIN DASHBOARD) ---
 app.get("/users", auth, async (req, res) => {
     try {
-        const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
-        const users = await User.find(filter).populate('stores');
-        res.json(users);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        const users = await User.find({ agencyId: req.user.agencyId }).populate('assignedStores');
+        // Mapeo para asegurar compatibilidad de nombres de campos
+        const mappedUsers = users.map(u => ({
+            ...u._doc,
+            assignedStores: u.assignedStores || u.stores || [] 
+        }));
+        res.json(mappedUsers);
+    } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
 });
 
-app.get("/users/:id", auth, async (req, res) => {
+app.post("/users/register", auth, async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).populate('stores');
-        res.json(user);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.post("/users", auth, async (req, res) => {
-    try {
-        const { name, email, password, role, agencyId } = req.body;
+        const { name, email, password, role } = req.body;
         const newUser = new User({
             name,
             email: email.toLowerCase(),
-            password,
-            role,
-            agencyId: agencyId || req.user.agencyId
+            password: password || "123",
+            role: role || "promotor",
+            agencyId: req.user.agencyId
         });
         await newUser.save();
-        res.json({ message: "Usuario creado" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        res.json({ message: "Usuario creado con éxito" });
+    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
 });
 
-app.put("/users/:userId/stores", auth, async (req, res) => {
+app.post("/users/:userId/assign", auth, async (req, res) => {
     try {
-        await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
-        res.json({ message: "Ruta actualizada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        await User.findByIdAndUpdate(req.params.userId, { 
+            $addToSet: { assignedStores: req.body.storeId, stores: req.body.storeId } 
+        });
+        res.json({ message: "Tienda asignada" });
+    } catch (err) { res.status(500).json({ error: "Error al asignar" }); }
 });
 
+app.post("/users/:userId/unassign", auth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.params.userId, { 
+            $pull: { assignedStores: req.body.storeId, stores: req.body.storeId } 
+        });
+        res.json({ message: "Tienda desasignada" });
+    } catch (err) { res.status(500).json({ error: "Error al desasignar" }); }
+});
+
+app.put("/users/:userId/role", auth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.params.userId, { role: req.body.role });
+        res.json({ message: "Rol actualizado" });
+    } catch (err) { res.status(500).json({ error: "Error al cambiar rol" }); }
+});
+
+app.delete("/users/:id", auth, async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: "Usuario eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
+});
+
+// --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
-        const stores = await Store.find(filter).sort({ name: 1 });
+        const stores = await Store.find({ agencyId: req.user.agencyId }).sort({ name: 1 });
         res.json(stores);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al cargar tiendas" }); }
 });
 
 app.post("/stores", auth, async (req, res) => {
@@ -298,18 +294,22 @@ app.post("/stores", auth, async (req, res) => {
         const newStore = new Store({ ...req.body, agencyId: req.user.agencyId });
         await newStore.save();
         res.json({ message: "Tienda creada", store: newStore });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
-// --- MANEJO DE FRONTEND (SERVIR HTML) ---
+app.delete("/stores/:id", auth, async (req, res) => {
+    try {
+        await Store.findByIdAndDelete(req.params.id);
+        res.json({ message: "Tienda eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
+});
+
+// --- MANEJO DE FRONTEND ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
-app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
-app.get("/dashboard_tareas", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard_tareas.html")));
 app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
-// Catch-all para cualquier otra ruta
 app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/uploads/')) return res.status(404).send('Archivo no encontrado');
     res.sendFile(path.resolve(__dirname, "public", "login.html"));

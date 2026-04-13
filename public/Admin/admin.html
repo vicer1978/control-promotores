@@ -63,7 +63,7 @@
         .report-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .report-table tr:hover { background: #f8fafc; cursor: pointer; }
 
-        /* Drawers (Paneles Laterales) */
+        /* Drawers */
         .drawer-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); display: none; z-index: 1000;
@@ -80,13 +80,12 @@
         .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
         .close-drawer { font-size: 24px; cursor: pointer; color: #64748b; border: none; background: none; }
 
-        /* Estilos Existentes Mantenidos */
         .grid-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 10px; margin-bottom: 15px; }
         input, select { padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; width: 100%; box-sizing: border-box; }
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         .btn-delete { background: #fee2e2; color: #dc2626; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; }
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
-        .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+        .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
         
         .store-item { 
             background: #f8fafc; margin: 5px 0; padding: 10px; border-radius: 6px; 
@@ -112,13 +111,12 @@
 
 <div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
 
-<div id="userDrawer" class="drawer">
+<div id="mainDrawer" class="drawer">
     <div class="drawer-header">
-        <h3 id="drawerTitle">Editar Usuario</h3>
+        <h3 id="drawerTitle">Panel</h3>
         <button class="close-drawer" onclick="closeDrawer()">&times;</button>
     </div>
-    <div id="drawerBody" style="overflow-y: auto; flex: 1;">
-        </div>
+    <div id="drawerBody" style="overflow-y: auto; flex: 1;"></div>
 </div>
 
 <script>
@@ -165,9 +163,15 @@ const REPORT_TYPES_BY_ROLE = {
 };
 
 async function fetchAPI(url, options = {}) {
-    const headers = { "userid": session.userId, "Content-Type": "application/json" };
+    // IMPORTANTE: Aseguramos que el header se llame userId como espera el servidor
+    const headers = { 
+        "userId": session.userId, 
+        "userid": session.userId,
+        "Content-Type": "application/json" 
+    };
     options.headers = { ...(options.headers || {}), ...headers };
     const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`Error ${res.status}`);
     return res.json();
 }
 
@@ -191,68 +195,68 @@ function loadSection(section) {
     if (section === 'attendance') loadAttendance();
 }
 
-// --- UTILIDADES DRAWER ---
-function openDrawer(type, dataId) {
+function openDrawer(title, contentHTML) {
     document.getElementById("drawerOverlay").style.display = "block";
-    const drawer = document.getElementById("userDrawer");
-    drawer.classList.add("open");
-    
-    if(type === 'user') renderUserDetail(dataId);
-    if(type === 'store') renderStoreDetail(dataId);
+    document.getElementById("drawerTitle").innerText = title;
+    document.getElementById("drawerBody").innerHTML = contentHTML;
+    document.getElementById("mainDrawer").classList.add("open");
 }
 
 function closeDrawer() {
     document.getElementById("drawerOverlay").style.display = "none";
-    document.getElementById("userDrawer").classList.remove("open");
+    document.getElementById("mainDrawer").classList.remove("open");
 }
 
-// --- SECCIÓN USUARIOS (CON DRAWER) ---
+// --- SECCIÓN USUARIOS ---
 async function loadUsers() {
-    const [users, stores] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users`),
-        fetchAPI(`${BACKEND_URL}/stores`)
-    ]);
-    allUsersCached = users;
-    cachedStores = stores;
+    try {
+        const [users, stores] = await Promise.all([
+            fetchAPI(`${BACKEND_URL}/users`),
+            fetchAPI(`${BACKEND_URL}/stores`)
+        ]);
+        allUsersCached = users;
+        cachedStores = stores;
 
-    document.getElementById("content").innerHTML = `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-            <h2 style="margin:0">👥 Gestión de Usuarios</h2>
-            <button class="btn-action" onclick="openNewUserModal()">+ Nuevo Usuario</button>
-        </div>
-        <div class="card" style="padding:0; overflow:hidden;">
-            <table class="report-table">
-                <thead>
-                    <tr>
-                        <th>NOMBRE</th>
-                        <th>CORREO</th>
-                        <th>ROL</th>
-                        <th>TIENDAS</th>
-                        <th>ACCIONES</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${users.map(u => `
-                        <tr onclick="openDrawer('user', '${u._id}')">
-                            <td><b>${u.name.toUpperCase()}</b></td>
-                            <td>${u.email}</td>
-                            <td><span class="badge" style="background:#e0f2fe; color:#0369a1">${u.role}</span></td>
-                            <td>${(u.assignedStores || []).length} asignadas</td>
-                            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Eliminar</button></td>
+        document.getElementById("content").innerHTML = `
+            <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0">👥 Gestión de Usuarios</h2>
+                <button class="btn-action" onclick="openNewUserModal()">+ Nuevo Usuario</button>
+            </div>
+            <div class="card" style="padding:0; overflow:hidden;">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>NOMBRE</th>
+                            <th>CORREO</th>
+                            <th>ROL</th>
+                            <th>TIENDAS</th>
+                            <th>ACCIONES</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
+                    </thead>
+                    <tbody>
+                        ${users.map(u => `
+                            <tr onclick="renderUserDetail('${u._id}')">
+                                <td><b>${(u.name || 'Sin nombre').toUpperCase()}</b></td>
+                                <td>${u.email}</td>
+                                <td><span class="badge" style="background:#e0f2fe; color:#0369a1">${u.role}</span></td>
+                                <td>${(u.assignedStores || []).length} asignadas</td>
+                                <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Eliminar</button></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } catch (e) {
+        document.getElementById("content").innerHTML = `<div class="card">Error al cargar usuarios. Revisa la conexión.</div>`;
+    }
 }
 
 function renderUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
 
-    document.getElementById("drawerTitle").innerText = "Perfil de Usuario";
-    document.getElementById("drawerBody").innerHTML = `
+    const content = `
         <div style="margin-bottom:20px">
             <label>Nombre Completo</label>
             <p><b>${u.name}</b></p>
@@ -269,35 +273,33 @@ function renderUserDetail(userId) {
             <label>Asignar Nueva Tienda</label>
             <select id="addStoreSelect" onchange="assignStore('${u._id}', this.value)">
                 <option value="">-- Seleccionar tienda --</option>
-                ${cachedStores.filter(s => !(u.assignedStores || []).includes(s._id))
+                ${cachedStores.filter(s => !(u.assignedStores || []).some(as => (as._id || as) === s._id))
                     .map(s => `<option value="${s._id}">${s.name}</option>`).join('')}
             </select>
         </div>
         <div style="margin-top:20px">
             <label>Tiendas Actuales</label>
-            ${(u.assignedStores || []).map(sid => {
-                const st = cachedStores.find(x => x._id === sid);
-                return st ? `
+            ${(u.assignedStores || []).map(st => {
+                const storeObj = typeof st === 'object' ? st : cachedStores.find(x => x._id === st);
+                return storeObj ? `
                     <div class="store-item">
-                        ${st.name}
-                        <button class="btn-delete" onclick="unassignStore('${u._id}', '${sid}')">Quitar</button>
+                        ${storeObj.name}
+                        <button class="btn-delete" onclick="unassignStore('${u._id}', '${storeObj._id}')">Quitar</button>
                     </div>` : '';
             }).join('')}
         </div>
     `;
+    openDrawer("Perfil de Usuario", content);
 }
 
-// --- MANTENIENDO TUS FUNCIONES ORIGINALES ---
+// --- ACCIONES USUARIOS ---
 async function assignStore(userId, storeId) {
     if(!storeId) return;
     await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, {
         method:'POST',
         body:JSON.stringify({ storeId })
     });
-    const users = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = users;
-    renderUserDetail(userId);
-    loadUsers();
+    loadUsers().then(() => renderUserDetail(userId));
 }
 
 async function unassignStore(userId, storeId) {
@@ -305,10 +307,7 @@ async function unassignStore(userId, storeId) {
         method:'POST',
         body:JSON.stringify({ storeId })
     });
-    const users = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = users;
-    renderUserDetail(userId);
-    loadUsers();
+    loadUsers().then(() => renderUserDetail(userId));
 }
 
 async function deleteUser(id) {
@@ -324,103 +323,142 @@ async function updateUserRole(userId, newRole) {
     });
 }
 
-// --- REPORTE Y ASISTENCIA (LÓGICA ORIGINAL) ---
+function openNewUserModal() {
+    const content = `
+        <input type="text" id="newName" placeholder="Nombre completo" style="margin-bottom:10px">
+        <input type="email" id="newEmail" placeholder="Correo" style="margin-bottom:10px">
+        <select id="newRole" style="margin-bottom:10px">
+            <option value="promotor">Promotor</option>
+            <option value="demostradora">Demostradora</option>
+            <option value="admin">Administrador</option>
+        </select>
+        <button class="btn-action" onclick="saveNewUser()" style="width:100%">GUARDAR USUARIO</button>
+    `;
+    openDrawer("Nuevo Usuario", content);
+}
+
+async function saveNewUser() {
+    const name = document.getElementById("newName").value;
+    const email = document.getElementById("newEmail").value;
+    const role = document.getElementById("newRole").value;
+    await fetchAPI(`${BACKEND_URL}/users/register`, {
+        method:'POST',
+        body:JSON.stringify({name, email, role, agencyId: session.agencyId, password: "123"})
+    });
+    closeDrawer();
+    loadUsers();
+}
+
+// --- SECCIÓN TIENDAS ---
+async function loadStores() {
+    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
+    cachedStores = stores;
+    document.getElementById("content").innerHTML = `
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0">🏬 Catálogo de Tiendas</h2>
+            <button class="btn-action" onclick="openNewStoreModal()">+ Nueva Tienda</button>
+        </div>
+        <div class="card" style="padding:0;">
+            <table class="report-table">
+                <thead><tr><th>Nombre</th><th>Ciudad/Dirección</th><th>Acción</th></tr></thead>
+                <tbody>
+                    ${stores.map(s => `
+                        <tr>
+                            <td><b>${s.name}</b></td>
+                            <td>${s.address || 'Sin dirección'}</td>
+                            <td><button class="btn-delete" onclick="deleteStore('${s._id}')">Eliminar</button></td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+function openNewStoreModal() {
+    const content = `
+        <input type="text" id="stN" placeholder="Nombre Tienda" style="margin-bottom:10px">
+        <input type="text" id="stA" placeholder="Ciudad / Dirección" style="margin-bottom:10px">
+        <button class="btn-action" onclick="saveNewStore()" style="width:100%">GUARDAR TIENDA</button>
+    `;
+    openDrawer("Nueva Tienda", content);
+}
+
+async function saveNewStore() {
+    const name = document.getElementById("stN").value;
+    const address = document.getElementById("stA").value;
+    await fetchAPI(`${BACKEND_URL}/stores`, {
+        method:'POST',
+        body:JSON.stringify({name, address, agencyId: session.agencyId})
+    });
+    closeDrawer();
+    loadStores();
+}
+
+async function deleteStore(id) {
+    if(!confirm("¿Borrar tienda?")) return;
+    await fetchAPI(`${BACKEND_URL}/stores/${id}`, { method: 'DELETE' });
+    loadStores();
+}
+
+// --- REPORTE Y ASISTENCIA ---
 async function loadReports() {
-    try {
-        const [users, stores, reports] = await Promise.all([
-            fetchAPI(`${BACKEND_URL}/users`),
-            fetchAPI(`${BACKEND_URL}/stores`),
-            fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
-        ]);
-        allUsersCached = users;
-        cachedStores = stores;
-        allReportsRaw = Array.isArray(reports) ? reports : [];
+    const [users, stores, reports] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/users`),
+        fetchAPI(`${BACKEND_URL}/stores`),
+        fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
+    ]);
+    allUsersCached = users;
+    cachedStores = stores;
+    allReportsRaw = Array.isArray(reports) ? reports : [];
 
-        const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
-
-        document.getElementById("content").innerHTML = `
-            <div class="card">
-                <h2>📊 Reportes por Categoría</h2>
-                <div class="grid-filters">
-                    <div><label>Desde</label><input type="date" id="fStart"></div>
-                    <div><label>Hasta</label><input type="date" id="fEnd"></div>
-                    <div><label>Rol</label>
-                        <select id="fRole" onchange="updateReportOptions()">
-                            <option value="all">Todos</option>
-                            <option value="demostradora">Demostradora</option>
-                            <option value="promotor">Promotor</option>
-                        </select>
-                    </div>
-                    <div><label>Usuario</label>
-                        <select id="fUser">
-                            <option value="all">Todos</option>
-                            ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label>Tipo Reporte</label>
-                        <select id="fType">
-                            <option value="">-- Seleccionar --</option>
-                            ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
-                        </select>
-                    </div>
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>📊 Reportes por Categoría</h2>
+            <div class="grid-filters">
+                <div><label>Desde</label><input type="date" id="fStart"></div>
+                <div><label>Hasta</label><input type="date" id="fEnd"></div>
+                <div><label>Usuario</label>
+                    <select id="fUser">
+                        <option value="all">Todos</option>
+                        ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
+                    </select>
                 </div>
-                <div style="display:flex; gap:10px;">
-                    <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR DATOS</button>
-                    <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXPORTAR EXCEL</button>
+                <div><label>Tipo Reporte</label>
+                    <select id="fType">
+                        <option value="">-- Seleccionar --</option>
+                        ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
+                    </select>
                 </div>
             </div>
-            <div id="reportList"></div>`;
-    } catch (e) { console.error(e); }
+            <button onclick="filterReports()" class="btn-action" style="width:100%">FILTRAR REPORTE</button>
+        </div>
+        <div id="reportList"></div>`;
 }
 
 function filterReports() {
-    const typeSel = document.getElementById("fType")?.value.toLowerCase();
-    if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
-
-    const start = document.getElementById("fStart")?.value;
-    const end = document.getElementById("fEnd")?.value;
-    const roleSel = document.getElementById("fRole")?.value;
-    const userSel = document.getElementById("fUser")?.value;
-
+    const typeSel = document.getElementById("fType").value.toLowerCase();
+    if(!typeSel) return alert("Selecciona un tipo.");
+    
     const filtered = allReportsRaw.filter(r => {
-        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
-        const userObj = allUsersCached.find(u => u._id === rUid);
-        const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
-        if (rType.includes('checkin') || rType.includes('checkout')) return false;
-
-        const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
-        let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
-        let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0,4));
-
-        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType;
+        const rType = (r.reporte || r.reportType || "").toLowerCase();
+        return rType.includes(typeSel);
     });
-
-    renderTableReport(filtered, typeSel);
+    renderTableReport(filtered);
 }
 
-function renderTableReport(data, type) {
+function renderTableReport(data) {
     const container = document.getElementById("reportList");
-    if (data.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
-        return;
-    }
-    const exclude = ['_id','userId', 'storeId','agencyId', 'updatedAt','__v', 'reporte','reportType', 'foto_url','createdAt', 'location'];
-    let dynamicKeys = Object.keys(data[0]).filter(key => !exclude.includes(key));
-
-    let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
-    dynamicKeys.forEach(k => headers += `<th>${k.toUpperCase()}</th>`);
+    if (!data.length) { container.innerHTML = '<div class="card">No hay datos</div>'; return; }
     
     container.innerHTML = `
         <div class="card" style="padding:0; overflow-x:auto;">
             <table class="report-table">
-                <thead><tr>${headers}<th>FOTO</th></tr></thead>
+                <thead><tr><th>FECHA</th><th>USUARIO</th><th>TIENDA</th><th>FOTO</th></tr></thead>
                 <tbody>
                     ${data.map(r => `
                         <tr>
                             <td>${new Date(r.createdAt).toLocaleDateString()}</td>
-                            <td>${r.userId?.name || '-'}</td>
-                            <td>${r.storeId?.name || '-'}</td>
-                            ${dynamicKeys.map(k => `<td>${r[k] || '-'}</td>`).join('')}
+                            <td>${r.userId?.name || '---'}</td>
+                            <td>${r.storeId?.name || '---'}</td>
                             <td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>
                         </tr>
                     `).join('')}
@@ -456,83 +494,6 @@ async function loadAttendance() {
                 </tbody>
             </table>
         </div>`;
-}
-
-async function loadStores() {
-    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-    cachedStores = stores;
-    document.getElementById("content").innerHTML = `
-        <div class="card" style="display:flex; justify-content:space-between;">
-            <h2 style="margin:0">🏬 Catálogo de Tiendas</h2>
-            <button class="btn-action" onclick="openNewStoreModal()">+ Nueva Tienda</button>
-        </div>
-        <div class="card" style="padding:0;">
-            <table class="report-table">
-                <thead><tr><th>Nombre</th><th>Ciudad/Dirección</th><th>Acción</th></tr></thead>
-                <tbody>
-                    ${stores.map(s => `
-                        <tr>
-                            <td><b>${s.name}</b></td>
-                            <td>${s.address || 'Sin dirección'}</td>
-                            <td><button class="btn-delete" onclick="deleteStore('${s._id}')">Eliminar</button></td>
-                        </tr>`).join('')}
-                </tbody>
-            </table>
-        </div>`;
-}
-
-function openNewUserModal() {
-    openDrawer('user', null);
-    document.getElementById("drawerTitle").innerText = "Nuevo Usuario";
-    document.getElementById("drawerBody").innerHTML = `
-        <input type="text" id="newName" placeholder="Nombre completo" style="margin-bottom:10px">
-        <input type="email" id="newEmail" placeholder="Correo" style="margin-bottom:10px">
-        <select id="newRole" style="margin-bottom:10px">
-            <option value="promotor">Promotor</option>
-            <option value="demostradora">Demostradora</option>
-            <option value="admin">Administrador</option>
-        </select>
-        <button class="btn-action" onclick="saveNewUser()" style="width:100%">GUARDAR USUARIO</button>
-    `;
-}
-
-async function saveNewUser() {
-    const name = document.getElementById("newName").value;
-    const email = document.getElementById("newEmail").value;
-    const role = document.getElementById("newRole").value;
-    await fetchAPI(`${BACKEND_URL}/users/register`, {
-        method:'POST',
-        body:JSON.stringify({name, email, role, agencyId: session.agencyId, password: "123"})
-    });
-    closeDrawer();
-    loadUsers();
-}
-
-function openNewStoreModal() {
-    openDrawer('store', null);
-    document.getElementById("drawerTitle").innerText = "Nueva Tienda";
-    document.getElementById("drawerBody").innerHTML = `
-        <input type="text" id="stN" placeholder="Nombre Tienda" style="margin-bottom:10px">
-        <input type="text" id="stA" placeholder="Ciudad / Dirección" style="margin-bottom:10px">
-        <button class="btn-action" onclick="saveNewStore()" style="width:100%">GUARDAR TIENDA</button>
-    `;
-}
-
-async function saveNewStore() {
-    const name = document.getElementById("stN").value;
-    const address = document.getElementById("stA").value;
-    await fetchAPI(`${BACKEND_URL}/stores`, {
-        method:'POST',
-        body:JSON.stringify({name, address, agencyId: session.agencyId})
-    });
-    closeDrawer();
-    loadStores();
-}
-
-async function deleteStore(id) {
-    if(!confirm("¿Borrar tienda?")) return;
-    await fetchAPI(`${BACKEND_URL}/stores/${id}`, { method: 'DELETE' });
-    loadStores();
 }
 
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }

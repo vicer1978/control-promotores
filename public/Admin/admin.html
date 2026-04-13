@@ -61,7 +61,6 @@ let allReportsRaw = [];
 let allUsersCached = [];
 let cachedStores = [];
 
-// Definición de tipos de reporte por rol
 const REPORT_TYPES_BY_ROLE = {
     all: [
         { val: "inventario", text: "Ventas" },
@@ -184,7 +183,7 @@ function updateReportOptions() {
     typeSelect.innerHTML = `<option value="all">Todos</option>` + 
         options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
     
-    filterReports(); // Filtrar automáticamente al cambiar rol
+    filterReports();
 }
 
 function filterReports() {
@@ -221,38 +220,64 @@ function filterReports() {
                (storeSel === "all" || rSid === storeSel);
     });
 
-    document.getElementById("reportList").innerHTML = filtered.map(r => {
-        const rType = (r.reportType || r.reporte || '').toLowerCase();
-        const isPrecios = rType.includes('precio') || r.precio_normal > 0 || r.precio > 0;
-        
-        return `
-        <div class="card">
-            <button class="btn-delete" style="position:absolute; right:15px;" onclick="deleteReport('${r._id}')">BORRAR</button>
-            <span class="badge badge-inv">${(r.reportType || r.reporte || 'Gral').toUpperCase()}</span><br>
-            <b>${(r.userId?.name || 'S/N').toUpperCase()}</b> | 📍 ${r.storeId?.name || 'S/T'}
-            <table class="report-table">
-                ${isPrecios ? `
-                <thead><tr><th>Producto</th><th>Precio Normal</th><th>Precio Oferta</th></tr></thead>
-                <tbody>
-                    <tr><td>${r.articulo || '-'}</td><td>$${r.precio_normal || r.precio || 0}</td><td>$${r.precio_oferta || 0}</td></tr>
-                </tbody>
-                ` : `
-                <thead><tr><th>Producto</th><th>I_INI</th><th>RESURTIDO</th><th>VENTA</th><th>I_FIN</th></tr></thead>
-                <tbody>
-                    <tr>
-                        <td>${r.articulo || r.producto || '-'}</td>
-                        <td>${r.inv_inicial || 0}</td><td>${r.resurtido || 0}</td>
-                        <td>${r.ventas || r.cantidad || 0}</td><td>${r.inv_final || 0}</td>
-                    </tr>
-                </tbody>
-                `}
-            </table>
-            ${r.observaciones ? `<p style="font-size:12px; margin-top:8px;"><b>Nota:</b> ${r.observaciones}</p>` : ''}
-            ${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="img-preview" onclick="window.open(this.src)">` : ''}
-        </div>`}).join('');
+    renderTableReport(filtered, typeSel);
 }
 
-// --- ASISTENCIA ---
+function renderTableReport(data, type) {
+    const container = document.getElementById("reportList");
+    
+    if (data.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center">No hay datos con estos filtros</div>`;
+        return;
+    }
+
+    let headers = `<th>Fecha</th><th>Usuario</th><th>Tienda</th>`;
+    
+    if (type.includes('precio')) {
+        headers += `<th>Producto</th><th>P. Normal</th><th>P. Oferta</th><th>Obs</th>`;
+    } else if (type === 'foto' || type.includes('exhibi')) {
+        headers += `<th>Concepto</th><th>Evidencia</th><th>Observaciones</th>`;
+    } else if (type === 'agotado' || type === 'preagotado') {
+        headers += `<th>Artículo</th><th>Estatus</th><th>Observaciones</th>`;
+    } else {
+        headers += `<th>Artículo</th><th>I. Inicial</th><th>Venta</th><th>I. Final</th><th>Obs</th>`;
+    }
+
+    let html = `
+    <div class="card" style="overflow-x: auto; padding: 0;">
+        <table class="report-table" style="margin-top:0;">
+            <thead style="background: var(--primary); color: white;">
+                <tr>${headers}<th>Acción</th></tr>
+            </thead>
+            <tbody>
+    `;
+
+    html += data.map(r => {
+        const fecha = new Date(r.createdAt).toLocaleDateString();
+        const usuario = r.userId?.name || 'S/N';
+        const tienda = r.storeId?.name || 'S/T';
+        const obs = r.observaciones || '-';
+        
+        let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
+
+        if (type.includes('precio')) {
+            rowData += `<td>${r.articulo || '-'}</td><td>$${r.precio_normal || r.precio || 0}</td><td>$${r.precio_oferta || 0}</td><td>${obs}</td>`;
+        } else if (type === 'foto' || type.includes('exhibi')) {
+            const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : 'No foto';
+            rowData += `<td>${(r.reportType || r.reporte || 'Evidencia').toUpperCase()}</td><td>${img}</td><td>${obs}</td>`;
+        } else if (type === 'agotado' || type === 'preagotado') {
+            rowData += `<td>${r.articulo || '-'}</td><td><span class="badge" style="background:#fee2e2; color:#dc2626">${type.toUpperCase()}</span></td><td>${obs}</td>`;
+        } else {
+            rowData += `<td>${r.articulo || r.producto || '-'}</td><td>${r.inv_inicial || 0}</td><td>${r.ventas || r.cantidad || 0}</td><td>${r.inv_final || 0}</td><td>${obs}</td>`;
+        }
+
+        return `<tr>${rowData}<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Eliminar</button></td></tr>`;
+    }).join('');
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const assist = reports.filter(r => {
@@ -284,7 +309,6 @@ async function loadAttendance() {
         </div>`;
 }
 
-// --- USUARIOS ---
 async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = users;
@@ -343,7 +367,6 @@ function renderUserCards(users) {
     }).join('');
 }
 
-// --- TIENDAS ---
 async function loadStores() {
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);
     document.getElementById("content").innerHTML = `
@@ -372,20 +395,16 @@ async function exportExcel() {
         const userObj = allUsersCached.find(u => u._id === rUid);
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
-        
         const rType = (r.reporte || r.reportType || "").toLowerCase();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
-        
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
-
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = true;
         if(typeSel !== 'all') {
             if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
             else matchType = rType.includes(typeSel.substring(0, 4));
         }
-
         return (!start || rDate >= start) && (!end || rDate <= end) &&
                matchRole && (userSel === "all" || rUid === userSel) &&
                matchType && (citySel === "all" || rCity === citySel) &&
@@ -405,7 +424,6 @@ async function exportExcel() {
     });
 
     if(filteredData.length === 0) return alert("No hay datos para exportar");
-
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes Operativos");

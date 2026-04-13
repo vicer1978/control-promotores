@@ -28,7 +28,6 @@
         .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
         .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: grab; }
         .role-select { width: auto; font-size: 11px; padding: 5px; height: auto; }
-        /* Estilo para miniatura de foto en tabla */
         .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
     </style>
 </head>
@@ -52,13 +51,10 @@
 const BACKEND_URL = "https://storepulse.onrender.com";
 let session = { userId: localStorage.getItem("userId"), agencyId: localStorage.getItem("agencyId") };
 
-// Verificación de sesión y carga de bienvenida
 if (!session.userId) {
     window.location.href = "../login.html";
 } else {
-    window.onload = () => {
-        showWelcomeMessage();
-    };
+    window.onload = () => { showWelcomeMessage(); };
 }
 
 let allReportsRaw = [];
@@ -75,12 +71,8 @@ async function fetchAPI(url, options = {}) {
 function showWelcomeMessage() {
     document.getElementById("content").innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;">
-            <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">
-                StorePulse Admin
-            </h1>
-            <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">
-                Control de operación en tiempo real.
-            </p>
+            <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">StorePulse Admin</h1>
+            <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">Control de operación en tiempo real.</p>
             <div style="width: 80px; height: 6px; background: var(--gold); margin-top: 30px; border-radius: 10px;"></div>
         </div>
     `;
@@ -95,7 +87,6 @@ function loadSection(section) {
     if (section === 'attendance') loadAttendance();
 }
 
-// --- REPORTES ---
 async function loadReports() {
     try {
         const [users, stores, reports] = await Promise.all([
@@ -107,13 +98,29 @@ async function loadReports() {
         cachedStores = stores;
         allReportsRaw = Array.isArray(reports) ? reports : [];
 
+        // Extraer ciudades únicas de las tiendas para el filtro
+        const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
+
         document.getElementById("content").innerHTML = `
             <div class="card">
-                <h2>📊 Filtros y Exportación</h2>
+                <h2>📊 Filtros Avanzados</h2>
                 <div class="grid-filters">
                     <div><label>Desde</label><input type="date" id="fStart"></div>
                     <div><label>Hasta</label><input type="date" id="fEnd"></div>
-                    <div><label>Tipo</label>
+                    <div><label>Rol</label>
+                        <select id="fRole" onchange="filterReports()">
+                            <option value="all">Todos</option>
+                            <option value="demostradora">Demostradora</option>
+                            <option value="promotor">Promotor</option>
+                        </select>
+                    </div>
+                    <div><label>Usuario</label>
+                        <select id="fUser">
+                            <option value="all">Todos</option>
+                            ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label>Tipo Reporte</label>
                         <select id="fType">
                             <option value="all">Todos</option>
                             <option value="inventario">Ventas</option>
@@ -123,10 +130,10 @@ async function loadReports() {
                             <option value="exhibicion">Exhibiciones</option>
                         </select>
                     </div>
-                    <div><label>Usuario</label>
-                        <select id="fUser">
-                            <option value="all">Todos</option>
-                            ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
+                    <div><label>Ciudad</label>
+                        <select id="fCity">
+                            <option value="all">Todas</option>
+                            ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
                         </select>
                     </div>
                     <div><label>Tienda</label>
@@ -149,31 +156,39 @@ async function loadReports() {
 function filterReports() {
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
+    const roleSel = document.getElementById("fRole")?.value;
     const userSel = document.getElementById("fUser")?.value;
-    const storeSel = document.getElementById("fStore")?.value;
     const typeSel = document.getElementById("fType")?.value.toLowerCase();
+    const citySel = document.getElementById("fCity")?.value;
+    const storeSel = document.getElementById("fStore")?.value;
 
     const filtered = allReportsRaw.filter(r => {
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
+        const userObj = allUsersCached.find(u => u._id === rUid);
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
-        const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
+        const storeObj = cachedStores.find(s => s._id === rSid);
         
+        const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
-        
+        const rCity = storeObj?.address?.split(',').pop().trim() || "";
+
+        // Lógica de filtrado
+        let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = true;
         if(typeSel !== "all") {
-            if(typeSel === 'inventario') {
-                matchType = (rType === 'inventario' || rType === 'reporte_diario');
-            } else {
-                matchType = rType.includes(typeSel.substring(0, 4));
-            }
+            if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
+            else matchType = rType.includes(typeSel.substring(0, 4));
         }
 
-        return (!start || rDate >= start) && (!end || rDate <= end) &&
+        return (!start || rDate >= start) && 
+               (!end || rDate <= end) &&
+               matchRole &&
                (userSel === "all" || rUid === userSel) &&
-               (storeSel === "all" || rSid === storeSel) && matchType;
+               matchType &&
+               (citySel === "all" || rCity === citySel) &&
+               (storeSel === "all" || rSid === storeSel);
     });
 
     document.getElementById("reportList").innerHTML = filtered.map(r => {
@@ -189,21 +204,15 @@ function filterReports() {
                 ${isPrecios ? `
                 <thead><tr><th>Producto</th><th>Precio Normal</th><th>Precio Oferta</th></tr></thead>
                 <tbody>
-                    <tr>
-                        <td>${r.articulo || '-'}</td>
-                        <td>$${r.precio_normal || r.precio || 0}</td>
-                        <td>$${r.precio_oferta || 0}</td>
-                    </tr>
+                    <tr><td>${r.articulo || '-'}</td><td>$${r.precio_normal || r.precio || 0}</td><td>$${r.precio_oferta || 0}</td></tr>
                 </tbody>
                 ` : `
                 <thead><tr><th>Producto</th><th>I_INI</th><th>RESURTIDO</th><th>VENTA</th><th>I_FIN</th></tr></thead>
                 <tbody>
                     <tr>
                         <td>${r.articulo || r.producto || '-'}</td>
-                        <td>${r.inv_inicial || 0}</td>
-                        <td>${r.resurtido || 0}</td>
-                        <td>${r.ventas || r.cantidad || 0}</td>
-                        <td>${r.inv_final || 0}</td>
+                        <td>${r.inv_inicial || 0}</td><td>${r.resurtido || 0}</td>
+                        <td>${r.ventas || r.cantidad || 0}</td><td>${r.inv_final || 0}</td>
                     </tr>
                 </tbody>
                 `}
@@ -225,24 +234,19 @@ async function loadAttendance() {
         <div class="card"><h2>⏰ Control de Asistencia</h2></div>
         <div class="card">
             <table class="report-table">
-                <thead>
-                    <tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr>
-                </thead>
+                <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead>
                 <tbody>
                     ${assist.map(a => {
                         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
                         const fechaObj = new Date(a.createdAt);
                         const fotoUrl = a.foto_url ? `${BACKEND_URL}${a.foto_url}` : null;
-                        
                         return `<tr>
                             <td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td>
                             <td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td>
                             <td>${a.storeId?.name || 'General'}</td>
                             <td>${fechaObj.toLocaleDateString()}</td>
                             <td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>
-                                ${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}
-                            </td>
+                            <td>${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}</td>
                         </tr>`;
                     }).join('')}
                 </tbody>
@@ -316,10 +320,8 @@ async function loadStores() {
         <div class="card">
             <h2>🏬 Tiendas</h2>
             <div class="grid-filters">
-                <input id="sN" placeholder="Nombre">
-                <input id="sA" placeholder="Dirección">
-                <input id="sLat" placeholder="Latitud">
-                <input id="sLon" placeholder="Longitud">
+                <input id="sN" placeholder="Nombre"><input id="sA" placeholder="Dirección">
+                <input id="sLat" placeholder="Latitud"><input id="sLon" placeholder="Longitud">
             </div>
             <button onclick="createStore()" class="btn-action" style="width:100%; margin-top:10px;">AGREGAR TIENDA</button>
         </div>
@@ -327,20 +329,27 @@ async function loadStores() {
 }
 
 async function exportExcel() {
-    const typeSel = document.getElementById("fType").value;
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
+    const roleSel = document.getElementById("fRole")?.value;
     const userSel = document.getElementById("fUser")?.value;
+    const typeSel = document.getElementById("fType")?.value.toLowerCase();
+    const citySel = document.getElementById("fCity")?.value;
     const storeSel = document.getElementById("fStore")?.value;
 
     const filteredData = allReportsRaw.filter(r => {
-        const rType = (r.reportType || r.reporte || "").toLowerCase();
+        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
+        const userObj = allUsersCached.find(u => u._id === rUid);
+        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+        const storeObj = cachedStores.find(s => s._id === rSid);
+        
+        const rType = (r.reporte || r.reportType || "").toLowerCase();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
         
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
-        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
-        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+        const rCity = storeObj?.address?.split(',').pop().trim() || "";
 
+        let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = true;
         if(typeSel !== 'all') {
             if(typeSel === 'inventario') matchType = (rType === 'inventario' || rType === 'reporte_diario');
@@ -348,29 +357,30 @@ async function exportExcel() {
         }
 
         return (!start || rDate >= start) && (!end || rDate <= end) &&
-               (userSel === "all" || rUid === userSel) &&
-               (storeSel === "all" || rSid === storeSel) && matchType;
+               matchRole && (userSel === "all" || rUid === userSel) &&
+               matchType && (citySel === "all" || rCity === citySel) &&
+               (storeSel === "all" || rSid === storeSel);
     }).map(r => {
-        // Mapeo simplificado a las columnas solicitadas
         return {
             "FECHA": new Date(r.createdAt).toLocaleDateString(),
             "USUARIO": r.userId?.name || "N/A",
+            "ROL": allUsersCached.find(u => u._id === (r.userId?._id || r.userId))?.role || "N/A",
             "TIENDA": r.storeId?.name || "N/A",
+            "CIUDAD": cachedStores.find(s => s._id === (r.storeId?._id || r.storeId))?.address?.split(',').pop().trim() || "N/A",
             "ARTICULO": r.articulo || r.producto || "-",
             "CANTIDAD": r.ventas || r.cantidad || 0,
             "OBSERVACIONES": r.observaciones || ""
         };
     });
 
-    if(filteredData.length === 0) return alert("No hay datos para exportar con estos filtros");
+    if(filteredData.length === 0) return alert("No hay datos para exportar");
 
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reportes Operativos");
-    XLSX.writeFile(wb, `Reporte_Promotoria_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_StorePulse_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-// --- OTRAS FUNCIONES ---
 async function deleteReport(id) {
     if(!confirm("¿Borrar reporte?")) return;
     await fetchAPI(`${BACKEND_URL}/reports/${id}`, { method: "DELETE" });
@@ -379,7 +389,6 @@ async function deleteReport(id) {
 
 function logout() { localStorage.clear(); window.location.href = "../index.html"; }
 
-// Arrastrar y Soltar para Tiendas
 let draggedStoreId = null;
 function dragStart(id) { draggedStoreId = id; }
 function allowDrop(ev) { ev.preventDefault(); }
@@ -387,17 +396,9 @@ async function dropStore(ev, userId, action) {
     ev.preventDefault();
     const user = allUsersCached.find(u => u._id === userId);
     let stores = (user.stores || []).map(s => s._id || s);
-    
-    if (action === 'assign' && !stores.includes(draggedStoreId)) {
-        stores.push(draggedStoreId);
-    } else if (action === 'avail') {
-        stores = stores.filter(id => id !== draggedStoreId);
-    }
-    
-    await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
-        method: "PUT",
-        body: JSON.stringify({ stores })
-    });
+    if (action === 'assign' && !stores.includes(draggedStoreId)) stores.push(draggedStoreId);
+    else if (action === 'avail') stores = stores.filter(id => id !== draggedStoreId);
+    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: "PUT", body: JSON.stringify({ stores }) });
     loadUsers();
 }
 </script>

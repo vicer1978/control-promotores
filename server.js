@@ -29,11 +29,18 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+// Archivos Estáticos
 app.use(express.static(path.join(__dirname, "public")));
+
+// Servir la carpeta de subidas con permisos correctos para evitar imágenes rotas
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => { res.set("Access-Control-Allow-Origin", "*"); }
+    setHeaders: (res) => {
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Cross-Origin-Resource-Policy", "cross-origin");
+    }
 }));
 
+// --- Configuración de Multer ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, "uploads/"),
     filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
@@ -51,6 +58,7 @@ const upload = multer({
     }
 });
 
+// --- Conexión MongoDB ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
@@ -175,20 +183,29 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error interno", detalles: err.message }); }
 });
 
-// --- GESTIÓN DE USUARIOS (RUTA REPARADA) ---
+// --- GESTIÓN DE USUARIOS (RUTA REPARADA CONTRA ERROR 500) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const users = await User.find({ agencyId: req.user.agencyId })
             .populate('assignedStores')
-            .lean(); // .lean() ayuda a evitar errores de Mongoose al mapear
+            .lean();
 
-        const mappedUsers = users.map(u => ({
-            ...u,
-            assignedStores: Array.isArray(u.assignedStores) ? u.assignedStores : [] 
-        }));
+        const mappedUsers = users.map(u => {
+            // Filtro de seguridad: Si una tienda asignada fue borrada, populate devuelve null. 
+            // Esto limpia esos nulos para que el frontend no explote.
+            const validStores = Array.isArray(u.assignedStores) 
+                ? u.assignedStores.filter(s => s !== null) 
+                : [];
+
+            return {
+                ...u,
+                assignedStores: validStores,
+                stores: validStores // Doble compatibilidad
+            };
+        });
         res.json(mappedUsers);
     } catch (err) { 
-        console.error("Error en /users:", err);
+        console.error("❌ Error en /users:", err);
         res.status(500).json({ error: "Error al cargar usuarios" }); 
     }
 });

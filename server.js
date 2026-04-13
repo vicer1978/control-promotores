@@ -21,27 +21,19 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "userId", "userid"] 
 }));
 
-// Mejora de seguridad para visualización de imágenes
 app.use((req, res, next) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     next();
 });
 
-// MODIFICACIÓN: Se aumenta el límite de tamaño para recibir fotos pesadas
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Archivos Estáticos
 app.use(express.static(path.join(__dirname, "public")));
-
-// Servir la carpeta de subidas con permisos correctos
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => {
-        res.set("Access-Control-Allow-Origin", "*");
-    }
+    setHeaders: (res) => { res.set("Access-Control-Allow-Origin", "*"); }
 }));
 
-// --- Configuración de Multer (Para Fotos) ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, "uploads/"),
     filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
@@ -49,36 +41,32 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+    limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png|webp/;
         const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         if (mimetype && extname) return cb(null, true);
-        cb(new Error("Solo se permiten imágenes (jpg, jpeg, png, webp)"));
+        cb(new Error("Solo se permiten imágenes"));
     }
 });
 
-// --- Conexión MongoDB ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// --- Middlewares de Autenticación ---
+// --- Middleware de Autenticación ---
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
         if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(401).json({ error: "Sesión inválida o ID malformado" });
+            return res.status(401).json({ error: "Sesión inválida" });
         }
         const user = await User.findById(userId);
         if (!user) return res.status(401).json({ error: "Usuario no existe" });
-        
         req.user = user;
         next();
-    } catch (err) { 
-        res.status(500).json({ error: "Error de autenticación" }); 
-    }
+    } catch (err) { res.status(500).json({ error: "Error de autenticación" }); }
 }
 
 // --- RUTAS DE LOGIN ---
@@ -101,24 +89,14 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
         const history = await Checkin.find({ agencyId })
             .populate("userId", "name role")
             .populate("storeId", "name")
-            .sort({ timestamp: -1 })
-            .limit(100);
+            .sort({ timestamp: -1 }).limit(100);
         res.json(history);
-    } catch (err) {
-        res.status(500).json({ error: "Error al obtener historial de asistencia" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error al obtener asistencia" }); }
 });
 
 app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
         const { storeId, lat, lng } = req.body;
-        if (!storeId || lat === undefined || lng === undefined) {
-            return res.status(400).json({ error: "Datos incompletos" });
-        }
-        const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        if (lastCheckin && lastCheckin.type === "checkin") {
-            return res.status(400).json({ error: "Ya tienes una entrada activa." });
-        }
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
         const newCheckin = new Checkin({
             userId: req.user._id,
@@ -130,12 +108,10 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             timestamp: new Date()
         });
         await newCheckin.save();
+        
         const checkinReport = new Report({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            storeId,
-            reporte: "checkin",
-            foto_url: fotoUrl,
+            userId: req.user._id, agencyId: req.user.agencyId, storeId,
+            reporte: "checkin", foto_url: fotoUrl,
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkinReport.save();
@@ -147,26 +123,15 @@ app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId } = req.body;
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        if (!lastEvent || lastEvent.type === "checkout") {
-            return res.status(400).json({ error: "No hay una entrada activa." });
-        }
+        if (!lastEvent || lastEvent.type === "checkout") return res.status(400).json({ error: "No hay entrada activa" });
+
         const newCheckout = new Checkin({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
+            userId: req.user._id, agencyId: req.user.agencyId,
             storeId: storeId || lastEvent.storeId,
             location: { lat: Number(lat), lng: Number(lng) },
-            type: "checkout", 
-            timestamp: new Date()
+            type: "checkout", timestamp: new Date()
         });
         await newCheckout.save();
-        const checkoutReport = new Report({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            storeId: storeId || lastEvent.storeId,
-            reporte: "checkout",
-            location: { lat: Number(lat), lng: Number(lng) }
-        });
-        await checkoutReport.save();
         res.json({ message: "Salida registrada con éxito" });
     } catch (err) { res.status(500).json({ error: "Error en checkout" }); }
 });
@@ -192,7 +157,6 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            storeId: req.body.storeId, 
             reporte: tipoReporte, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
             cantidad: Number(req.body.cantidad) || 0,
@@ -201,52 +165,44 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             ventas: Number(req.body.ventas) || 0, 
             inv_final: Number(req.body.inv_final) || 0,
             precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
-            precio_oferta: Number(req.body.precio_oferta) || 0,
-            personas: Number(req.body.personas) || 0,
             observaciones: obs,
             location: (req.body.lat && req.body.lng) ? { lat: Number(req.body.lat), lng: Number(req.body.lng) } : { lat: 0, lng: 0 }
         };
 
         const report = new Report(reportData);
         await report.save();
-        res.json({ message: "Reporte guardado con éxito", id: report._id });
+        res.json({ message: "Reporte guardado", id: report._id });
     } catch (err) { res.status(500).json({ error: "Error interno", detalles: err.message }); }
 });
 
-app.delete("/reports/:id", auth, async (req, res) => {
-    try {
-        await Report.findByIdAndDelete(req.params.id);
-        res.json({ message: "Reporte eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
-});
-
-// --- GESTIÓN DE USUARIOS (EXTENDIDO PARA ADMIN DASHBOARD) ---
+// --- GESTIÓN DE USUARIOS (RUTA REPARADA) ---
 app.get("/users", auth, async (req, res) => {
     try {
-        const users = await User.find({ agencyId: req.user.agencyId }).populate('assignedStores');
-        // Mapeo para asegurar compatibilidad de nombres de campos
+        const users = await User.find({ agencyId: req.user.agencyId })
+            .populate('assignedStores')
+            .lean(); // .lean() ayuda a evitar errores de Mongoose al mapear
+
         const mappedUsers = users.map(u => ({
-            ...u._doc,
-            assignedStores: u.assignedStores || u.stores || [] 
+            ...u,
+            assignedStores: Array.isArray(u.assignedStores) ? u.assignedStores : [] 
         }));
         res.json(mappedUsers);
-    } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
+    } catch (err) { 
+        console.error("Error en /users:", err);
+        res.status(500).json({ error: "Error al cargar usuarios" }); 
+    }
 });
 
 app.post("/users/register", auth, async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
         const newUser = new User({
-            name,
-            email: email.toLowerCase(),
-            password: password || "123",
-            role: role || "promotor",
+            ...req.body,
+            email: req.body.email.toLowerCase(),
             agencyId: req.user.agencyId
         });
         await newUser.save();
-        res.json({ message: "Usuario creado con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
+        res.json({ message: "Usuario creado" });
+    } catch (err) { res.status(500).json({ error: "Error al crear" }); }
 });
 
 app.post("/users/:userId/assign", auth, async (req, res) => {
@@ -267,20 +223,6 @@ app.post("/users/:userId/unassign", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al desasignar" }); }
 });
 
-app.put("/users/:userId/role", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.userId, { role: req.body.role });
-        res.json({ message: "Rol actualizado" });
-    } catch (err) { res.status(500).json({ error: "Error al cambiar rol" }); }
-});
-
-app.delete("/users/:id", auth, async (req, res) => {
-    try {
-        await User.findByIdAndDelete(req.params.id);
-        res.json({ message: "Usuario eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
-});
-
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
@@ -295,13 +237,6 @@ app.post("/stores", auth, async (req, res) => {
         await newStore.save();
         res.json({ message: "Tienda creada", store: newStore });
     } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
-});
-
-app.delete("/stores/:id", auth, async (req, res) => {
-    try {
-        await Store.findByIdAndDelete(req.params.id);
-        res.json({ message: "Tienda eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
 
 // --- MANEJO DE FRONTEND ---

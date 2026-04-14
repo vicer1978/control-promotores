@@ -32,7 +32,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // Archivos Estáticos
 app.use(express.static(path.join(__dirname, "public")));
 
-// Servir la carpeta de subidas con permisos correctos para evitar imágenes rotas
+// Servir la carpeta de subidas
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
     setHeaders: (res) => {
         res.set("Access-Control-Allow-Origin", "*");
@@ -63,7 +63,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// --- Middleware de Autenticación ---
+// --- Middleware de Autenticación (Unificado) ---
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
@@ -93,8 +93,7 @@ app.post("/login", async (req, res) => {
 // --- GESTIÓN DE ASISTENCIA ---
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
-        const { agencyId } = req.params;
-        const history = await Checkin.find({ agencyId })
+        const history = await Checkin.find({ agencyId: req.params.agencyId })
             .populate("userId", "name role")
             .populate("storeId", "name")
             .sort({ timestamp: -1 }).limit(100);
@@ -117,6 +116,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         });
         await newCheckin.save();
         
+        // Espejo en Reportes para que aparezca en el historial general
         const checkinReport = new Report({
             userId: req.user._id, agencyId: req.user.agencyId, storeId,
             reporte: "checkin", foto_url: fotoUrl,
@@ -131,15 +131,23 @@ app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId } = req.body;
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        if (!lastEvent || lastEvent.type === "checkout") return res.status(400).json({ error: "No hay entrada activa" });
-
+        
         const newCheckout = new Checkin({
             userId: req.user._id, agencyId: req.user.agencyId,
-            storeId: storeId || lastEvent.storeId,
+            storeId: storeId || lastEvent?.storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkout", timestamp: new Date()
         });
         await newCheckout.save();
+
+        const checkoutReport = new Report({
+            userId: req.user._id, agencyId: req.user.agencyId, 
+            storeId: storeId || lastEvent?.storeId,
+            reporte: "checkout",
+            location: { lat: Number(lat), lng: Number(lng) }
+        });
+        await checkoutReport.save();
+
         res.json({ message: "Salida registrada con éxito" });
     } catch (err) { res.status(500).json({ error: "Error en checkout" }); }
 });
@@ -157,10 +165,8 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
-        const obs = req.body.observaciones || req.body.comentarios || "";
-        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
-        if (tipoReporte.toLowerCase().includes("exhibicion")) tipoReporte = "exhibicion";
-
+        let tipoReporte = req.body.reportType || req.body.reporte || "general";
+        
         const reportData = {
             ...req.body,
             userId: req.user._id,
@@ -168,12 +174,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             reporte: tipoReporte, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
             cantidad: Number(req.body.cantidad) || 0,
-            inv_inicial: Number(req.body.inv_inicial) || 0,
-            resurtido: Number(req.body.resurtido) || 0,
-            ventas: Number(req.body.ventas) || 0, 
-            inv_final: Number(req.body.inv_final) || 0,
-            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-            observaciones: obs,
+            precio: Number(req.body.precio) || 0,
             location: (req.body.lat && req.body.lng) ? { lat: Number(req.body.lat), lng: Number(req.body.lng) } : { lat: 0, lng: 0 }
         };
 
@@ -183,29 +184,30 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error interno", detalles: err.message }); }
 });
 
-// --- GESTIÓN DE USUARIOS (RUTA REPARADA CONTRA ERROR 500) ---
+app.delete("/reports/:id", auth, async (req, res) => {
+    try {
+        await Report.findByIdAndDelete(req.params.id);
+        res.json({ message: "Reporte eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al borrar" }); }
+});
+
+// --- GESTIÓN DE USUARIOS (RUTA CORREGIDA) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const users = await User.find({ agencyId: req.user.agencyId })
-            .populate('assignedStores')
+            .populate('assignedStores') 
             .lean();
 
         const mappedUsers = users.map(u => {
-            // Filtro de seguridad: Si una tienda asignada fue borrada, populate devuelve null. 
-            // Esto limpia esos nulos para que el frontend no explote.
-            const validStores = Array.isArray(u.assignedStores) 
-                ? u.assignedStores.filter(s => s !== null) 
-                : [];
-
+            // Limpieza crítica de tiendas nulas (evita que el Admin se congele)
+            const validStores = (u.assignedStores || []).filter(s => s !== null);
             return {
                 ...u,
-                assignedStores: validStores,
-                stores: validStores // Doble compatibilidad
+                assignedStores: validStores.map(s => s._id) // Enviamos solo IDs para compatibilidad
             };
         });
         res.json(mappedUsers);
     } catch (err) { 
-        console.error("❌ Error en /users:", err);
         res.status(500).json({ error: "Error al cargar usuarios" }); 
     }
 });
@@ -214,7 +216,7 @@ app.post("/users/register", auth, async (req, res) => {
     try {
         const newUser = new User({
             ...req.body,
-            email: req.body.email.toLowerCase(),
+            email: req.body.email.toLowerCase().trim(),
             agencyId: req.user.agencyId
         });
         await newUser.save();
@@ -225,7 +227,7 @@ app.post("/users/register", auth, async (req, res) => {
 app.post("/users/:userId/assign", auth, async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.params.userId, { 
-            $addToSet: { assignedStores: req.body.storeId, stores: req.body.storeId } 
+            $addToSet: { assignedStores: req.body.storeId } 
         });
         res.json({ message: "Tienda asignada" });
     } catch (err) { res.status(500).json({ error: "Error al asignar" }); }
@@ -234,10 +236,17 @@ app.post("/users/:userId/assign", auth, async (req, res) => {
 app.post("/users/:userId/unassign", auth, async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.params.userId, { 
-            $pull: { assignedStores: req.body.storeId, stores: req.body.storeId } 
+            $pull: { assignedStores: req.body.storeId } 
         });
         res.json({ message: "Tienda desasignada" });
     } catch (err) { res.status(500).json({ error: "Error al desasignar" }); }
+});
+
+app.delete("/users/:id", auth, async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: "Usuario eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al borrar usuario" }); }
 });
 
 // --- GESTIÓN DE TIENDAS ---
@@ -256,11 +265,15 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
-// --- MANEJO DE FRONTEND ---
+app.delete("/stores/:id", auth, async (req, res) => {
+    try {
+        await Store.findByIdAndDelete(req.params.id);
+        res.json({ message: "Tienda eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error al borrar tienda" }); }
+});
+
+// --- MANEJO DE RUTAS DEL FRONTEND ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
-app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
-app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
-app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
 app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/uploads/')) return res.status(404).send('Archivo no encontrado');

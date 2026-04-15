@@ -278,11 +278,17 @@ app.post("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
+// MODIFICACIÓN: Ruta optimizada para asignar tiendas individualmente o por lote
 app.put("/users/:userId/stores", auth, async (req, res) => {
     try {
-        await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
-        res.json({ message: "Ruta actualizada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        const { stores } = req.body;
+        // Si mandas un arreglo, actualiza el campo completo
+        await User.findByIdAndUpdate(req.params.userId, { stores: stores });
+        res.json({ message: "Tiendas actualizadas correctamente" });
+    } catch (err) { 
+        console.error("Error al actualizar tiendas del usuario:", err);
+        res.status(500).json({ error: "Error interno al asignar tiendas" }); 
+    }
 });
 
 app.get("/stores", auth, async (req, res) => {

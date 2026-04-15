@@ -21,27 +21,22 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "userId", "userid"] 
 }));
 
-// Mejora de seguridad para visualización de imágenes
 app.use((req, res, next) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     next();
 });
 
-// MODIFICACIÓN: Se aumenta el límite de tamaño para recibir fotos pesadas
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Archivos Estáticos
 app.use(express.static(path.join(__dirname, "public")));
 
-// Servir la carpeta de subidas con permisos correctos
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
     setHeaders: (res) => {
         res.set("Access-Control-Allow-Origin", "*");
     }
 }));
 
-// --- Configuración de Multer (Para Fotos) ---
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, "uploads/"),
     filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname)
@@ -49,7 +44,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+    limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png|webp/;
         const mimetype = filetypes.test(file.mimetype);
@@ -59,12 +54,10 @@ const upload = multer({
     }
 });
 
-// --- Conexión MongoDB ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// --- Middlewares de Autenticación ---
 async function auth(req, res, next) {
     try {
         const userId = req.headers.userid || req.headers.userId; 
@@ -81,7 +74,6 @@ async function auth(req, res, next) {
     }
 }
 
-// --- RUTAS DE LOGIN ---
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -94,9 +86,6 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE ASISTENCIA CON FOTO (CHECK-IN / CHECK-OUT) ---
-
-// NUEVA RUTA: Obtener historial de checkins por agencia (Para checkins.html)
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
         const { agencyId } = req.params;
@@ -117,14 +106,11 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         if (!storeId || lat === undefined || lng === undefined) {
             return res.status(400).json({ error: "Datos incompletos" });
         }
-
         const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (lastCheckin && lastCheckin.type === "checkin") {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
         }
-
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
-
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -135,7 +121,6 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             timestamp: new Date()
         });
         await newCheckin.save();
-
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -145,7 +130,6 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkinReport.save();
-
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
         res.status(500).json({ error: "Error en checkin", detalle: err.message });
@@ -156,11 +140,9 @@ app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId } = req.body;
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        
         if (!lastEvent || lastEvent.type === "checkout") {
             return res.status(400).json({ error: "No hay una entrada activa." });
         }
-
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -170,7 +152,6 @@ app.post("/checkout", auth, async (req, res) => {
             timestamp: new Date()
         });
         await newCheckout.save();
-
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -179,14 +160,12 @@ app.post("/checkout", auth, async (req, res) => {
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkoutReport.save();
-
         res.json({ message: "Salida registrada con éxito" });
     } catch (err) {
         res.status(500).json({ error: "Error en checkout" });
     }
 });
 
-// --- GESTIÓN DE REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const reports = await Report.find({ agencyId: req.params.agencyId })
@@ -202,13 +181,10 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
         const obs = req.body.observaciones || req.body.comentarios || "";
-        
-        // NORMALIZACIÓN: Corregir error de validación 'exhibicion' vs 'exhibiciones'
         let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
         if (tipoReporte.toLowerCase().includes("exhibicion")) {
             tipoReporte = "exhibicion";
         }
-
         const reportData = {
             ...req.body,
             userId: req.user._id,
@@ -231,7 +207,6 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
                 lng: Number(req.body.lng)
             } : { lat: 0, lng: 0 }
         };
-
         const report = new Report(reportData);
         await report.save();
         res.json({ message: "Reporte guardado con éxito", id: report._id });
@@ -278,17 +253,29 @@ app.post("/users", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// MODIFICACIÓN: Ruta optimizada para asignar tiendas individualmente o por lote
+// NUEVA RUTA: Para resolver el error 404 visto en consola al presionar "+"
+app.post("/users/:userId/assign", auth, async (req, res) => {
+    try {
+        const { storeId } = req.body;
+        if (!storeId) return res.status(400).json({ error: "storeId es requerido" });
+        
+        // Agrega la tienda al arreglo evitando duplicados
+        await User.findByIdAndUpdate(req.params.userId, { 
+            $addToSet: { stores: storeId } 
+        });
+        
+        res.json({ message: "Tienda asignada con éxito" });
+    } catch (err) {
+        console.error("Error en asignación:", err);
+        res.status(500).json({ error: "Error al asignar tienda" });
+    }
+});
+
 app.put("/users/:userId/stores", auth, async (req, res) => {
     try {
-        const { stores } = req.body;
-        // Si mandas un arreglo, actualiza el campo completo
-        await User.findByIdAndUpdate(req.params.userId, { stores: stores });
-        res.json({ message: "Tiendas actualizadas correctamente" });
-    } catch (err) { 
-        console.error("Error al actualizar tiendas del usuario:", err);
-        res.status(500).json({ error: "Error interno al asignar tiendas" }); 
-    }
+        await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
+        res.json({ message: "Ruta actualizada" });
+    } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
 app.get("/stores", auth, async (req, res) => {
@@ -307,7 +294,6 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// --- MANEJO DE FRONTEND (SERVIR HTML) ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
@@ -315,7 +301,6 @@ app.get("/dashboard_tareas", (req, res) => res.sendFile(path.resolve(__dirname, 
 app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
-// Catch-all para cualquier otra ruta
 app.get(/.*/, (req, res) => {
     if (req.path.startsWith('/uploads/')) return res.status(404).send('Archivo no encontrado');
     res.sendFile(path.resolve(__dirname, "public", "login.html"));

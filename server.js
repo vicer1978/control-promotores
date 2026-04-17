@@ -223,6 +223,7 @@ app.delete("/reports/:id", auth, async (req, res) => {
 });
 
 // --- GESTIÓN DE USUARIOS Y TIENDAS ---
+
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
@@ -240,34 +241,55 @@ app.get("/users/:id", auth, async (req, res) => {
 
 app.post("/users", auth, async (req, res) => {
     try {
-        const { name, email, password, role, agencyId } = req.body;
+        const { name, email, password, role, agencyId, stores } = req.body;
         const newUser = new User({
             name,
             email: email.toLowerCase(),
             password,
             role,
-            agencyId: agencyId || req.user.agencyId
+            agencyId: agencyId || req.user.agencyId,
+            stores: stores || [] // Soporte para asignar tiendas al crear
         });
         await newUser.save();
-        res.json({ message: "Usuario creado" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        res.json({ message: "Usuario creado", user: newUser });
+    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
 });
 
-// NUEVA RUTA: Para resolver el error 404 visto en consola al presionar "+"
+// MODIFICACIÓN: Ruta PUT general para actualizar datos de usuario (incluyendo password o nombre)
+app.put("/users/:id", auth, async (req, res) => {
+    try {
+        const updates = { ...req.body };
+        if (updates.email) updates.email = updates.email.toLowerCase();
+        
+        const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
+        res.json({ message: "Usuario actualizado", user });
+    } catch (err) { res.status(500).json({ error: "Error al actualizar usuario" }); }
+});
+
+// NUEVA RUTA: Para asignar una tienda individual ($addToSet evita duplicados)
 app.post("/users/:userId/assign", auth, async (req, res) => {
     try {
         const { storeId } = req.body;
         if (!storeId) return res.status(400).json({ error: "storeId es requerido" });
-        
-        // Agrega la tienda al arreglo evitando duplicados
         await User.findByIdAndUpdate(req.params.userId, { 
             $addToSet: { stores: storeId } 
         });
-        
         res.json({ message: "Tienda asignada con éxito" });
     } catch (err) {
-        console.error("Error en asignación:", err);
         res.status(500).json({ error: "Error al asignar tienda" });
+    }
+});
+
+// NUEVA RUTA: Para desasignar una tienda individual (Eliminar Chip)
+app.delete("/users/:userId/stores/:storeId", auth, async (req, res) => {
+    try {
+        const { userId, storeId } = req.params;
+        await User.findByIdAndUpdate(userId, { 
+            $pull: { stores: storeId } 
+        });
+        res.json({ message: "Tienda desasignada con éxito" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al eliminar tienda" });
     }
 });
 
@@ -294,6 +316,7 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
+// --- Rutas de Navegación ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));

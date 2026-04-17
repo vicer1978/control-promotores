@@ -24,12 +24,31 @@
         .report-table tr:hover { background: #f1f5f9; cursor: pointer; }
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         .img-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0; cursor: pointer; }
-        .store-list { display:flex; gap:10px; margin-top: 10px; }
-        .store-column { flex:1; min-height:100px; background:#f1f5f9; padding:10px; border-radius:8px; border: 2px dashed #cbd5e1; }
-        .store-item { background:white; margin:5px 0; padding:8px; border-radius:4px; border: 1px solid #e2e8f0; font-size: 0.8rem; cursor: pointer; display: flex; justify-content: space-between; }
+        
+        /* Modificación para Tags Profesionales */
+        .store-list { display:flex; flex-direction:column; gap:15px; margin-top: 10px; }
+        .tag-search-container { position: relative; margin-bottom: 10px; }
+        .search-results-dropdown { 
+            position: absolute; width: 100%; background: white; border: 1px solid #ddd; 
+            max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .search-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+        .search-item:hover { background: #f8fafc; color: var(--gold); }
+        
+        .assigned-chips-box { 
+            display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; 
+            background: #f0fdf4; border: 2px dashed var(--success); border-radius: 8px; min-height: 50px;
+        }
+        .chip { 
+            background: white; border: 1px solid var(--success); color: #166534; 
+            padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .chip span { cursor: pointer; color: var(--danger); font-weight: bold; font-size: 14px; }
+
         .role-select { width: auto; font-size: 11px; padding: 5px; height: auto; }
         .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
-
         .drawer-overlay { position: fixed; top: 0; right: -100%; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; transition: right 0.3s ease; display: flex; justify-content: flex-end; }
         .drawer-overlay.active { right: 0; }
         .drawer { width: 450px; background: white; height: 100%; box-shadow: -5px 0 15px rgba(0,0,0,0.1); padding: 30px; overflow-y: auto; position: relative; }
@@ -148,7 +167,6 @@ async function loadReports() {
         allUsersCached = users;
         cachedStores = stores;
         allReportsRaw = Array.isArray(reports) ? reports : [];
-
         const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
 
         document.getElementById("content").innerHTML = `
@@ -202,15 +220,12 @@ function updateReportOptions() {
     const role = document.getElementById("fRole").value;
     const typeSelect = document.getElementById("fType");
     const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
-
-    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` +
-        options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
+    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` + options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
 }
 
 function filterReports() {
     const typeSel = document.getElementById("fType")?.value.toLowerCase();
     if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
-
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value;
@@ -223,22 +238,14 @@ function filterReports() {
         const userObj = allUsersCached.find(u => u._id === rUid);
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
-        
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
-
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
-
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
-
-        return (!start || rDate >= start) && (!end || rDate <= end) &&
-               matchRole && (userSel === "all" || rUid === userSel) &&
-               matchType && (citySel === "all" || rCity === citySel) &&
-               (storeSel === "all" || rSid === storeSel);
+        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel) && (storeSel === "all" || rSid === storeSel);
     });
-
     renderTableReport(filtered, typeSel);
 }
 
@@ -248,38 +255,23 @@ function renderTableReport(data, type) {
         container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
         return;
     }
-
     const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
     const roleSel = document.getElementById("fRole")?.value;
-
     let dynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;
         if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad') return false;
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });
-
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
-    
     const hasPhoto = data.some(r => r.foto_url);
     if (hasPhoto) headers += `<th>EVIDENCIA</th>`;
-
-    let html = `
-    <div class="card" style="overflow-x: auto; padding: 0;">
-        <table class="report-table" style="margin-top:0;">
-            <thead style="background: var(--primary); color: white;">
-                <tr>${headers}<th>ACCIÓN</th></tr>
-            </thead>
-            <tbody>
-    `;
-
+    let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}<th>ACCIÓN</th></tr></thead><tbody>`;
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
         const usuario = r.userId?.name || 'S/N';
         const tienda = r.storeId?.name || 'S/T';
-        
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
-        
         dynamicKeys.forEach(k => {
             let val = r[k];
             if (typeof val === 'object' && val !== null) val = '-';
@@ -287,15 +279,12 @@ function renderTableReport(data, type) {
             if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== '-') val = `$${val}`;
             rowData += `<td>${val}</td>`;
         });
-
         if (hasPhoto) {
             const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-';
             rowData += `<td>${img}</td>`;
         }
-
         return `<tr>${rowData}<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Borrar</button></td></tr>`;
     }).join('');
-
     html += `</tbody></table></div>`;
     container.innerHTML = html;
 }
@@ -306,141 +295,108 @@ async function loadAttendance() {
         const type = (r.reporte || r.reportType || "").toLowerCase();
         return type.includes('checkin') || type.includes('checkout');
     });
-    
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>⏰ Control de Asistencia</h2></div>
-        <div class="card" style="overflow-x:auto; padding:0;">
-            <table class="report-table" style="margin:0;">
-                <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead>
-                <tbody>
-                    ${assist.map(a => {
-                        const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
-                        const fechaObj = new Date(a.createdAt);
-                        const fotoUrl = a.foto_url ? `${BACKEND_URL}${a.foto_url}` : null;
-                        return `<tr>
-                            <td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td>
-                            <td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td>
-                            <td>${a.storeId?.name || 'General'}</td>
-                            <td>${fechaObj.toLocaleDateString()}</td>
-                            <td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}</td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-        </div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
+        const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
+        const fechaObj = new Date(a.createdAt);
+        const fotoUrl = a.foto_url ? `${BACKEND_URL}${a.foto_url}` : null;
+        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'General'}</td><td>${fechaObj.toLocaleDateString()}</td><td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
 }
 
 async function loadUsers() {
-    const [users, stores] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users`), 
-        fetchAPI(`${BACKEND_URL}/stores`)
-    ]);
+    const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = users;
     cachedStores = stores;
-
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>👥 Gestión de Usuarios</h2>
-            <div class="grid-filters">
-                <input type="text" id="newUserName" placeholder="Nombre completo">
-                <input type="email" id="newUserEmail" placeholder="Correo electrónico">
-                <select id="newUserRole">
-                    <option value="promotor">Promotor</option>
-                    <option value="demostradora">Demostradora</option>
-                    <option value="admin">Administrador</option>
-                </select>
-                <button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button>
-            </div>
-        </div>
-        <div class="card" style="padding:0;">
-            <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
-                <tbody>
-                    ${users.map(u => `
-                        <tr onclick="viewUserDetail('${u._id}')">
-                            <td style="text-align:left; padding-left:15px;"><b>${u.name.toUpperCase()}</b></td>
-                            <td>${u.email}</td>
-                            <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
-                            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
-                            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Gestión de Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre completo"><input type="email" id="newUserEmail" placeholder="Correo electrónico"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Administrador</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${users.map(u => `<tr onclick="viewUserDetail('${u._id}')"><td style="text-align:left; padding-left:15px;"><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge" style="background:#e2e8f0">${u.role}</span></td><td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td><td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
+/* --- MODIFICACIÓN: Lógica de Asignación por Chips --- */
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
 
     let html = `
         <div class="drawer-header">
-            <h3>Detalle de Usuario</h3>
-            <p>${u.name}</p>
+            <h3>Gestión de Colaborador</h3>
+            <p>${u.name} <small>(${u.email})</small></p>
         </div>
-        <label>Rol del Sistema</label>
+        
+        <label>Rol en el Sistema</label>
         <select class="role-select" style="width:100%; margin-bottom:20px;" onchange="updateUserRole('${u._id}', this.value)">
             <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
             <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
             <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
         </select>
 
-        <div class="store-list" style="flex-direction:column;">
-            <div class="store-column" style="border-color: var(--success); background: #f0fdf4;">
-                <label>✅ Asignadas (${(u.stores || []).length})</label>
-                <div style="max-height:200px; overflow-y:auto;">
-                    ${(u.stores || []).map(storeData => {
-                        const sid = typeof storeData === 'object' ? storeData._id : storeData;
-                        const st = cachedStores.find(x => x._id === sid);
-                        return st ? `<div class="store-item" onclick="unassignStore('${u._id}', '${sid}')" style="border-left:4px solid var(--success)">${st.name} <span>❌</span></div>` : '';
-                    }).join('')}
-                </div>
+        <div class="store-list">
+            <label>📍 Asignar nuevas tiendas</label>
+            <div class="tag-search-container">
+                <input type="text" id="tagSearch" placeholder="Buscar tienda por nombre..." onkeyup="filterTagSearch(this.value)">
+                <div id="tagSearchResults" class="search-results-dropdown"></div>
             </div>
-            <div class="store-column">
-                <label>📍 Disponibles para Asignar</label>
-                <div style="max-height:200px; overflow-y:auto;">
-                    ${cachedStores.filter(s => {
-                        const assignedIds = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
-                        return !assignedIds.includes(s._id);
-                    })
-                    .map(s => `<div class="store-item" onclick="assignStore('${u._id}', '${s._id}')">${s.name} <span>➕</span></div>`).join('')}
-                </div>
+
+            <label>✅ Tiendas Asignadas (${(u.stores || []).length})</label>
+            <div class="assigned-chips-box" id="chipsBox">
+                ${(u.stores || []).map(storeData => {
+                    const sid = typeof storeData === 'object' ? storeData._id : storeData;
+                    const st = cachedStores.find(x => x._id === sid);
+                    return st ? `
+                        <div class="chip" id="chip-${sid}">
+                            ${st.name} 
+                            <span onclick="unassignStore('${u._id}', '${sid}')">&times;</span>
+                        </div>` : '';
+                }).join('')}
             </div>
+            <p style="font-size: 10px; color: #64748b; margin-top: 5px;">* Los cambios se guardan automáticamente al seleccionar o eliminar.</p>
         </div>
     `;
     openDrawer(html);
 }
 
-async function createUser() {
-    const name = document.getElementById("newUserName").value;
-    const email = document.getElementById("newUserEmail").value;
-    const role = document.getElementById("newUserRole").value;
-    if(!name || !email) return alert("Llena todos los campos");
-    await fetchAPI(`${BACKEND_URL}/users/register`, {
-        method: 'POST',
-        body: JSON.stringify({ name, email, role, agencyId: session.agencyId, password: "123" })
-    });
-    loadUsers();
+function filterTagSearch(val) {
+    const results = document.getElementById("tagSearchResults");
+    if (!val) { results.style.display = "none"; return; }
+    
+    // Obtenemos el ID del usuario actual del drawer (está en el contexto del DOM)
+    const userId = allUsersCached.find(u => u.name === document.querySelector('.drawer-header p').innerText.split(' (')[0])._id;
+    const user = allUsersCached.find(u => u._id === userId);
+    const assignedIds = (user.stores || []).map(st => typeof st === 'object' ? st._id : st);
+
+    const matches = cachedStores.filter(s => 
+        s.name.toLowerCase().includes(val.toLowerCase()) && !assignedIds.includes(s._id)
+    );
+
+    if (matches.length > 0) {
+        results.innerHTML = matches.map(s => `
+            <div class="search-item" onclick="assignStore('${userId}', '${s._id}')">
+                ${s.name} <small style="color:#94a3b8">(${s.address || 'Sin ciudad'})</small>
+            </div>
+        `).join('');
+        results.style.display = "block";
+    } else {
+        results.style.display = "none";
+    }
 }
 
 async function assignStore(userId, storeId) {
+    // Cerramos dropdown de búsqueda
+    document.getElementById("tagSearchResults").style.display = "none";
+    document.getElementById("tagSearch").value = "";
+
     const res = await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, {
         method: 'POST',
         body: JSON.stringify({ storeId })
     });
+    
     if(res) {
-        // Recargar datos y refrescar visualmente
         const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
         allUsersCached = updatedUsers;
-        viewUserDetail(userId);
-        loadUsers(); // Refresca la tabla principal
+        viewUserDetail(userId); // Refresca el drawer
+        loadUsers(); // Refresca la tabla del fondo
     }
 }
 
 async function unassignStore(userId, storeId) {
-    // Para desasignar, enviamos el arreglo filtrado a la ruta de stores
     const u = allUsersCached.find(x => x._id === userId);
     const currentStores = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
     const newStores = currentStores.filter(id => id !== storeId);
@@ -457,12 +413,22 @@ async function unassignStore(userId, storeId) {
         loadUsers();
     }
 }
+/* --- FIN DE MODIFICACIÓN --- */
+
+async function createUser() {
+    const name = document.getElementById("newUserName").value;
+    const email = document.getElementById("newUserEmail").value;
+    const role = document.getElementById("newUserRole").value;
+    if(!name || !email) return alert("Llena todos los campos");
+    await fetchAPI(`${BACKEND_URL}/users/register`, { method: 'POST', body: JSON.stringify({ name, email, role, agencyId: session.agencyId, password: "123" }) });
+    loadUsers();
+}
 
 async function updateUserRole(userId, newRole) {
-    await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, {
-        method: 'PUT',
-        body: JSON.stringify({ role: newRole })
-    });
+    await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role: newRole }) });
+    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = updatedUsers;
+    loadUsers();
 }
 
 async function deleteUser(id) {
@@ -474,50 +440,13 @@ async function deleteUser(id) {
 async function loadStores() {
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);
     cachedStores = stores;
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>🏬 Catálogo de Tiendas</h2>
-            <div class="grid-filters">
-                <input type="text" id="stName" placeholder="Nombre de Tienda">
-                <input type="text" id="stAddr" placeholder="Ciudad / Dirección">
-                <button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR TIENDA</button>
-            </div>
-        </div>
-        <div class="card" style="padding:0;">
-            <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Dirección/Ciudad</th><th>Acción</th></tr></thead>
-                <tbody>
-                    ${stores.map(s => `
-                        <tr onclick="viewStoreDetail('${s._id}')">
-                            <td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td>
-                            <td>${s.address || 'Sin dirección'}</td>
-                            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteStore('${s._id}')">Eliminar</button></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Catálogo de Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Nombre de Tienda"><input type="text" id="stAddr" placeholder="Ciudad / Dirección"><button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR TIENDA</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Dirección/Ciudad</th><th>Acción</th></tr></thead><tbody>${stores.map(s => `<tr onclick="viewStoreDetail('${s._id}')"><td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td><td>${s.address || 'Sin dirección'}</td><td><button class="btn-delete" onclick="event.stopPropagation(); deleteStore('${s._id}')">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function viewStoreDetail(storeId) {
     const s = cachedStores.find(x => x._id === storeId);
     if(!s) return;
-
-    let html = `
-        <div class="drawer-header">
-            <h3>Detalle de Tienda</h3>
-            <p>${s.name}</p>
-        </div>
-        <div class="card" style="background:#f8fafc">
-            <label>Ubicación / Ciudad</label>
-            <p><b>${s.address || 'No especificada'}</b></p>
-            <label>ID de Tienda</label>
-            <p><small>${s._id}</small></p>
-        </div>
-        <div style="margin-top:20px;">
-            <button class="btn-action" style="width:100%; background:var(--danger)" onclick="deleteStore('${s._id}'); closeDrawer()">ELIMINAR TIENDA PERMANENTEMENTE</button>
-        </div>
-    `;
+    let html = `<div class="drawer-header"><h3>Detalle de Tienda</h3><p>${s.name}</p></div><div class="card" style="background:#f8fafc"><label>Ubicación / Ciudad</label><p><b>${s.address || 'No especificada'}</b></p><label>ID de Tienda</label><p><small>${s._id}</small></p></div><div style="margin-top:20px;"><button class="btn-action" style="width:100%; background:var(--danger)" onclick="deleteStore('${s._id}'); closeDrawer()">ELIMINAR TIENDA PERMANENTEMENTE</button></div>`;
     openDrawer(html);
 }
 
@@ -525,10 +454,7 @@ async function createStore() {
     const name = document.getElementById("stName").value;
     const address = document.getElementById("stAddr").value;
     if(!name) return alert("Nombre obligatorio");
-    await fetchAPI(`${BACKEND_URL}/stores`, {
-        method: 'POST',
-        body: JSON.stringify({ name, address, agencyId: session.agencyId })
-    });
+    await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId }) });
     loadStores();
 }
 

@@ -458,8 +458,8 @@ async function createUser() {
     } finally {
         btn.disabled = false;
         btn.innerText = "GUARDAR";
-        // Recarga de seguridad en 2 segundos para sincronizar con la DB real
-        setTimeout(loadUsers, 2000);
+        // Recarga de seguridad un poco más larga para asegurar que Render/MongoDB asiente el cambio
+        setTimeout(loadUsers, 3000);
     }
 }
 

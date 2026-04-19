@@ -352,13 +352,30 @@ async function loadAttendance() {
     }).join('')}</tbody></table></div>`;
 }
 
+// FUNCION CORREGIDA: Renderizado local para respuesta inmediata
+function renderUsersTable() {
+    const tableBody = document.querySelector("#usersTableBody");
+    if(!tableBody) return;
+    
+    tableBody.innerHTML = allUsersCached.map(u => `
+        <tr onclick="viewUserDetail('${u._id}')">
+            <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
+            <td>${u.email}</td>
+            <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
+            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
+            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
+        </tr>`).join('');
+}
+
 async function loadUsers() {
     if(session.role === 'cliente') return;
     
-    // Forzamos la limpieza del contenido previo para evitar duplicados o estados viejos
-    document.getElementById("content").innerHTML = `<div class="card" style="text-align:center">🔄 Sincronizando usuarios...</div>`;
+    const content = document.getElementById("content");
+    // Solo mostramos "cargando" si la tabla no existe aún para no parpadear
+    if(!document.getElementById("usersTableBody")) {
+        content.innerHTML = `<div class="card" style="text-align:center">🔄 Sincronizando usuarios...</div>`;
+    }
 
-    // Agregamos un timestamp para evitar que el navegador use una respuesta de caché
     const ts = new Date().getTime();
     const [users, stores] = await Promise.all([
         fetchAPI(`${BACKEND_URL}/users?t=${ts}`), 
@@ -368,7 +385,7 @@ async function loadUsers() {
     allUsersCached = Array.isArray(users) ? users : [];
     cachedStores = Array.isArray(stores) ? stores : [];
     
-    document.getElementById("content").innerHTML = `
+    content.innerHTML = `
         <div class="card">
             <h2>👥 Gestión de Usuarios</h2>
             <div class="grid-filters">
@@ -391,17 +408,10 @@ async function loadUsers() {
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
                 <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
-                <tbody>${allUsersCached.map(u => `
-                    <tr onclick="viewUserDetail('${u._id}')">
-                        <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
-                        <td>${u.email}</td>
-                        <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
-                        <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
-                        <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
-                    </tr>`).join('')}
-                </tbody>
+                <tbody id="usersTableBody"></tbody>
             </table>
         </div>`;
+    renderUsersTable();
 }
 
 async function createUser() {
@@ -413,41 +423,43 @@ async function createUser() {
     
     if(!name || !email || !password) return alert("Nombre, Email y Contraseña son obligatorios");
     
-    // Bloqueamos el botón visualmente para evitar envíos múltiples
     const btn = document.querySelector("button[onclick='createUser()']");
-    const originalText = btn.innerText;
     btn.disabled = true;
     btn.innerText = "PROCESANDO...";
 
-    const res = await fetchAPI(`${BACKEND_URL}/users`, { 
-        method: 'POST', 
-        body: JSON.stringify({ 
-            name, 
-            email, 
-            password, 
-            role, 
-            agencyId: session.agencyId, 
-            projectId: projectId || null 
-        }) 
-    });
+    try {
+        const newUser = await fetchAPI(`${BACKEND_URL}/users`, { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                name, email, password, role, 
+                agencyId: session.agencyId, 
+                projectId: projectId || null 
+            }) 
+        });
 
-    if(res) {
-        alert("¡Usuario creado exitosamente!");
-        // Limpiar campos manualmente
-        document.getElementById("newUserName").value = "";
-        document.getElementById("newUserEmail").value = "";
-        document.getElementById("newUserPass").value = "";
-        
-        // Esperamos 500ms antes de recargar para dar tiempo a la DB a refrescarse
-        setTimeout(async () => {
-            await loadUsers();
-            btn.disabled = false;
-            btn.innerText = originalText;
-        }, 500);
-    } else {
-        alert("Error al guardar el usuario.");
+        // Verificamos que el objeto tenga un ID (confirmación de creación real en DB)
+        if(newUser && newUser._id) {
+            alert("¡Usuario creado exitosamente!");
+            
+            // INSERCIÓN LOCAL INMEDIATA: No esperamos al servidor
+            allUsersCached.unshift(newUser); 
+            renderUsersTable(); // Refrescamos la tabla visualmente YA
+            
+            // Limpiar campos
+            document.getElementById("newUserName").value = "";
+            document.getElementById("newUserEmail").value = "";
+            document.getElementById("newUserPass").value = "";
+        } else {
+            throw new Error("Respuesta inválida del servidor");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Error al crear. El correo podría estar duplicado.");
+    } finally {
         btn.disabled = false;
-        btn.innerText = originalText;
+        btn.innerText = "GUARDAR";
+        // Recarga de seguridad en 2 segundos para sincronizar con la DB real
+        setTimeout(loadUsers, 2000);
     }
 }
 
@@ -593,7 +605,9 @@ async function deleteProject(id, name) {
 async function deleteUser(id) {
     if(!confirm("¿Borrar usuario?")) return;
     await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: 'DELETE' });
-    loadUsers();
+    // Eliminación local para feedback instantáneo
+    allUsersCached = allUsersCached.filter(u => u._id !== id);
+    renderUsersTable();
 }
 
 async function deleteStore(id) {

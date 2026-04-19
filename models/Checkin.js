@@ -18,6 +18,12 @@ const checkinSchema = new Schema({
     ref: "Store",
     required: true
   },
+  // NUEVO: Vinculación de la asistencia a un Proyecto/Cliente específico
+  projectId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Project',
+    index: true 
+  },
   location: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }

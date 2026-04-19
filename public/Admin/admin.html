@@ -13,6 +13,11 @@
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; }
         .sidebar button:hover, .sidebar button.active { background: #1e293b; color: var(--gold); }
         .main { flex:1; padding:25px; overflow-y: auto; }
+        
+        /* Estilo para el selector de proyecto */
+        .project-selector-container { margin-bottom: 20px; padding: 10px; background: #1e293b; border-radius: 8px; border: 1px solid var(--gold); }
+        .project-selector-container label { color: var(--gold); display: block; margin-bottom: 5px; }
+
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: relative; }
         .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
         input, select { padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; width: 100%; box-sizing: border-box; }
@@ -23,47 +28,42 @@
         .report-table th, .report-table td { padding: 8px; border: 1px solid #e2e8f0; text-align: center; }
         .report-table tr:hover { background: #f1f5f9; cursor: pointer; }
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
-        .img-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0; cursor: pointer; }
-        
-        /* Modificación para Tags Profesionales */
-        .store-list { display:flex; flex-direction:column; gap:15px; margin-top: 10px; }
-        .tag-search-container { position: relative; margin-bottom: 10px; }
-        .search-results-dropdown { 
-            position: absolute; width: 100%; background: white; border: 1px solid #ddd; 
-            max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .search-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
-        .search-item:hover { background: #f8fafc; color: var(--gold); }
-        
-        .assigned-chips-box { 
-            display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; 
-            background: #f0fdf4; border: 2px dashed var(--success); border-radius: 8px; min-height: 50px;
-        }
-        .chip { 
-            background: white; border: 1px solid var(--success); color: #166534; 
-            padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .chip span { cursor: pointer; color: var(--danger); font-weight: bold; font-size: 14px; }
-
-        .role-select { width: auto; font-size: 11px; padding: 5px; height: auto; }
         .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
+        
         .drawer-overlay { position: fixed; top: 0; right: -100%; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; transition: right 0.3s ease; display: flex; justify-content: flex-end; }
         .drawer-overlay.active { right: 0; }
         .drawer { width: 450px; background: white; height: 100%; box-shadow: -5px 0 15px rgba(0,0,0,0.1); padding: 30px; overflow-y: auto; position: relative; }
         .drawer-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: var(--primary); }
         .drawer-header { margin-bottom: 20px; border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-top: 20px; }
+        
+        /* Estilos Chips Asignación */
+        .assigned-chips-box { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: #f0fdf4; border: 2px dashed var(--success); border-radius: 8px; min-height: 50px; }
+        .chip { background: white; border: 1px solid var(--success); color: #166534; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .chip span { cursor: pointer; color: var(--danger); font-weight: bold; font-size: 14px; }
+        .tag-search-container { position: relative; margin-bottom: 10px; }
+        .search-results-dropdown { position: absolute; width: 100%; background: white; border: 1px solid #ddd; max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .search-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+        .search-item:hover { background: #f8fafc; color: var(--gold); }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
+    
+    <div class="project-selector-container">
+        <label>CLIENTE ACTIVO:</label>
+        <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
+            <option value="">Todos los Clientes</option>
+        </select>
+    </div>
+
     <button onclick="loadSection('reports')" id="btn-reports">📊 Reportes</button>
     <button onclick="loadSection('attendance')" id="btn-attendance">⏰ Asistencia</button>
     <button onclick="loadSection('users')" id="btn-users">👥 Usuarios</button>
     <button onclick="loadSection('stores')" id="btn-stores">🏬 Tiendas</button>
+    <button onclick="loadSection('projects')" id="btn-projects">🏷️ Proyectos / Marcas</button>
+    
     <div style="flex:1"></div>
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
@@ -81,52 +81,54 @@
 
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
-let session = { userId: localStorage.getItem("userId"), agencyId: localStorage.getItem("agencyId") };
+let session = { 
+    userId: localStorage.getItem("userId"), 
+    agencyId: localStorage.getItem("agencyId"),
+    selectedProjectId: localStorage.getItem("selectedProjectId") || "" 
+};
 
 if (!session.userId) {
     window.location.href = "../login.html";
 } else {
-    window.onload = () => { showWelcomeMessage(); };
+    window.onload = async () => { 
+        await loadGlobalProjects();
+        showWelcomeMessage(); 
+    };
 }
 
 let allReportsRaw = [];
 let allUsersCached = [];
 let cachedStores = [];
-
-const REPORT_TYPES_BY_ROLE = {
-    all: [
-        { val: "inventario", text: "Ventas" },
-        { val: "ranking", text: "Degustación" },
-        { val: "competencia", text: "Competencia" },
-        { val: "precios", text: "Precios" },
-        { val: "exhibicion", text: "Exhibiciones" },
-        { val: "agotado", text: "Agotados" },
-        { val: "preagotado", text: "Pre-Agotados" },
-        { val: "foto", text: "Fotos Anaquel" }
-    ],
-    demostradora: [
-        { val: "inventario", text: "Ventas" },
-        { val: "ranking", text: "Degustación" },
-        { val: "precios", text: "Precios" },
-        { val: "exhibicion", text: "Exhibiciones" },
-        { val: "competencia", text: "Competencia" }
-    ],
-    promotor: [
-        { val: "precios", text: "Precios" },
-        { val: "agotado", text: "Agotados" },
-        { val: "preagotado", text: "Pre-Agotados" },
-        { val: "inventario", text: "Inventarios" },
-        { val: "exhibicion", text: "Exhibiciones Adicionales" },
-        { val: "foto", text: "Fotos Anaquel" },
-        { val: "competencia", text: "Competencia" }
-    ]
-};
+let allProjects = [];
 
 async function fetchAPI(url, options = {}) {
-    const headers = { "userid": session.userId, "Content-Type": "application/json" };
+    // Inyectamos projectid en los headers para filtrado automático en el servidor
+    const headers = { 
+        "userid": session.userId, 
+        "Content-Type": "application/json",
+        "projectid": session.selectedProjectId 
+    };
     options.headers = { ...(options.headers || {}), ...headers };
     const res = await fetch(url, options);
     return res.json();
+}
+
+async function loadGlobalProjects() {
+    allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
+    const select = document.getElementById("globalProjectSelector");
+    select.innerHTML = '<option value="">Todos los Clientes</option>' + 
+        allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
+}
+
+function changeGlobalProject(val) {
+    session.selectedProjectId = val;
+    localStorage.setItem("selectedProjectId", val);
+    // Recargar sección actual si existe
+    const activeBtn = document.querySelector('.sidebar button.active');
+    if(activeBtn) {
+        const section = activeBtn.id.replace('btn-', '');
+        loadSection(section);
+    }
 }
 
 function showWelcomeMessage() {
@@ -146,6 +148,7 @@ function loadSection(section) {
     if (section === 'users') loadUsers();
     if (section === 'stores') loadStores();
     if (section === 'attendance') loadAttendance();
+    if (section === 'projects') loadProjectsSection();
 }
 
 function openDrawer(html) {
@@ -153,9 +156,47 @@ function openDrawer(html) {
     document.getElementById("drawerOverlay").classList.add("active");
 }
 
-function closeDrawer(e) {
+function closeDrawer() {
     document.getElementById("drawerOverlay").classList.remove("active");
 }
+
+// --- SECCIÓN PROYECTOS ---
+async function loadProjectsSection() {
+    allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏷️ Gestión de Clientes / Proyectos</h2>
+            <div class="grid-filters">
+                <input type="text" id="projName" placeholder="Nombre de la marca (ej. Nestlé)">
+                <input type="text" id="projDesc" placeholder="Descripción corta">
+                <button class="btn-action" style="background:var(--success)" onclick="createProject()">CREAR PROYECTO</button>
+            </div>
+        </div>
+        <div class="card" style="padding:0;">
+            <table class="report-table" style="margin:0;">
+                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estatus</th></tr></thead>
+                <tbody>
+                    ${allProjects.map(p => `<tr><td><b>${p.name}</b></td><td>${p.description || '-'}</td><td><span class="badge" style="background:#dcfce7">Activo</span></td></tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+async function createProject() {
+    const name = document.getElementById("projName").value;
+    const description = document.getElementById("projDesc").value;
+    if(!name) return alert("Nombre de marca requerido");
+    await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, description }) });
+    await loadGlobalProjects();
+    loadProjectsSection();
+}
+
+// --- REPORTES ---
+const REPORT_TYPES_BY_ROLE = {
+    all: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "competencia", text: "Competencia" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "agotado", text: "Agotados" }, { val: "preagotado", text: "Pre-Agotados" }, { val: "foto", text: "Fotos Anaquel" }],
+    demostradora: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "competencia", text: "Competencia" }],
+    promotor: [{ val: "precios", text: "Precios" }, { val: "agotado", text: "Agotados" }, { val: "preagotado", text: "Pre-Agotados" }, { val: "inventario", text: "Inventarios" }, { val: "exhibicion", text: "Exhibiciones Adicionales" }, { val: "foto", text: "Fotos Anaquel" }, { val: "competencia", text: "Competencia" }]
+};
 
 async function loadReports() {
     try {
@@ -171,7 +212,7 @@ async function loadReports() {
 
         document.getElementById("content").innerHTML = `
             <div class="card">
-                <h2>📊 Reportes por Categoría</h2>
+                <h2>📊 Reportes: ${session.selectedProjectId ? allProjects.find(p => p._id === session.selectedProjectId)?.name : 'Todos los Clientes'}</h2>
                 <div class="grid-filters">
                     <div><label>Desde</label><input type="date" id="fStart"></div>
                     <div><label>Hasta</label><input type="date" id="fEnd"></div>
@@ -192,12 +233,6 @@ async function loadReports() {
                         <select id="fType">
                             <option value="">-- Seleccionar Categoría --</option>
                             ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label>Ciudad</label>
-                        <select id="fCity">
-                            <option value="all">Todas</option>
-                            ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
                         </select>
                     </div>
                     <div><label>Tienda</label>
@@ -230,21 +265,18 @@ function filterReports() {
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value;
     const userSel = document.getElementById("fUser")?.value;
-    const citySel = document.getElementById("fCity")?.value;
     const storeSel = document.getElementById("fStore")?.value;
 
     const filtered = allReportsRaw.filter(r => {
-        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
-        const userObj = allUsersCached.find(u => u._id === rUid);
+        const userObj = (typeof r.userId === 'object') ? r.userId : allUsersCached.find(u => u._id === r.userId);
+        const rUid = userObj?._id;
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
-        const storeObj = cachedStores.find(s => s._id === rSid);
         const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
-        const rCity = storeObj?.address?.split(',').pop().trim() || "";
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
-        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel) && (storeSel === "all" || rSid === storeSel);
+        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (storeSel === "all" || rSid === storeSel);
     });
     renderTableReport(filtered, typeSel);
 }
@@ -255,11 +287,9 @@ function renderTableReport(data, type) {
         container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
         return;
     }
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
-    const roleSel = document.getElementById("fRole")?.value;
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
     let dynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;
-        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad') return false;
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
@@ -275,7 +305,6 @@ function renderTableReport(data, type) {
         dynamicKeys.forEach(k => {
             let val = r[k];
             if (typeof val === 'object' && val !== null) val = '-';
-            if (val === undefined || val === null) val = '-';
             if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== '-') val = `$${val}`;
             rowData += `<td>${val}</td>`;
         });
@@ -289,13 +318,14 @@ function renderTableReport(data, type) {
     container.innerHTML = html;
 }
 
+// --- ASISTENCIA ---
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const assist = reports.filter(r => {
         const type = (r.reporte || r.reportType || "").toLowerCase();
         return type.includes('checkin') || type.includes('checkout');
     });
-    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
+    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia: ${session.selectedProjectId ? allProjects.find(p => p._id === session.selectedProjectId)?.name : 'Todos'}</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
         const fechaObj = new Date(a.createdAt);
         const fotoUrl = a.foto_url ? `${BACKEND_URL}${a.foto_url}` : null;
@@ -303,159 +333,168 @@ async function loadAttendance() {
     }).join('')}</tbody></table></div>`;
 }
 
+// --- USUARIOS ---
 async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = users;
     cachedStores = stores;
-    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Gestión de Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre completo"><input type="email" id="newUserEmail" placeholder="Correo electrónico"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Administrador</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${users.map(u => `<tr onclick="viewUserDetail('${u._id}')"><td style="text-align:left; padding-left:15px;"><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge" style="background:#e2e8f0">${u.role}</span></td><td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td><td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>👥 Gestión de Usuarios</h2>
+            <div class="grid-filters">
+                <input type="text" id="newUserName" placeholder="Nombre completo">
+                <input type="email" id="newUserEmail" placeholder="Correo electrónico">
+                <select id="newUserRole">
+                    <option value="promotor">Promotor</option>
+                    <option value="demostradora">Demostradora</option>
+                    <option value="admin">Administrador</option>
+                </select>
+                <select id="newUserProject">
+                    <option value="">Asignar Cliente...</option>
+                    ${allProjects.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
+                </select>
+                <button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button>
+            </div>
+        </div>
+        <div class="card" style="padding:0;">
+            <table class="report-table" style="margin:0;">
+                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
+                <tbody>${users.map(u => `
+                    <tr onclick="viewUserDetail('${u._id}')">
+                        <td style="text-align:left; padding-left:15px;"><b>${u.name.toUpperCase()}</b></td>
+                        <td>${u.email}</td>
+                        <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
+                        <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
+                        <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
 }
 
-/* --- MODIFICACIÓN: Lógica de Asignación por Chips --- */
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
 
     let html = `
-        <div class="drawer-header">
-            <h3>Gestión de Colaborador</h3>
-            <p>${u.name} <small>(${u.email})</small></p>
-        </div>
-        
-        <label>Rol en el Sistema</label>
-        <select class="role-select" style="width:100%; margin-bottom:20px;" onchange="updateUserRole('${u._id}', this.value)">
+        <div class="drawer-header"><h3>Gestión de Colaborador</h3><p>${u.name}</p></div>
+        <label>Proyecto / Cliente</label>
+        <select style="width:100%; margin-bottom:15px;" onchange="updateUserField('${u._id}', 'projectId', this.value)">
+            <option value="">Ninguno</option>
+            ${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('')}
+        </select>
+        <label>Rol</label>
+        <select style="width:100%; margin-bottom:20px;" onchange="updateUserField('${u._id}', 'role', this.value)">
             <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
             <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
             <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
         </select>
-
         <div class="store-list">
             <label>📍 Asignar nuevas tiendas</label>
             <div class="tag-search-container">
-                <input type="text" id="tagSearch" placeholder="Buscar tienda por nombre..." onkeyup="filterTagSearch(this.value)">
+                <input type="text" id="tagSearch" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
                 <div id="tagSearchResults" class="search-results-dropdown"></div>
             </div>
-
             <label>✅ Tiendas Asignadas (${(u.stores || []).length})</label>
-            <div class="assigned-chips-box" id="chipsBox">
-                ${(u.stores || []).map(storeData => {
-                    const sid = typeof storeData === 'object' ? storeData._id : storeData;
-                    const st = cachedStores.find(x => x._id === sid);
-                    return st ? `
-                        <div class="chip" id="chip-${sid}">
-                            ${st.name} 
-                            <span onclick="unassignStore('${u._id}', '${sid}')">&times;</span>
-                        </div>` : '';
+            <div class="assigned-chips-box">
+                ${(u.stores || []).map(st => {
+                    const sid = typeof st === 'object' ? st._id : st;
+                    const store = cachedStores.find(x => x._id === sid);
+                    return store ? `<div class="chip">${store.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : '';
                 }).join('')}
             </div>
-            <p style="font-size: 10px; color: #64748b; margin-top: 5px;">* Los cambios se guardan automáticamente al seleccionar o eliminar.</p>
-        </div>
-    `;
+        </div>`;
     openDrawer(html);
 }
 
-function filterTagSearch(val) {
-    const results = document.getElementById("tagSearchResults");
-    if (!val) { results.style.display = "none"; return; }
-    
-    // Obtenemos el ID del usuario actual del drawer (está en el contexto del DOM)
-    const userId = allUsersCached.find(u => u.name === document.querySelector('.drawer-header p').innerText.split(' (')[0])._id;
-    const user = allUsersCached.find(u => u._id === userId);
-    const assignedIds = (user.stores || []).map(st => typeof st === 'object' ? st._id : st);
-
-    const matches = cachedStores.filter(s => 
-        s.name.toLowerCase().includes(val.toLowerCase()) && !assignedIds.includes(s._id)
-    );
-
-    if (matches.length > 0) {
-        results.innerHTML = matches.map(s => `
-            <div class="search-item" onclick="assignStore('${userId}', '${s._id}')">
-                ${s.name} <small style="color:#94a3b8">(${s.address || 'Sin ciudad'})</small>
-            </div>
-        `).join('');
-        results.style.display = "block";
-    } else {
-        results.style.display = "none";
-    }
+async function updateUserField(userId, field, value) {
+    const body = {}; body[field] = value;
+    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
+    loadUsers();
 }
-
-async function assignStore(userId, storeId) {
-    // Cerramos dropdown de búsqueda
-    document.getElementById("tagSearchResults").style.display = "none";
-    document.getElementById("tagSearch").value = "";
-
-    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, {
-        method: 'POST',
-        body: JSON.stringify({ storeId })
-    });
-    
-    if(res) {
-        const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-        allUsersCached = updatedUsers;
-        viewUserDetail(userId); // Refresca el drawer
-        loadUsers(); // Refresca la tabla del fondo
-    }
-}
-
-async function unassignStore(userId, storeId) {
-    const u = allUsersCached.find(x => x._id === userId);
-    const currentStores = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
-    const newStores = currentStores.filter(id => id !== storeId);
-
-    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}/stores`, {
-        method: 'PUT',
-        body: JSON.stringify({ stores: newStores })
-    });
-    
-    if(res) {
-        const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-        allUsersCached = updatedUsers;
-        viewUserDetail(userId);
-        loadUsers();
-    }
-}
-/* --- FIN DE MODIFICACIÓN --- */
 
 async function createUser() {
     const name = document.getElementById("newUserName").value;
     const email = document.getElementById("newUserEmail").value;
     const role = document.getElementById("newUserRole").value;
+    const projectId = document.getElementById("newUserProject").value;
     if(!name || !email) return alert("Llena todos los campos");
-    await fetchAPI(`${BACKEND_URL}/users/register`, { method: 'POST', body: JSON.stringify({ name, email, role, agencyId: session.agencyId, password: "123" }) });
+    await fetchAPI(`${BACKEND_URL}/users`, { 
+        method: 'POST', 
+        body: JSON.stringify({ name, email, role, agencyId: session.agencyId, projectId, password: "123" }) 
+    });
     loadUsers();
 }
 
-async function updateUserRole(userId, newRole) {
-    await fetchAPI(`${BACKEND_URL}/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role: newRole }) });
+async function assignStore(userId, storeId) {
+    await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, { method: 'POST', body: JSON.stringify({ storeId }) });
     const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allUsersCached = updatedUsers;
+    viewUserDetail(userId);
     loadUsers();
+}
+
+async function unassignStore(userId, storeId) {
+    await fetchAPI(`${BACKEND_URL}/users/${userId}/stores/${storeId}`, { method: 'DELETE' });
+    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = updatedUsers;
+    viewUserDetail(userId);
+    loadUsers();
+}
+
+function filterTagSearch(userId, val) {
+    const results = document.getElementById("tagSearchResults");
+    if (!val) { results.style.display = "none"; return; }
+    const matches = cachedStores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
+    results.innerHTML = matches.map(s => `<div class="search-item" onclick="assignStore('${userId}', '${s._id}')">${s.name}</div>`).join('');
+    results.style.display = "block";
+}
+
+// --- TIENDAS ---
+async function loadStores() {
+    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
+    cachedStores = stores;
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Catálogo de Tiendas</h2>
+            <div class="grid-filters">
+                <input type="text" id="stName" placeholder="Nombre de Tienda">
+                <input type="text" id="stAddr" placeholder="Ciudad / Dirección">
+                <select id="stProject">
+                    <option value="">Asignar Cliente...</option>
+                    ${allProjects.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
+                </select>
+                <button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR TIENDA</button>
+            </div>
+        </div>
+        <div class="card" style="padding:0;">
+            <table class="report-table" style="margin:0;">
+                <thead><tr><th>Nombre</th><th>Dirección/Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
+                <tbody>${stores.map(s => `
+                    <tr>
+                        <td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td>
+                        <td>${s.address || 'Sin dirección'}</td>
+                        <td>${allProjects.find(p => p._id === s.projectId)?.name || '-'}</td>
+                        <td><button class="btn-delete" onclick="deleteStore('${s._id}')">Eliminar</button></td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+}
+
+async function createStore() {
+    const name = document.getElementById("stName").value;
+    const address = document.getElementById("stAddr").value;
+    const projectId = document.getElementById("stProject").value;
+    if(!name) return alert("Nombre obligatorio");
+    await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId, projectId }) });
+    loadStores();
 }
 
 async function deleteUser(id) {
     if(!confirm("¿Borrar usuario?")) return;
     await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: 'DELETE' });
     loadUsers();
-}
-
-async function loadStores() {
-    const stores = await fetchAPI(`${BACKEND_URL}/stores`);
-    cachedStores = stores;
-    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Catálogo de Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Nombre de Tienda"><input type="text" id="stAddr" placeholder="Ciudad / Dirección"><button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR TIENDA</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Dirección/Ciudad</th><th>Acción</th></tr></thead><tbody>${stores.map(s => `<tr onclick="viewStoreDetail('${s._id}')"><td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td><td>${s.address || 'Sin dirección'}</td><td><button class="btn-delete" onclick="event.stopPropagation(); deleteStore('${s._id}')">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`;
-}
-
-function viewStoreDetail(storeId) {
-    const s = cachedStores.find(x => x._id === storeId);
-    if(!s) return;
-    let html = `<div class="drawer-header"><h3>Detalle de Tienda</h3><p>${s.name}</p></div><div class="card" style="background:#f8fafc"><label>Ubicación / Ciudad</label><p><b>${s.address || 'No especificada'}</b></p><label>ID de Tienda</label><p><small>${s._id}</small></p></div><div style="margin-top:20px;"><button class="btn-action" style="width:100%; background:var(--danger)" onclick="deleteStore('${s._id}'); closeDrawer()">ELIMINAR TIENDA PERMANENTEMENTE</button></div>`;
-    openDrawer(html);
-}
-
-async function createStore() {
-    const name = document.getElementById("stName").value;
-    const address = document.getElementById("stAddr").value;
-    if(!name) return alert("Nombre obligatorio");
-    await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId }) });
-    loadStores();
 }
 
 async function deleteStore(id) {

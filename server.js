@@ -11,6 +11,7 @@ const Store = require("./models/Store");
 const Agency = require("./models/Agency");
 const Report = require("./models/Report");
 const Checkin = require("./models/Checkin");
+const Project = require("./models/Project"); // Nuevo Modelo
 
 const app = express();
 
@@ -18,7 +19,7 @@ const app = express();
 app.use(cors({ 
     origin: "*", 
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], 
-    allowedHeaders: ["Content-Type", "userId", "userid"] 
+    allowedHeaders: ["Content-Type", "userId", "userid", "projectid"] // Agregado projectid a headers permitidos
 }));
 
 app.use((req, res, next) => {
@@ -74,6 +75,7 @@ async function auth(req, res, next) {
     }
 }
 
+// --- LOGIN ---
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -82,14 +84,41 @@ app.post("/login", async (req, res) => {
             password: password.trim() 
         });
         if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
-        res.json({ userId: user._id, role: user.role, agencyId: user.agencyId, name: user.name });
+        res.json({ 
+            userId: user._id, 
+            role: user.role, 
+            agencyId: user.agencyId, 
+            projectId: user.projectId, // Enviamos el proyecto asignado
+            name: user.name 
+        });
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
+// --- GESTIÓN DE PROYECTOS (CLIENTES) ---
+app.get("/projects", auth, async (req, res) => {
+    try {
+        const projects = await Project.find({ agencyId: req.user.agencyId, active: true });
+        res.json(projects);
+    } catch (err) { res.status(500).json({ error: "Error al obtener proyectos" }); }
+});
+
+app.post("/projects", auth, async (req, res) => {
+    try {
+        const newProject = new Project({ ...req.body, agencyId: req.user.agencyId });
+        await newProject.save();
+        res.json({ message: "Proyecto creado", project: newProject });
+    } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
+});
+
+// --- ASISTENCIA (CHECKINS) ---
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
         const { agencyId } = req.params;
-        const history = await Checkin.find({ agencyId })
+        const projectId = req.headers.projectid;
+        const query = { agencyId };
+        if (projectId) query.projectId = projectId;
+
+        const history = await Checkin.find(query)
             .populate("userId", "name role")
             .populate("storeId", "name")
             .sort({ timestamp: -1 })
@@ -102,7 +131,7 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
 
 app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
-        const { storeId, lat, lng } = req.body;
+        const { storeId, lat, lng, projectId } = req.body;
         if (!storeId || lat === undefined || lng === undefined) {
             return res.status(400).json({ error: "Datos incompletos" });
         }
@@ -111,9 +140,13 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
         }
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        
+        const currentProjectId = projectId || req.user.projectId;
+
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            projectId: currentProjectId,
             storeId: storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkin",
@@ -121,15 +154,18 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             timestamp: new Date()
         });
         await newCheckin.save();
+
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            projectId: currentProjectId,
             storeId: storeId,
             reporte: "checkin",
             foto_url: fotoUrl,
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkinReport.save();
+
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
         res.status(500).json({ error: "Error en checkin", detalle: err.message });
@@ -138,37 +174,49 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
 
 app.post("/checkout", auth, async (req, res) => {
     try {
-        const { lat, lng, storeId } = req.body;
+        const { lat, lng, storeId, projectId } = req.body;
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (!lastEvent || lastEvent.type === "checkout") {
             return res.status(400).json({ error: "No hay una entrada activa." });
         }
+
+        const currentProjectId = projectId || lastEvent.projectId || req.user.projectId;
+
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            projectId: currentProjectId,
             storeId: storeId || lastEvent.storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkout", 
             timestamp: new Date()
         });
         await newCheckout.save();
+
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            projectId: currentProjectId,
             storeId: storeId || lastEvent.storeId,
             reporte: "checkout",
             location: { lat: Number(lat), lng: Number(lng) }
         });
         await checkoutReport.save();
+
         res.json({ message: "Salida registrada con éxito" });
     } catch (err) {
         res.status(500).json({ error: "Error en checkout" });
     }
 });
 
+// --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
-        const reports = await Report.find({ agencyId: req.params.agencyId })
+        const projectId = req.headers.projectid;
+        const query = { agencyId: req.params.agencyId };
+        if (projectId) query.projectId = projectId;
+
+        const reports = await Report.find(query)
             .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 });
@@ -185,10 +233,12 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         if (tipoReporte.toLowerCase().includes("exhibicion")) {
             tipoReporte = "exhibicion";
         }
+        
         const reportData = {
             ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
+            projectId: req.body.projectId || req.user.projectId,
             storeId: req.body.storeId, 
             reporte: tipoReporte, 
             foto_url: req.file ? `/uploads/${req.file.filename}` : null,
@@ -222,11 +272,13 @@ app.delete("/reports/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
-// --- GESTIÓN DE USUARIOS Y TIENDAS ---
-
+// --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {
+        const projectId = req.headers.projectid;
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
+        if (projectId) filter.projectId = projectId;
+
         const users = await User.find(filter).populate('stores');
         res.json(users);
     } catch (err) { res.status(500).json({ error: "Error" }); }
@@ -241,68 +293,54 @@ app.get("/users/:id", auth, async (req, res) => {
 
 app.post("/users", auth, async (req, res) => {
     try {
-        const { name, email, password, role, agencyId, stores } = req.body;
+        const { name, email, password, role, agencyId, stores, projectId } = req.body;
         const newUser = new User({
             name,
             email: email.toLowerCase(),
             password,
             role,
             agencyId: agencyId || req.user.agencyId,
-            stores: stores || [] // Soporte para asignar tiendas al crear
+            projectId: projectId, // Guardamos el proyecto
+            stores: stores || []
         });
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
     } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
 });
 
-// MODIFICACIÓN: Ruta PUT general para actualizar datos de usuario (incluyendo password o nombre)
 app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase();
-        
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
     } catch (err) { res.status(500).json({ error: "Error al actualizar usuario" }); }
 });
 
-// NUEVA RUTA: Para asignar una tienda individual ($addToSet evita duplicados)
 app.post("/users/:userId/assign", auth, async (req, res) => {
     try {
         const { storeId } = req.body;
         if (!storeId) return res.status(400).json({ error: "storeId es requerido" });
-        await User.findByIdAndUpdate(req.params.userId, { 
-            $addToSet: { stores: storeId } 
-        });
+        await User.findByIdAndUpdate(req.params.userId, { $addToSet: { stores: storeId } });
         res.json({ message: "Tienda asignada con éxito" });
-    } catch (err) {
-        res.status(500).json({ error: "Error al asignar tienda" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error al asignar tienda" }); }
 });
 
-// NUEVA RUTA: Para desasignar una tienda individual (Eliminar Chip)
 app.delete("/users/:userId/stores/:storeId", auth, async (req, res) => {
     try {
         const { userId, storeId } = req.params;
-        await User.findByIdAndUpdate(userId, { 
-            $pull: { stores: storeId } 
-        });
+        await User.findByIdAndUpdate(userId, { $pull: { stores: storeId } });
         res.json({ message: "Tienda desasignada con éxito" });
-    } catch (err) {
-        res.status(500).json({ error: "Error al eliminar tienda" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
 
-app.put("/users/:userId/stores", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.userId, { stores: req.body.stores });
-        res.json({ message: "Ruta actualizada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
+// --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
+        const projectId = req.headers.projectid;
         const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
+        if (projectId) filter.projectId = projectId;
+
         const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
     } catch (err) { res.status(500).json({ error: "Error" }); }
@@ -316,7 +354,7 @@ app.post("/stores", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// --- Rutas de Navegación ---
+// --- RUTAS DE NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));

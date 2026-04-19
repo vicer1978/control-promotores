@@ -21,6 +21,12 @@ const UserSchema = new mongoose.Schema({
         ref: 'Agency',
         index: true 
     },
+    // NUEVO: Referencia al Proyecto/Cliente específico
+    projectId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Project',
+        index: true 
+    },
     stores: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Store' }]
 }, { timestamps: true });
 

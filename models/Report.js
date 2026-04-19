@@ -18,6 +18,12 @@ const ReportSchema = new mongoose.Schema({
         ref: 'Agency', 
         required: true 
     },
+    // NUEVO: Vinculación del reporte a un Proyecto/Cliente específico
+    projectId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Project',
+        index: true 
+    },
     
     // --- CLASIFICACIÓN ---
     reporte: { 

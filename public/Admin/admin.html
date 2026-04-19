@@ -356,15 +356,17 @@ async function loadUsers() {
     if(session.role === 'cliente') return;
     
     // Forzamos la limpieza del contenido previo para evitar duplicados o estados viejos
-    document.getElementById("content").innerHTML = `<div class="card" style="text-align:center">Cargando Usuarios...</div>`;
+    document.getElementById("content").innerHTML = `<div class="card" style="text-align:center">🔄 Sincronizando usuarios...</div>`;
 
+    // Agregamos un timestamp para evitar que el navegador use una respuesta de caché
+    const ts = new Date().getTime();
     const [users, stores] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users`), 
-        fetchAPI(`${BACKEND_URL}/stores`)
+        fetchAPI(`${BACKEND_URL}/users?t=${ts}`), 
+        fetchAPI(`${BACKEND_URL}/stores?t=${ts}`)
     ]);
     
-    allUsersCached = users;
-    cachedStores = stores;
+    allUsersCached = Array.isArray(users) ? users : [];
+    cachedStores = Array.isArray(stores) ? stores : [];
     
     document.getElementById("content").innerHTML = `
         <div class="card">
@@ -391,7 +393,7 @@ async function loadUsers() {
                 <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
                 <tbody>${allUsersCached.map(u => `
                     <tr onclick="viewUserDetail('${u._id}')">
-                        <td style="text-align:left; padding-left:15px;"><b>${u.name.toUpperCase()}</b></td>
+                        <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
                         <td>${u.email}</td>
                         <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
                         <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
@@ -411,6 +413,12 @@ async function createUser() {
     
     if(!name || !email || !password) return alert("Nombre, Email y Contraseña son obligatorios");
     
+    // Bloqueamos el botón visualmente para evitar envíos múltiples
+    const btn = document.querySelector("button[onclick='createUser()']");
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "PROCESANDO...";
+
     const res = await fetchAPI(`${BACKEND_URL}/users`, { 
         method: 'POST', 
         body: JSON.stringify({ 
@@ -429,10 +437,17 @@ async function createUser() {
         document.getElementById("newUserName").value = "";
         document.getElementById("newUserEmail").value = "";
         document.getElementById("newUserPass").value = "";
-        // Recargar la sección completa
-        await loadUsers();
+        
+        // Esperamos 500ms antes de recargar para dar tiempo a la DB a refrescarse
+        setTimeout(async () => {
+            await loadUsers();
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }, 500);
     } else {
         alert("Error al guardar el usuario.");
+        btn.disabled = false;
+        btn.innerText = originalText;
     }
 }
 

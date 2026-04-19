@@ -412,62 +412,74 @@ async function loadUsers() {
     renderUsersTable();
 }
 
-// FUNCION MEJORADA: Limpieza de datos y manejo de errores reales
+// CORRECCIÓN CLAVE: Envío blindado de datos para evitar errores de duplicado inexistente
 async function createUser() {
-    const name = document.getElementById("newUserName").value.trim();
-    const email = document.getElementById("newUserEmail").value.trim().toLowerCase();
-    const password = document.getElementById("newUserPass").value.trim();
-    const role = document.getElementById("newUserRole").value;
-    const projectId = document.getElementById("newUserProject").value;
+    const nameInput = document.getElementById("newUserName");
+    const emailInput = document.getElementById("newUserEmail");
+    const passInput = document.getElementById("newUserPass");
+    const roleInput = document.getElementById("newUserRole");
+    const projectInput = document.getElementById("newUserProject");
+
+    // Limpieza agresiva de espacios y conversión a minúsculas
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase();
+    const password = passInput.value.trim();
+    const role = roleInput.value;
     
-    if(!name || !email || !password) return alert("Nombre, Email y Contraseña son obligatorios");
+    // IMPORTANTE: Si no hay proyecto, enviamos null explícitamente para evitar strings vacíos
+    const projectId = projectInput.value && projectInput.value !== "" ? projectInput.value : null;
+    
+    if(!name || !email || !password) return alert("⚠️ Nombre, Email y Contraseña son obligatorios");
     
     const btn = document.querySelector("button[onclick='createUser()']");
     btn.disabled = true;
     btn.innerText = "PROCESANDO...";
 
     try {
-        // Agregamos un cache-buster para evitar respuestas viejas de Render
-        const response = await fetch(`${BACKEND_URL}/users?cb=${Date.now()}`, { 
+        // Cache-buster real usando timestamp para ignorar cualquier caché de Render/Cloudflare
+        const response = await fetch(`${BACKEND_URL}/users?timestamp=${Date.now()}`, { 
             method: 'POST', 
             headers: {
                 "userid": session.userId,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({ 
-                name, email, password, role, 
+                name, 
+                email, 
+                password, 
+                role, 
                 agencyId: session.agencyId, 
-                projectId: projectId || null 
+                projectId: projectId 
             }) 
         });
 
         const result = await response.json();
 
+        // Si el servidor responde con 400 o 500, capturamos el mensaje exacto
         if(!response.ok) {
-            // Si el servidor manda un error, usamos su mensaje o uno por defecto
-            throw new Error(result.message || "Error al crear. El correo podría estar duplicado.");
+            throw new Error(result.message || "Error al crear. El servidor detectó un duplicado.");
         }
 
         if(result && result._id) {
-            alert("¡Usuario creado exitosamente!");
+            alert("✅ ¡Usuario creado exitosamente!");
             
-            // ACTUALIZACIÓN LOCAL INMEDIATA
+            // Inyectamos el resultado en el cache local de inmediato
             allUsersCached.unshift(result); 
             renderUsersTable(); 
             
-            // Limpiar campos
-            document.getElementById("newUserName").value = "";
-            document.getElementById("newUserEmail").value = "";
-            document.getElementById("newUserPass").value = "";
+            // Limpiar campos del formulario
+            nameInput.value = "";
+            emailInput.value = "";
+            passInput.value = "";
         }
     } catch (err) {
-        console.error("Detalle técnico:", err);
-        alert(err.message);
+        console.error("Detalle técnico del error:", err);
+        alert("❌ " + err.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "GUARDAR";
-        // Recarga de respaldo para sincronizar todo el estado
-        setTimeout(loadUsers, 2000);
+        // Recarga de sincronización forzada
+        setTimeout(loadUsers, 1500);
     }
 }
 

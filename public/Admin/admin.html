@@ -85,8 +85,8 @@ const BACKEND_URL = "https://storepulse.onrender.com";
 let session = { 
     userId: localStorage.getItem("userId"), 
     agencyId: localStorage.getItem("agencyId"),
-    role: localStorage.getItem("role"), // Capturamos el rol
-    userProjectId: localStorage.getItem("projectId"), // El proyecto asignado al usuario (si es cliente)
+    role: localStorage.getItem("role"), 
+    userProjectId: localStorage.getItem("projectId"), 
     selectedProjectId: localStorage.getItem("selectedProjectId") || "" 
 };
 
@@ -100,11 +100,9 @@ if (!session.userId) {
     };
 }
 
-// Restricción visual por Rol
 function applyRoleRestrictions() {
     if (session.role === 'cliente') {
         document.getElementById("adminOnlySections").style.display = "none";
-        // Si es cliente, su selectedProjectId siempre debe ser el asignado
         session.selectedProjectId = session.userProjectId;
         localStorage.setItem("selectedProjectId", session.userProjectId);
     }
@@ -133,7 +131,7 @@ async function loadGlobalProjects() {
     if (session.role === 'cliente') {
         const myProj = allProjects.find(p => p._id === session.userProjectId);
         select.innerHTML = `<option value="${session.userProjectId}">${myProj ? myProj.name : 'Mi Marca'}</option>`;
-        select.disabled = true; // El cliente no puede cambiar de marca
+        select.disabled = true; 
     } else {
         select.innerHTML = '<option value="">Todos los Clientes</option>' + 
             allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
@@ -179,7 +177,6 @@ function closeDrawer() {
     document.getElementById("drawerOverlay").classList.remove("active");
 }
 
-// --- SECCIÓN PROYECTOS ---
 async function loadProjectsSection() {
     if(session.role === 'cliente') return;
     allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
@@ -208,7 +205,6 @@ async function loadProjectsSection() {
         </div>`;
 }
 
-// --- REPORTES ---
 const REPORT_TYPES_BY_ROLE = {
     all: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "competencia", text: "Competencia" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "agotado", text: "Agotados" }, { val: "preagotado", text: "Pre-Agotados" }, { val: "foto", text: "Fotos Anaquel" }],
     demostradora: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "competencia", text: "Competencia" }],
@@ -315,8 +311,6 @@ function renderTableReport(data, type) {
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     const hasPhoto = data.some(r => r.foto_url);
     if (hasPhoto) headers += `<th>EVIDENCIA</th>`;
-    
-    // Ocultar columna acción si es cliente
     const actionHeader = session.role === 'cliente' ? '' : '<th>ACCIÓN</th>';
 
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${actionHeader}</tr></thead><tbody>`;
@@ -335,16 +329,13 @@ function renderTableReport(data, type) {
             const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-';
             rowData += `<td>${img}</td>`;
         }
-        
         const actionBtn = session.role === 'cliente' ? '' : `<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Borrar</button></td>`;
-        
         return `<tr>${rowData}${actionBtn}</tr>`;
     }).join('');
     html += `</tbody></table></div>`;
     container.innerHTML = html;
 }
 
-// --- ASISTENCIA ---
 async function loadAttendance() {
     const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const assist = reports.filter(r => {
@@ -361,7 +352,6 @@ async function loadAttendance() {
     }).join('')}</tbody></table></div>`;
 }
 
-// --- USUARIOS ---
 async function loadUsers() {
     if(session.role === 'cliente') return;
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
@@ -373,6 +363,7 @@ async function loadUsers() {
             <div class="grid-filters">
                 <input type="text" id="newUserName" placeholder="Nombre completo">
                 <input type="email" id="newUserEmail" placeholder="Correo electrónico">
+                <input type="password" id="newUserPass" placeholder="Contraseña">
                 <select id="newUserRole">
                     <option value="promotor">Promotor</option>
                     <option value="demostradora">Demostradora</option>
@@ -402,14 +393,19 @@ async function loadUsers() {
         </div>`;
 }
 
-// --- RESTO DE FUNCIONES (Siguen igual) ---
-
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
 
     let html = `
         <div class="drawer-header"><h3>Gestión de Colaborador</h3><p>${u.name}</p></div>
+        
+        <label>Contraseña</label>
+        <div style="display:flex; gap:5px; margin-bottom:15px;">
+            <input type="password" id="editUserPass" placeholder="Nueva contraseña (opcional)">
+            <button class="btn-action" style="padding:5px 10px; font-size:10px;" onclick="updateUserField('${u._id}', 'password', document.getElementById('editUserPass').value)">ACTUALIZAR</button>
+        </div>
+
         <label>Proyecto / Cliente</label>
         <select style="width:100%; margin-bottom:15px;" onchange="updateUserField('${u._id}', 'projectId', this.value)">
             <option value="">Ninguno</option>
@@ -441,23 +437,28 @@ function viewUserDetail(userId) {
 }
 
 async function updateUserField(userId, field, value) {
+    if(field === 'password' && !value) return alert("Escribe una contraseña");
     const body = {}; 
     body[field] = (field === 'projectId' && value === "") ? null : value;
     await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
     const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allUsersCached = updatedUsers;
+    if(field === 'password') alert("Contraseña actualizada con éxito");
     loadUsers();
 }
 
 async function createUser() {
     const name = document.getElementById("newUserName").value;
     const email = document.getElementById("newUserEmail").value;
+    const password = document.getElementById("newUserPass").value;
     const role = document.getElementById("newUserRole").value;
     const projectId = document.getElementById("newUserProject").value;
-    if(!name || !email) return alert("Llena todos los campos");
+    
+    if(!name || !email || !password) return alert("Nombre, Email y Contraseña son obligatorios");
+    
     await fetchAPI(`${BACKEND_URL}/users`, { 
         method: 'POST', 
-        body: JSON.stringify({ name, email, role, agencyId: session.agencyId, projectId, password: "123" }) 
+        body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId, projectId }) 
     });
     loadUsers();
 }
@@ -486,7 +487,6 @@ function filterTagSearch(userId, val) {
     results.style.display = "block";
 }
 
-// --- TIENDAS ---
 async function loadStores() {
     if(session.role === 'cliente') return;
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);

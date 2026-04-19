@@ -412,7 +412,6 @@ async function loadUsers() {
     renderUsersTable();
 }
 
-// CORRECCIÓN CLAVE: Envío blindado de datos para evitar errores de duplicado inexistente
 async function createUser() {
     const nameInput = document.getElementById("newUserName");
     const emailInput = document.getElementById("newUserEmail");
@@ -420,13 +419,10 @@ async function createUser() {
     const roleInput = document.getElementById("newUserRole");
     const projectInput = document.getElementById("newUserProject");
 
-    // Limpieza agresiva de espacios y conversión a minúsculas
     const name = nameInput.value.trim();
     const email = emailInput.value.trim().toLowerCase();
     const password = passInput.value.trim();
     const role = roleInput.value;
-    
-    // IMPORTANTE: Si no hay proyecto, enviamos null explícitamente para evitar strings vacíos
     const projectId = projectInput.value && projectInput.value !== "" ? projectInput.value : null;
     
     if(!name || !email || !password) return alert("⚠️ Nombre, Email y Contraseña son obligatorios");
@@ -436,50 +432,39 @@ async function createUser() {
     btn.innerText = "PROCESANDO...";
 
     try {
-        // Cache-buster real usando timestamp para ignorar cualquier caché de Render/Cloudflare
         const response = await fetch(`${BACKEND_URL}/users?timestamp=${Date.now()}`, { 
             method: 'POST', 
             headers: {
                 "userid": session.userId,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ 
-                name, 
-                email, 
-                password, 
-                role, 
-                agencyId: session.agencyId, 
-                projectId: projectId 
-            }) 
+            body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId, projectId }) 
         });
 
         const result = await response.json();
 
-        // Si el servidor responde con 400 o 500, capturamos el mensaje exacto
         if(!response.ok) {
-            throw new Error(result.message || "Error al crear. El servidor detectó un duplicado.");
+            // INTEGRACIÓN DE MEJORA DE DIAGNÓSTICO
+            const errorData = result;
+            alert("Error: " + (errorData.error || errorData.message || "Error desconocido"));
+            console.log("Detalle técnico:", errorData);
+            return;
         }
 
         if(result && result._id) {
             alert("✅ ¡Usuario creado exitosamente!");
-            
-            // Inyectamos el resultado en el cache local de inmediato
             allUsersCached.unshift(result); 
             renderUsersTable(); 
-            
-            // Limpiar campos del formulario
             nameInput.value = "";
             emailInput.value = "";
             passInput.value = "";
         }
     } catch (err) {
         console.error("Detalle técnico del error:", err);
-        alert("❌ " + err.message);
+        alert("❌ Error de conexión o error interno");
     } finally {
         btn.disabled = false;
         btn.innerText = "GUARDAR";
-        // Recarga de sincronización forzada
-        setTimeout(loadUsers, 1500);
     }
 }
 

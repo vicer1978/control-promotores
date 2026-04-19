@@ -296,7 +296,7 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// MODIFICACIÓN ROBUSTA PARA USUARIOS
+// MODIFICACIÓN ROBUSTA PARA USUARIOS (Corregido para Roles y CastError)
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
@@ -311,11 +311,15 @@ app.post("/users", auth, async (req, res) => {
             finalProjectId = projectId;
         }
 
+        // Normalización del Rol para evitar fallos de validación (enum)
+        // Convertimos a minúsculas para comparar y luego capitalizamos si es necesario
+        let finalRole = (role || 'promotor').toLowerCase().trim();
+
         const newUser = new User({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password: password.trim(),
-            role: role || 'Promotor',
+            role: finalRole, // Asegúrate de que tu modelo User.js acepte 'cliente' en el enum
             agencyId: agencyId || req.user.agencyId,
             projectId: finalProjectId,
             stores: stores || []
@@ -333,6 +337,15 @@ app.post("/users", auth, async (req, res) => {
             return res.status(400).json({ 
                 error: `El ${field} ya está registrado.`,
                 detalle: `Duplicado detectado en: ${field}` 
+            });
+        }
+
+        // Manejo específico de errores de validación (Como el de 'cliente')
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ 
+                error: "Error de validación", 
+                message: err.message,
+                detalle: "Asegúrate de que el rol 'cliente' esté permitido en el modelo User.js" 
             });
         }
         

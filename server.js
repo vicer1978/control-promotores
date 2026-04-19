@@ -11,7 +11,7 @@ const Store = require("./models/Store");
 const Agency = require("./models/Agency");
 const Report = require("./models/Report");
 const Checkin = require("./models/Checkin");
-const Project = require("./models/Project"); // Nuevo Modelo
+const Project = require("./models/Project");
 
 const app = express();
 
@@ -296,39 +296,49 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// CORRECCIÓN AQUÍ: Se asegura de procesar projectId y password correctamente
+// MODIFICACIÓN PARA DIAGNÓSTICO DE DUPLICADOS
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
         
-        // Validación básica
         if (!name || !email || !password) {
-            return res.status(400).json({ error: "Faltan datos obligatorios (Nombre, Email o Password)" });
+            return res.status(400).json({ error: "Faltan datos obligatorios" });
         }
 
+        // Limpieza profunda y validación de projectId
+        const finalEmail = email.toLowerCase().trim();
+        const finalProjectId = (projectId === "" || !projectId) ? null : projectId;
+
         const newUser = new User({
-            name,
-            email: email.toLowerCase().trim(),
+            name: name.trim(),
+            email: finalEmail,
             password: password.trim(),
             role,
             agencyId: agencyId || req.user.agencyId,
-            projectId: projectId || null,
+            projectId: finalProjectId,
             stores: stores || []
         });
 
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
     } catch (err) { 
-        console.error("Error al crear usuario:", err);
-        res.status(500).json({ error: "Error al crear usuario", detalle: err.message }); 
+        console.error("Error Mongo:", err);
+        // Si el error es de duplicado (E11000)
+        if (err.code === 11000) {
+            const field = Object.keys(err.keyPattern)[0];
+            return res.status(400).json({ 
+                message: `El campo '${field}' ya está registrado. No puedes usar valores duplicados en ${field}.`,
+                detalle: err.message 
+            });
+        }
+        res.status(500).json({ message: "Error interno", detalle: err.message }); 
     }
 });
 
 app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
-        if (updates.email) updates.email = updates.email.toLowerCase();
-        
+        if (updates.email) updates.email = updates.email.toLowerCase().trim();
         if (updates.projectId === "" || updates.projectId === null) {
             updates.projectId = null;
         }

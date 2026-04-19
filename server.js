@@ -19,7 +19,7 @@ const app = express();
 app.use(cors({ 
     origin: "*", 
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], 
-    allowedHeaders: ["Content-Type", "userId", "userid", "projectid"] // Agregado projectid a headers permitidos
+    allowedHeaders: ["Content-Type", "userId", "userid", "projectid"] 
 }));
 
 app.use((req, res, next) => {
@@ -88,7 +88,7 @@ app.post("/login", async (req, res) => {
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
-            projectId: user.projectId, // Enviamos el proyecto asignado
+            projectId: user.projectId, 
             name: user.name 
         });
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
@@ -110,7 +110,6 @@ app.post("/projects", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
 });
 
-// NUEVA RUTA: ELIMINAR PROYECTO
 app.delete("/projects/:id", auth, async (req, res) => {
     try {
         await Project.findByIdAndDelete(req.params.id);
@@ -148,7 +147,6 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
         }
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
-        
         const currentProjectId = projectId || req.user.projectId;
 
         const newCheckin = new Checkin({
@@ -187,7 +185,6 @@ app.post("/checkout", auth, async (req, res) => {
         if (!lastEvent || lastEvent.type === "checkout") {
             return res.status(400).json({ error: "No hay una entrada activa." });
         }
-
         const currentProjectId = projectId || lastEvent.projectId || req.user.projectId;
 
         const newCheckout = new Checkin({
@@ -299,21 +296,32 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
+// CORRECCIÓN AQUÍ: Se asegura de procesar projectId y password correctamente
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
+        
+        // Validación básica
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: "Faltan datos obligatorios (Nombre, Email o Password)" });
+        }
+
         const newUser = new User({
             name,
-            email: email.toLowerCase(),
-            password,
+            email: email.toLowerCase().trim(),
+            password: password.trim(),
             role,
             agencyId: agencyId || req.user.agencyId,
-            projectId: projectId, // Guardamos el proyecto
+            projectId: projectId || null,
             stores: stores || []
         });
+
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
-    } catch (err) { res.status(500).json({ error: "Error al crear usuario" }); }
+    } catch (err) { 
+        console.error("Error al crear usuario:", err);
+        res.status(500).json({ error: "Error al crear usuario", detalle: err.message }); 
+    }
 });
 
 app.put("/users/:id", auth, async (req, res) => {
@@ -321,7 +329,6 @@ app.put("/users/:id", auth, async (req, res) => {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase();
         
-        // Soporte para limpiar projectId si llega null o string vacío
         if (updates.projectId === "" || updates.projectId === null) {
             updates.projectId = null;
         }
@@ -374,7 +381,6 @@ app.delete("/stores/:id", auth, async (req, res) => {
         res.json({ message: "Tienda eliminada" });
     } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
-
 
 // --- RUTAS DE NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));

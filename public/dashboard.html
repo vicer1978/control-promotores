@@ -70,6 +70,26 @@
             box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
         }
 
+        /* VISTA CLIENTE (NUEVO) */
+        .client-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-top: 10px;
+        }
+        .btn-client {
+            background: var(--primary);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            width: 100%;
+            font-weight: bold;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
         /* DRAWER */
         .drawer {
             position:fixed;
@@ -134,7 +154,8 @@
     <h3 id="userName">Cargando...</h3>
     <p id="userRole">Cargando...</p>
     <div class="drawer-nav">
-        <button onclick="toggleMenu()">🏠 Inicio</button>
+        <button onclick="location.href='dashboard.html'">🏠 Inicio</button>
+        <button id="btnMisProyectos" style="display:none;" onclick="location.href='mis-proyectos.html'">📂 Cambiar Proyecto</button>
         <button id="adminBtn" style="display:none;" onclick="location.href='admin.html'">📊 Panel de Administración</button>
         <button onclick="logout()" class="logout-btn">🚪 Cerrar Sesión</button>
     </div>
@@ -146,16 +167,27 @@
 </div>
 
 <div class="container">
-    <div class="welcome-msg">
+    <div id="welcomeOperativo" class="welcome-msg">
         <h1 id="greeting">Hola...</h1>
         <p>Selecciona tu tienda para comenzar el turno.</p>
+    </div>
+
+    <div id="welcomeCliente" class="welcome-msg" style="display: none;">
+        <h1>Panel de Supervisión</h1>
+        <p id="projectNameDisplay">Proyecto: Cargando...</p>
     </div>
 
     <div id="storesContainer" class="stores-list">
         <div class="loader">Buscando tus tiendas asignadas...</div>
     </div>
 
-    <div class="checkout-container">
+    <div id="panelCliente" class="client-panel" style="display: none;">
+        <p class="text-muted">Acceso rápido a la información de campo:</p>
+        <button class="btn-client" onclick="location.href='home.html'">Ver Reportes de Operación</button>
+        <button class="btn-client" style="background: #64748b;" onclick="location.href='mis-proyectos.html'">Ver Otra Marca / Proyecto</button>
+    </div>
+
+    <div id="checkoutSection" class="checkout-container">
         <b style="color: var(--danger);">🏁 FINALIZAR JORNADA</b>
         <p style="font-size: 0.85rem; color: #64748b; margin: 5px 0;">Presiona aquí solo cuando hayas terminado toda tu ruta del día.</p>
         <button class="btn-checkout" id="btnCheckout" onclick="finalizarTurno()">CERRAR TURNO / SALIDA</button>
@@ -166,9 +198,7 @@
     <div class="modal-content">
         <h3 id="storeNameDisplay" style="color: var(--primary); margin-top: 0;">Tienda</h3>
         <p style="color: #64748b; line-height: 1.5;">Se requiere <b>foto de evidencia</b> y ubicación GPS para iniciar operación.</p>
-        
         <input type="file" id="checkinCamera" accept="image/*" capture="environment" style="display: none;" onclick="this.value=null;">
-        
         <button class="btn-checkin" id="btnCheckin" onclick="triggerCamera()">TOMAR FOTO E INICIAR</button>
         <button class="btn-cancel" onclick="closeModal()">Ahora no</button>
     </div>
@@ -180,29 +210,38 @@
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
         const name = localStorage.getItem("name") || "Usuario";
-        const role = localStorage.getItem("role") || "Promotor";
+        const role = (localStorage.getItem("role") || "Promotor").toLowerCase();
+        const projectName = localStorage.getItem("projectName") || "No seleccionado";
 
         if (!userId) {
             window.location.href = "./login.html";
             return;
         }
 
+        // 1. Datos del Perfil
         document.getElementById("userName").innerText = name;
         const elUserRole = document.getElementById("userRole");
-        if (elUserRole) {
-            elUserRole.innerText = role.toUpperCase();
-            if (role.toLowerCase() === "demostradora") {
-                elUserRole.style.color = "var(--gold)";
+        if (elUserRole) elUserRole.innerText = role.toUpperCase();
+
+        // 2. Control de Vistas según ROL
+        if (role === "cliente") {
+            // Configuración para Cliente
+            document.getElementById("welcomeOperativo").style.display = "none";
+            document.getElementById("storesContainer").style.display = "none";
+            document.getElementById("checkoutSection").style.display = "none";
+            
+            document.getElementById("welcomeCliente").style.display = "block";
+            document.getElementById("panelCliente").style.display = "block";
+            document.getElementById("btnMisProyectos").style.display = "block";
+            document.getElementById("projectNameDisplay").innerText = `Proyecto: ${projectName}`;
+        } else {
+            // Configuración para Promotores / Admin
+            document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
+            if (role === "admin" || role === "superadmin") {
+                document.getElementById("adminBtn").style.display = "block";
             }
+            await loadStores(userId);
         }
-
-        // LÓGICA PARA MOSTRAR BOTÓN DE ADMIN
-        if (role.toLowerCase() === "admin" || role.toLowerCase() === "superadmin") {
-            document.getElementById("adminBtn").style.display = "block";
-        }
-
-        document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
-        await loadStores(userId);
     };
 
     let selectedStore = null;
@@ -222,18 +261,12 @@
                 }
             });
 
-            if (!res.ok) throw new Error("No se pudo conectar con el servidor");
-            
+            if (!res.ok) throw new Error("No se pudo conectar");
             const userData = await res.json();
-            const stores = userData.stores || (Array.isArray(userData) ? userData : []);
+            const stores = userData.stores || [];
 
             if (stores.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align:center; padding:40px;">
-                        <span style="font-size:40px;">🏪</span>
-                        <h3>No tienes tiendas asignadas</h3>
-                        <p style="color:#64748b">Contacta a tu supervisor.</p>
-                    </div>`;
+                container.innerHTML = `<div style="text-align:center; padding:40px;"><h3>No tienes tiendas asignadas</h3></div>`;
                 return;
             }
 
@@ -246,10 +279,8 @@
                     <div class="arrow">➔</div>
                 </div>
             `).join("");
-
         } catch (err) {
-            console.error("Error:", err);
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>Revisa tu internet y recarga la página.</p>";
+            container.innerHTML = "<h3>⚠️ Error de conexión</h3>";
         }
     }
 
@@ -269,115 +300,84 @@
 
     document.getElementById('checkinCamera').onchange = function(e) {
         const file = e.target.files[0];
-        if (file) {
-            startCheckin(file);
-        }
+        if (file) startCheckin(file);
     };
 
     async function startCheckin(fotoFile) {
         const btn = document.getElementById("btnCheckin");
         const userId = localStorage.getItem("userId");
-        const agencyId = localStorage.getItem("agencyId"); // Obtener agencyId
-        const userRole = (localStorage.getItem("role") || "Promotor").toLowerCase();
+        const agencyId = localStorage.getItem("agencyId");
         
         if (!navigator.geolocation) return alert("GPS no disponible.");
-
-        btn.innerText = "PROCESANDO ASISTENCIA...";
+        btn.innerText = "PROCESANDO...";
         btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(async pos => {
             try {
                 const formData = new FormData();
                 formData.append("storeId", selectedStore._id);
-                formData.append("agencyId", agencyId); // Enviar agencyId para los reportes de admin
+                formData.append("agencyId", agencyId);
                 formData.append("lat", pos.coords.latitude);
                 formData.append("lng", pos.coords.longitude);
                 formData.append("photo", fotoFile);
 
                 const res = await fetch(`${BACKEND_URL}/checkin`, {
                     method: "POST",
-                    headers: { 
-                        "userid": userId 
-                    },
+                    headers: { "userid": userId },
                     body: formData
                 });
 
-                const data = await res.json();
                 if (res.ok) {
-                    localStorage.removeItem("dailyReportData"); 
                     localStorage.setItem("activeStoreId", selectedStore._id);
                     localStorage.setItem("activeStoreName", selectedStore.name);
-                    
-                    alert(`✅ Entrada y evidencia registrada en ${selectedStore.name}`);
-                    
-                    if (userRole === "demostradora") {
-                        window.location.href = "./home.html"; 
-                    } else {
-                        window.location.href = "./dashboard_tareas.html"; 
-                    }
+                    alert(`✅ Entrada registrada en ${selectedStore.name}`);
+                    window.location.href = "./dashboard_tareas.html"; 
                 } else {
-                    alert("❌ " + (data.error || "Error al marcar entrada"));
+                    const data = await res.json();
+                    alert("❌ " + (data.error || "Error"));
                     resetBtn(btn);
                 }
             } catch (err) {
                 alert("Error de red.");
                 resetBtn(btn);
             }
-        }, (err) => {
-            console.error(err);
-            alert("Es obligatorio el GPS para validar tu asistencia.");
+        }, () => {
+            alert("Se requiere GPS.");
             resetBtn(btn);
-        }, { enableHighAccuracy: true, timeout: 8000 });
+        }, { enableHighAccuracy: true });
     }
 
     async function finalizarTurno() {
         if (!confirm("¿Deseas cerrar tu turno por hoy?")) return;
-
         const btn = document.getElementById("btnCheckout");
         const userId = localStorage.getItem("userId");
-
-        btn.innerText = "REGISTRANDO SALIDA...";
+        btn.innerText = "CERRANDO...";
         btn.disabled = true;
 
         navigator.geolocation.getCurrentPosition(async pos => {
             try {
                 const res = await fetch(`${BACKEND_URL}/checkout`, {
                     method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json", 
-                        "userid": userId 
-                    },
-                    body: JSON.stringify({
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude
-                    })
+                    headers: { "Content-Type": "application/json", "userid": userId },
+                    body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude })
                 });
 
                 if (res.ok) {
-                    alert("✅ Turno cerrado con éxito.");
+                    alert("✅ Turno cerrado.");
                     logout();
                 } else {
-                    const data = await res.json();
-                    alert("❌ Error: " + data.error);
-                    btn.innerText = "CERRAR TURNO / SALIDA";
                     btn.disabled = false;
+                    btn.innerText = "CERRAR TURNO / SALIDA";
                 }
             } catch (err) {
-                alert("Error de conexión.");
-                btn.innerText = "CERRAR TURNO / SALIDA";
                 btn.disabled = false;
             }
-        }, () => {
-            alert("Es necesario el GPS para registrar tu salida.");
-            btn.innerText = "CERRAR TURNO / SALIDA";
-            btn.disabled = false;
-        }, { enableHighAccuracy: true, timeout: 8000 });
+        });
     }
 
     function resetBtn(btn) {
         btn.innerText = "TOMAR FOTO E INICIAR";
         btn.disabled = false;
-        document.getElementById('checkinCamera').value = ""; 
     }
 
     function logout() {
@@ -385,6 +385,5 @@
         window.location.href = "./login.html";
     }
 </script>
-
 </body>
 </html>

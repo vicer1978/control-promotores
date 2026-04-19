@@ -156,7 +156,7 @@
     <div class="drawer-nav">
         <button onclick="location.href='dashboard.html'">🏠 Inicio</button>
         <button id="btnMisProyectos" style="display:none;" onclick="location.href='mis-proyectos.html'">📂 Cambiar Proyecto</button>
-        <button id="adminBtn" style="display:none;" onclick="location.href='admin.html'">📊 Panel de Administración</button>
+        <button id="adminBtn" style="display:none;" onclick="location.href='Admin/admin.html'">📊 Panel de Administración</button>
         <button onclick="logout()" class="logout-btn">🚪 Cerrar Sesión</button>
     </div>
 </div>
@@ -183,7 +183,7 @@
 
     <div id="panelCliente" class="client-panel" style="display: none;">
         <p class="text-muted">Acceso rápido a la información de campo:</p>
-        <button class="btn-client" onclick="location.href='home.html'">Ver Reportes de Operación</button>
+        <button class="btn-client" onclick="location.href='Admin/admin.html'">Ver Reportes de Operación</button>
         <button class="btn-client" style="background: #64748b;" onclick="location.href='mis-proyectos.html'">Ver Otra Marca / Proyecto</button>
     </div>
 
@@ -233,6 +233,7 @@
             document.getElementById("welcomeCliente").style.display = "block";
             document.getElementById("panelCliente").style.display = "block";
             document.getElementById("btnMisProyectos").style.display = "block";
+            document.getElementById("adminBtn").style.display = "block"; // El cliente también usa el link del Admin en el Drawer
             document.getElementById("projectNameDisplay").innerText = `Proyecto: ${projectName}`;
         } else {
             // Configuración para Promotores / Admin

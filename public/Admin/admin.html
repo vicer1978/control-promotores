@@ -101,10 +101,15 @@ if (!session.userId) {
 }
 
 function applyRoleRestrictions() {
-    if (session.role === 'cliente') {
-        document.getElementById("adminOnlySections").style.display = "none";
-        session.selectedProjectId = session.userProjectId;
-        localStorage.setItem("selectedProjectId", session.userProjectId);
+    if (session.role && session.role.toLowerCase() === 'cliente') {
+        const adminSec = document.getElementById("adminOnlySections");
+        if(adminSec) adminSec.style.display = "none";
+        
+        // El cliente está anclado a su proyecto asignado
+        if (session.userProjectId) {
+            session.selectedProjectId = session.userProjectId;
+            localStorage.setItem("selectedProjectId", session.userProjectId);
+        }
     }
 }
 
@@ -117,7 +122,7 @@ async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
         "Content-Type": "application/json",
-        "projectid": session.selectedProjectId 
+        "projectid": session.selectedProjectId || "" 
     };
     options.headers = { ...(options.headers || {}), ...headers };
     const res = await fetch(url, options);
@@ -125,12 +130,20 @@ async function fetchAPI(url, options = {}) {
 }
 
 async function loadGlobalProjects() {
-    allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
+    // Usamos el endpoint específico para filtrar si es cliente
+    const url = session.role.toLowerCase() === 'cliente' ? `${BACKEND_URL}/client-projects` : `${BACKEND_URL}/projects`;
+    allProjects = await fetchAPI(url);
     const select = document.getElementById("globalProjectSelector");
     
-    if (session.role === 'cliente') {
-        const myProj = allProjects.find(p => p._id === session.userProjectId);
-        select.innerHTML = `<option value="${session.userProjectId}">${myProj ? myProj.name : 'Mi Marca'}</option>`;
+    if (session.role.toLowerCase() === 'cliente') {
+        const myProj = allProjects.find(p => p._id === session.userProjectId) || allProjects[0];
+        if (myProj) {
+            select.innerHTML = `<option value="${myProj._id}">${myProj.name}</option>`;
+            session.selectedProjectId = myProj._id;
+            localStorage.setItem("selectedProjectId", myProj._id);
+        } else {
+            select.innerHTML = `<option value="">Sin proyecto asignado</option>`;
+        }
         select.disabled = true; 
     } else {
         select.innerHTML = '<option value="">Todos los Clientes</option>' + 
@@ -149,9 +162,10 @@ function changeGlobalProject(val) {
 }
 
 function showWelcomeMessage() {
+    const roleText = session.role && session.role.toLowerCase() === 'cliente' ? 'Client' : 'Admin';
     document.getElementById("content").innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;">
-            <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">StorePulse ${session.role === 'cliente' ? 'Client' : 'Admin'}</h1>
+            <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">StorePulse ${roleText}</h1>
             <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">Monitoreo de marca en tiempo real.</p>
             <div style="width: 80px; height: 6px; background: var(--gold); margin-top: 30px; border-radius: 10px;"></div>
         </div>
@@ -178,7 +192,7 @@ function closeDrawer() {
 }
 
 async function loadProjectsSection() {
-    if(session.role === 'cliente') return;
+    if(session.role.toLowerCase() === 'cliente') return;
     allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
     document.getElementById("content").innerHTML = `
         <div class="card">
@@ -311,7 +325,7 @@ function renderTableReport(data, type) {
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     const hasPhoto = data.some(r => r.foto_url);
     if (hasPhoto) headers += `<th>EVIDENCIA</th>`;
-    const actionHeader = session.role === 'cliente' ? '' : '<th>ACCIÓN</th>';
+    const actionHeader = (session.role && session.role.toLowerCase() === 'cliente') ? '' : '<th>ACCIÓN</th>';
 
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${actionHeader}</tr></thead><tbody>`;
     html += data.map(r => {
@@ -329,7 +343,7 @@ function renderTableReport(data, type) {
             const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-';
             rowData += `<td>${img}</td>`;
         }
-        const actionBtn = session.role === 'cliente' ? '' : `<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Borrar</button></td>`;
+        const actionBtn = (session.role && session.role.toLowerCase() === 'cliente') ? '' : `<td><button class="btn-delete" onclick="deleteReport('${r._id}')">Borrar</button></td>`;
         return `<tr>${rowData}${actionBtn}</tr>`;
     }).join('');
     html += `</tbody></table></div>`;
@@ -367,7 +381,7 @@ function renderUsersTable() {
 }
 
 async function loadUsers() {
-    if(session.role === 'cliente') return;
+    if(session.role.toLowerCase() === 'cliente') return;
     
     const content = document.getElementById("content");
     if(!document.getElementById("usersTableBody")) {
@@ -444,23 +458,20 @@ async function createUser() {
         const result = await response.json();
 
         if(!response.ok) {
-            // INTEGRACIÓN DE MEJORA DE DIAGNÓSTICO
-            const errorData = result;
-            alert("Error: " + (errorData.error || errorData.message || "Error desconocido"));
-            console.log("Detalle técnico:", errorData);
+            alert("Error: " + (result.error || result.message || "Error desconocido"));
             return;
         }
 
-        if(result && result._id) {
+        if(result && (result._id || result.user)) {
             alert("✅ ¡Usuario creado exitosamente!");
-            allUsersCached.unshift(result); 
+            const createdUser = result.user || result;
+            allUsersCached.unshift(createdUser); 
             renderUsersTable(); 
             nameInput.value = "";
             emailInput.value = "";
             passInput.value = "";
         }
     } catch (err) {
-        console.error("Detalle técnico del error:", err);
         alert("❌ Error de conexión o error interno");
     } finally {
         btn.disabled = false;
@@ -550,7 +561,7 @@ function filterTagSearch(userId, val) {
 }
 
 async function loadStores() {
-    if(session.role === 'cliente') return;
+    if(session.role.toLowerCase() === 'cliente') return;
     const stores = await fetchAPI(`${BACKEND_URL}/stores`);
     cachedStores = stores;
     document.getElementById("content").innerHTML = `

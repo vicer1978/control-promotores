@@ -102,11 +102,9 @@ app.get("/projects", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener proyectos" }); }
 });
 
-// Ruta específica para que el cliente liste sus proyectos activos
 app.get("/client-projects", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId, active: true };
-        // Si el cliente tiene un projectId específico asignado en su perfil, lo limitamos a ese
         if (req.user.role.toLowerCase() === 'cliente' && req.user.projectId) {
             filter._id = req.user.projectId;
         }
@@ -136,14 +134,17 @@ app.delete("/projects/:id", auth, async (req, res) => {
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
         const { agencyId } = req.params;
-        const projectId = req.headers.projectid;
         const query = { agencyId };
         
-        // Seguridad para el rol cliente en asistencia
+        // REFUERZO DE SEGURIDAD PARA CLIENTE
         if (req.user.role.toLowerCase() === 'cliente') {
-            query.projectId = projectId || req.user.projectId;
-        } else if (projectId) {
-            query.projectId = projectId;
+            // El cliente SIEMPRE debe estar filtrado por un proyecto (el del header o el de su perfil)
+            const filterProject = req.headers.projectid || req.user.projectId;
+            if (!filterProject) return res.status(403).json({ error: "Acceso denegado: Proyecto no definido" });
+            query.projectId = filterProject;
+        } else {
+            // Admin puede filtrar opcionalmente
+            if (req.headers.projectid) query.projectId = req.headers.projectid;
         }
 
         const history = await Checkin.find(query)
@@ -235,18 +236,17 @@ app.post("/checkout", auth, async (req, res) => {
     }
 });
 
-// --- REPORTES (Con seguridad para el Cliente) ---
+// --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const query = { agencyId: req.params.agencyId };
         
-        // Bloque de seguridad: Si es cliente, forzamos el filtro de su proyecto seleccionado o asignado
+        // REFUERZO DE SEGURIDAD PARA CLIENTE EN REPORTES
         if (req.user.role.toLowerCase() === 'cliente') {
             const selectedProjectId = req.headers.projectid || req.user.projectId;
-            if (!selectedProjectId) return res.status(400).json({ error: "No se especificó un proyecto" });
+            if (!selectedProjectId) return res.status(403).json({ error: "No se especificó un proyecto" });
             query.projectId = selectedProjectId;
         } else {
-            // Si es admin, puede usar el filtro opcional del header
             const projectId = req.headers.projectid;
             if (projectId) query.projectId = projectId;
         }
@@ -326,7 +326,6 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// MODIFICACIÓN ROBUSTA PARA USUARIOS
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
@@ -362,12 +361,6 @@ app.post("/users", auth, async (req, res) => {
             return res.status(400).json({ 
                 error: `El ${field} ya está registrado.`,
                 detalle: `Duplicado detectado en: ${field}` 
-            });
-        }
-        if (err.name === 'ValidationError') {
-            return res.status(400).json({ 
-                error: "Error de validación", 
-                message: err.message
             });
         }
         res.status(500).json({ error: "Error interno al crear usuario", detalle: err.message }); 

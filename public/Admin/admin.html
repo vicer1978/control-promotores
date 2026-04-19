@@ -352,7 +352,6 @@ async function loadAttendance() {
     }).join('')}</tbody></table></div>`;
 }
 
-// FUNCION CORREGIDA: Renderizado local para respuesta inmediata
 function renderUsersTable() {
     const tableBody = document.querySelector("#usersTableBody");
     if(!tableBody) return;
@@ -371,7 +370,6 @@ async function loadUsers() {
     if(session.role === 'cliente') return;
     
     const content = document.getElementById("content");
-    // Solo mostramos "cargando" si la tabla no existe aún para no parpadear
     if(!document.getElementById("usersTableBody")) {
         content.innerHTML = `<div class="card" style="text-align:center">🔄 Sincronizando usuarios...</div>`;
     }
@@ -414,10 +412,11 @@ async function loadUsers() {
     renderUsersTable();
 }
 
+// FUNCION MEJORADA: Limpieza de datos y manejo de errores reales
 async function createUser() {
-    const name = document.getElementById("newUserName").value;
-    const email = document.getElementById("newUserEmail").value;
-    const password = document.getElementById("newUserPass").value;
+    const name = document.getElementById("newUserName").value.trim();
+    const email = document.getElementById("newUserEmail").value.trim().toLowerCase();
+    const password = document.getElementById("newUserPass").value.trim();
     const role = document.getElementById("newUserRole").value;
     const projectId = document.getElementById("newUserProject").value;
     
@@ -428,8 +427,13 @@ async function createUser() {
     btn.innerText = "PROCESANDO...";
 
     try {
-        const newUser = await fetchAPI(`${BACKEND_URL}/users`, { 
+        // Agregamos un cache-buster para evitar respuestas viejas de Render
+        const response = await fetch(`${BACKEND_URL}/users?cb=${Date.now()}`, { 
             method: 'POST', 
+            headers: {
+                "userid": session.userId,
+                "Content-Type": "application/json"
+            },
             body: JSON.stringify({ 
                 name, email, password, role, 
                 agencyId: session.agencyId, 
@@ -437,29 +441,33 @@ async function createUser() {
             }) 
         });
 
-        // Verificamos que el objeto tenga un ID (confirmación de creación real en DB)
-        if(newUser && newUser._id) {
+        const result = await response.json();
+
+        if(!response.ok) {
+            // Si el servidor manda un error, usamos su mensaje o uno por defecto
+            throw new Error(result.message || "Error al crear. El correo podría estar duplicado.");
+        }
+
+        if(result && result._id) {
             alert("¡Usuario creado exitosamente!");
             
-            // INSERCIÓN LOCAL INMEDIATA: No esperamos al servidor
-            allUsersCached.unshift(newUser); 
-            renderUsersTable(); // Refrescamos la tabla visualmente YA
+            // ACTUALIZACIÓN LOCAL INMEDIATA
+            allUsersCached.unshift(result); 
+            renderUsersTable(); 
             
             // Limpiar campos
             document.getElementById("newUserName").value = "";
             document.getElementById("newUserEmail").value = "";
             document.getElementById("newUserPass").value = "";
-        } else {
-            throw new Error("Respuesta inválida del servidor");
         }
     } catch (err) {
-        console.error(err);
-        alert("Error al crear. El correo podría estar duplicado.");
+        console.error("Detalle técnico:", err);
+        alert(err.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "GUARDAR";
-        // Recarga de seguridad un poco más larga para asegurar que Render/MongoDB asiente el cambio
-        setTimeout(loadUsers, 3000);
+        // Recarga de respaldo para sincronizar todo el estado
+        setTimeout(loadUsers, 2000);
     }
 }
 
@@ -512,7 +520,6 @@ async function updateUserField(userId, field, value) {
     body[field] = (field === 'projectId' && value === "") ? null : value;
     await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
     
-    // Después de actualizar, recargamos la lista y volvemos a abrir el detalle
     const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allUsersCached = updatedUsers;
     if(field === 'password') alert("Contraseña actualizada con éxito");
@@ -605,7 +612,6 @@ async function deleteProject(id, name) {
 async function deleteUser(id) {
     if(!confirm("¿Borrar usuario?")) return;
     await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: 'DELETE' });
-    // Eliminación local para feedback instantáneo
     allUsersCached = allUsersCached.filter(u => u._id !== id);
     renderUsersTable();
 }

@@ -102,7 +102,6 @@ let cachedStores = [];
 let allProjects = [];
 
 async function fetchAPI(url, options = {}) {
-    // Inyectamos projectid en los headers para filtrado automático en el servidor
     const headers = { 
         "userid": session.userId, 
         "Content-Type": "application/json",
@@ -123,7 +122,6 @@ async function loadGlobalProjects() {
 function changeGlobalProject(val) {
     session.selectedProjectId = val;
     localStorage.setItem("selectedProjectId", val);
-    // Recargar sección actual si existe
     const activeBtn = document.querySelector('.sidebar button.active');
     if(activeBtn) {
         const section = activeBtn.id.replace('btn-', '');
@@ -174,9 +172,15 @@ async function loadProjectsSection() {
         </div>
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estatus</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estatus</th><th>Acción</th></tr></thead>
                 <tbody>
-                    ${allProjects.map(p => `<tr><td><b>${p.name}</b></td><td>${p.description || '-'}</td><td><span class="badge" style="background:#dcfce7">Activo</span></td></tr>`).join('')}
+                    ${allProjects.map(p => `
+                        <tr>
+                            <td><b>${p.name}</b></td>
+                            <td>${p.description || '-'}</td>
+                            <td><span class="badge" style="background:#dcfce7; color:#16a34a">Activo</span></td>
+                            <td><button class="btn-delete" onclick="deleteProject('${p._id}', '${p.name}')">Eliminar</button></td>
+                        </tr>`).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -187,6 +191,13 @@ async function createProject() {
     const description = document.getElementById("projDesc").value;
     if(!name) return alert("Nombre de marca requerido");
     await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, description }) });
+    await loadGlobalProjects();
+    loadProjectsSection();
+}
+
+async function deleteProject(id, name) {
+    if(!confirm(`¿Estás seguro de que deseas eliminar el proyecto "${name}"? Esta acción no se puede deshacer.`)) return;
+    await fetchAPI(`${BACKEND_URL}/projects/${id}`, { method: 'DELETE' });
     await loadGlobalProjects();
     loadProjectsSection();
 }
@@ -208,7 +219,6 @@ async function loadReports() {
         allUsersCached = users;
         cachedStores = stores;
         allReportsRaw = Array.isArray(reports) ? reports : [];
-        const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
 
         document.getElementById("content").innerHTML = `
             <div class="card">
@@ -408,8 +418,13 @@ function viewUserDetail(userId) {
 }
 
 async function updateUserField(userId, field, value) {
-    const body = {}; body[field] = value;
+    const body = {}; 
+    // Modificación para permitir limpiar el proyecto enviando null si es vacío
+    body[field] = (field === 'projectId' && value === "") ? null : value;
+    
     await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
+    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = updatedUsers;
     loadUsers();
 }
 

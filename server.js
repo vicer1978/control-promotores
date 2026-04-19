@@ -110,6 +110,14 @@ app.post("/projects", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
 });
 
+// NUEVA RUTA: ELIMINAR PROYECTO
+app.delete("/projects/:id", auth, async (req, res) => {
+    try {
+        await Project.findByIdAndDelete(req.params.id);
+        res.json({ message: "Proyecto eliminado correctamente" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar proyecto" }); }
+});
+
 // --- ASISTENCIA (CHECKINS) ---
 app.get("/checkins/:agencyId", auth, async (req, res) => {
     try {
@@ -312,6 +320,12 @@ app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase();
+        
+        // Soporte para limpiar projectId si llega null o string vacío
+        if (updates.projectId === "" || updates.projectId === null) {
+            updates.projectId = null;
+        }
+
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
     } catch (err) { res.status(500).json({ error: "Error al actualizar usuario" }); }
@@ -353,6 +367,14 @@ app.post("/stores", auth, async (req, res) => {
         res.json({ message: "Tienda creada", store: newStore });
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
+
+app.delete("/stores/:id", auth, async (req, res) => {
+    try {
+        await Store.findByIdAndDelete(req.params.id);
+        res.json({ message: "Tienda eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
+});
+
 
 // --- RUTAS DE NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));

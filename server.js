@@ -296,7 +296,7 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// MODIFICACIÓN PARA DIAGNÓSTICO DE DUPLICADOS
+// MODIFICACIÓN ROBUSTA PARA USUARIOS
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
@@ -305,15 +305,17 @@ app.post("/users", auth, async (req, res) => {
             return res.status(400).json({ error: "Faltan datos obligatorios" });
         }
 
-        // Limpieza profunda y validación de projectId
-        const finalEmail = email.toLowerCase().trim();
-        const finalProjectId = (projectId === "" || !projectId) ? null : projectId;
+        // Validación de ProjectId para evitar CastError (Error 500)
+        let finalProjectId = null;
+        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+            finalProjectId = projectId;
+        }
 
         const newUser = new User({
             name: name.trim(),
-            email: finalEmail,
+            email: email.toLowerCase().trim(),
             password: password.trim(),
-            role,
+            role: role || 'Promotor',
             agencyId: agencyId || req.user.agencyId,
             projectId: finalProjectId,
             stores: stores || []
@@ -321,17 +323,20 @@ app.post("/users", auth, async (req, res) => {
 
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
+
     } catch (err) { 
         console.error("Error Mongo:", err);
-        // Si el error es de duplicado (E11000)
+        
+        // Manejo específico de duplicados
         if (err.code === 11000) {
             const field = Object.keys(err.keyPattern)[0];
             return res.status(400).json({ 
-                message: `El campo '${field}' ya está registrado. No puedes usar valores duplicados en ${field}.`,
-                detalle: err.message 
+                error: `El ${field} ya está registrado.`,
+                detalle: `Duplicado detectado en: ${field}` 
             });
         }
-        res.status(500).json({ message: "Error interno", detalle: err.message }); 
+        
+        res.status(500).json({ error: "Error interno al crear usuario", detalle: err.message }); 
     }
 });
 
@@ -339,7 +344,9 @@ app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
-        if (updates.projectId === "" || updates.projectId === null) {
+        
+        // Manejo de projectId en actualización
+        if (updates.projectId === "" || updates.projectId === null || !mongoose.Types.ObjectId.isValid(updates.projectId)) {
             updates.projectId = null;
         }
 

@@ -445,6 +445,8 @@ async function updateUserField(userId, field, value) {
     allUsersCached = updatedUsers;
     if(field === 'password') alert("Contraseña actualizada con éxito");
     loadUsers();
+    // Actualizar el detalle si el drawer sigue abierto
+    viewUserDetail(userId);
 }
 
 async function createUser() {
@@ -458,7 +460,7 @@ async function createUser() {
     
     await fetchAPI(`${BACKEND_URL}/users`, { 
         method: 'POST', 
-        body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId, projectId }) 
+        body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId, projectId: projectId || null }) 
     });
     loadUsers();
 }
@@ -524,7 +526,7 @@ async function createStore() {
     const address = document.getElementById("stAddr").value;
     const projectId = document.getElementById("stProject").value;
     if(!name) return alert("Nombre obligatorio");
-    await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId, projectId }) });
+    await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId, projectId: projectId || null }) });
     loadStores();
 }
 

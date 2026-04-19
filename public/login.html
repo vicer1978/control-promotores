@@ -89,12 +89,11 @@
 
                 if (res.ok) {
                     // --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
-                    // Verificamos que el ID tenga el formato correcto de MongoDB (24 caracteres)
                     if (!data.userId || data.userId.length !== 24) {
                         throw new Error("El servidor devolvió un ID de usuario no válido.");
                     }
 
-                    // 1. Limpiar sesión previa para evitar conflictos
+                    // 1. Limpiar sesión previa
                     localStorage.clear();
 
                     // 2. Guardar nuevos datos
@@ -102,7 +101,6 @@
                     localStorage.setItem('name', data.name);
                     
                     // --- NORMALIZACIÓN DE ROL ---
-                    // Guardamos en 'userRole' y en 'role' para que sea compatible con todas tus páginas
                     const normalizedRole = (data.role || 'promotor').toLowerCase().trim();
                     localStorage.setItem('userRole', normalizedRole); 
                     localStorage.setItem('role', normalizedRole); 
@@ -113,16 +111,24 @@
                         localStorage.setItem('activeAgencyId', data.agencyId); 
                     }
 
+                    // Guardar ProjectId si viene desde el login (opcional para clientes directos)
+                    if (data.projectId) {
+                        localStorage.setItem('projectId', data.projectId);
+                    }
+
                     console.log("Sesión guardada:", { id: data.userId, role: normalizedRole });
 
                     // 3. Redirección
-                    // Pequeño delay para asegurar que el localStorage se escribió correctamente
                     setTimeout(() => {
                         if (normalizedRole === 'super-admin') {
                             window.location.href = 'Admin/super-admin.html';
                         } else if (normalizedRole === 'admin') {
                             window.location.href = 'Admin/admin.html';
+                        } else if (normalizedRole === 'cliente') {
+                            // NUEVA RUTA: El cliente primero elige su proyecto
+                            window.location.href = 'mis-proyectos.html';
                         } else {
+                            // Promotores y Demostradoras van al dashboard operativo
                             window.location.href = 'dashboard.html';
                         }
                     }, 100);

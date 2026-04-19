@@ -102,6 +102,21 @@ app.get("/projects", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener proyectos" }); }
 });
 
+// Ruta específica para que el cliente liste sus proyectos activos
+app.get("/client-projects", auth, async (req, res) => {
+    try {
+        const filter = { agencyId: req.user.agencyId, active: true };
+        // Si el cliente tiene un projectId específico asignado en su perfil, lo limitamos a ese
+        if (req.user.role.toLowerCase() === 'cliente' && req.user.projectId) {
+            filter._id = req.user.projectId;
+        }
+        const projects = await Project.find(filter).sort({ name: 1 });
+        res.json(projects);
+    } catch (err) {
+        res.status(500).json({ error: "Error al cargar proyectos del cliente" });
+    }
+});
+
 app.post("/projects", auth, async (req, res) => {
     try {
         const newProject = new Project({ ...req.body, agencyId: req.user.agencyId });
@@ -123,7 +138,13 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const projectId = req.headers.projectid;
         const query = { agencyId };
-        if (projectId) query.projectId = projectId;
+        
+        // Seguridad para el rol cliente en asistencia
+        if (req.user.role.toLowerCase() === 'cliente') {
+            query.projectId = projectId || req.user.projectId;
+        } else if (projectId) {
+            query.projectId = projectId;
+        }
 
         const history = await Checkin.find(query)
             .populate("userId", "name role")
@@ -214,12 +235,21 @@ app.post("/checkout", auth, async (req, res) => {
     }
 });
 
-// --- REPORTES ---
+// --- REPORTES (Con seguridad para el Cliente) ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
-        const projectId = req.headers.projectid;
         const query = { agencyId: req.params.agencyId };
-        if (projectId) query.projectId = projectId;
+        
+        // Bloque de seguridad: Si es cliente, forzamos el filtro de su proyecto seleccionado o asignado
+        if (req.user.role.toLowerCase() === 'cliente') {
+            const selectedProjectId = req.headers.projectid || req.user.projectId;
+            if (!selectedProjectId) return res.status(400).json({ error: "No se especificó un proyecto" });
+            query.projectId = selectedProjectId;
+        } else {
+            // Si es admin, puede usar el filtro opcional del header
+            const projectId = req.headers.projectid;
+            if (projectId) query.projectId = projectId;
+        }
 
         const reports = await Report.find(query)
             .populate('userId', 'name role')
@@ -296,7 +326,7 @@ app.get("/users/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// MODIFICACIÓN ROBUSTA PARA USUARIOS (Corregido para Roles y CastError)
+// MODIFICACIÓN ROBUSTA PARA USUARIOS
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projectId } = req.body;
@@ -305,21 +335,18 @@ app.post("/users", auth, async (req, res) => {
             return res.status(400).json({ error: "Faltan datos obligatorios" });
         }
 
-        // Validación de ProjectId para evitar CastError (Error 500)
         let finalProjectId = null;
         if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
             finalProjectId = projectId;
         }
 
-        // Normalización del Rol para evitar fallos de validación (enum)
-        // Convertimos a minúsculas para comparar y luego capitalizamos si es necesario
         let finalRole = (role || 'promotor').toLowerCase().trim();
 
         const newUser = new User({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password: password.trim(),
-            role: finalRole, // Asegúrate de que tu modelo User.js acepte 'cliente' en el enum
+            role: finalRole,
             agencyId: agencyId || req.user.agencyId,
             projectId: finalProjectId,
             stores: stores || []
@@ -330,8 +357,6 @@ app.post("/users", auth, async (req, res) => {
 
     } catch (err) { 
         console.error("Error Mongo:", err);
-        
-        // Manejo específico de duplicados
         if (err.code === 11000) {
             const field = Object.keys(err.keyPattern)[0];
             return res.status(400).json({ 
@@ -339,16 +364,12 @@ app.post("/users", auth, async (req, res) => {
                 detalle: `Duplicado detectado en: ${field}` 
             });
         }
-
-        // Manejo específico de errores de validación (Como el de 'cliente')
         if (err.name === 'ValidationError') {
             return res.status(400).json({ 
                 error: "Error de validación", 
-                message: err.message,
-                detalle: "Asegúrate de que el rol 'cliente' esté permitido en el modelo User.js" 
+                message: err.message
             });
         }
-        
         res.status(500).json({ error: "Error interno al crear usuario", detalle: err.message }); 
     }
 });
@@ -358,7 +379,6 @@ app.put("/users/:id", auth, async (req, res) => {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
         
-        // Manejo de projectId en actualización
         if (updates.projectId === "" || updates.projectId === null || !mongoose.Types.ObjectId.isValid(updates.projectId)) {
             updates.projectId = null;
         }
@@ -417,6 +437,7 @@ app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
 app.get("/dashboard_tareas", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard_tareas.html")));
+app.get("/mis-proyectos", (req, res) => res.sendFile(path.resolve(__dirname, "public", "mis-proyectos.html")));
 app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 

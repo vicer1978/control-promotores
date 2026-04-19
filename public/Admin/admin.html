@@ -354,9 +354,18 @@ async function loadAttendance() {
 
 async function loadUsers() {
     if(session.role === 'cliente') return;
-    const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
+    
+    // Forzamos la limpieza del contenido previo para evitar duplicados o estados viejos
+    document.getElementById("content").innerHTML = `<div class="card" style="text-align:center">Cargando Usuarios...</div>`;
+
+    const [users, stores] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/users`), 
+        fetchAPI(`${BACKEND_URL}/stores`)
+    ]);
+    
     allUsersCached = users;
     cachedStores = stores;
+    
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>👥 Gestión de Usuarios</h2>
@@ -391,6 +400,40 @@ async function loadUsers() {
                 </tbody>
             </table>
         </div>`;
+}
+
+async function createUser() {
+    const name = document.getElementById("newUserName").value;
+    const email = document.getElementById("newUserEmail").value;
+    const password = document.getElementById("newUserPass").value;
+    const role = document.getElementById("newUserRole").value;
+    const projectId = document.getElementById("newUserProject").value;
+    
+    if(!name || !email || !password) return alert("Nombre, Email y Contraseña son obligatorios");
+    
+    const res = await fetchAPI(`${BACKEND_URL}/users`, { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+            name, 
+            email, 
+            password, 
+            role, 
+            agencyId: session.agencyId, 
+            projectId: projectId || null 
+        }) 
+    });
+
+    if(res) {
+        alert("¡Usuario creado exitosamente!");
+        // Limpiar campos manualmente
+        document.getElementById("newUserName").value = "";
+        document.getElementById("newUserEmail").value = "";
+        document.getElementById("newUserPass").value = "";
+        // Recargar la sección completa
+        await loadUsers();
+    } else {
+        alert("Error al guardar el usuario.");
+    }
 }
 
 function viewUserDetail(userId) {
@@ -441,45 +484,14 @@ async function updateUserField(userId, field, value) {
     const body = {}; 
     body[field] = (field === 'projectId' && value === "") ? null : value;
     await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
+    
+    // Después de actualizar, recargamos la lista y volvemos a abrir el detalle
     const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
     allUsersCached = updatedUsers;
     if(field === 'password') alert("Contraseña actualizada con éxito");
-    loadUsers();
-}
-
-async function createUser() {
-    const nameInput = document.getElementById("newUserName");
-    const emailInput = document.getElementById("newUserEmail");
-    const passInput = document.getElementById("newUserPass");
-    const roleInput = document.getElementById("newUserRole");
-    const projInput = document.getElementById("newUserProject");
     
-    if(!nameInput.value || !emailInput.value || !passInput.value) return alert("Nombre, Email y Contraseña son obligatorios");
-    
-    try {
-        await fetchAPI(`${BACKEND_URL}/users`, { 
-            method: 'POST', 
-            body: JSON.stringify({ 
-                name: nameInput.value, 
-                email: emailInput.value, 
-                password: passInput.value, 
-                role: roleInput.value, 
-                agencyId: session.agencyId, 
-                projectId: projInput.value || null 
-            }) 
-        });
-
-        // Limpiar inputs inmediatamente para dar feedback visual
-        nameInput.value = "";
-        emailInput.value = "";
-        passInput.value = "";
-
-        // Forzar recarga total de datos
-        await loadUsers();
-    } catch (err) {
-        console.error("Error creando usuario:", err);
-        alert("Hubo un error al crear el usuario.");
-    }
+    await loadUsers();
+    viewUserDetail(userId);
 }
 
 async function assignStore(userId, storeId) {

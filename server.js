@@ -414,24 +414,30 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // Eliminamos el filtro de agencyId y projectId. 
-        // Ahora el filtro está vacío {}, lo que trae TODAS las tiendas del catálogo global.
-        let filter = {}; 
+        let filter = {};
 
-        // Si quieres que el usuario SOLO vea las que tiene asignadas en su perfil:
-        if (req.user.role !== 'admin' && req.user.stores && req.user.stores.length > 0) {
-            filter._id = { $in: req.user.stores };
+        // 1. Si el usuario NO es admin (es decir, es Maria/Promotor), 
+        // solo le mostramos las tiendas que tiene asignadas en su perfil.
+        if (req.user.role !== 'admin' && req.user.role !== 'super-admin') {
+            if (req.user.stores && req.user.stores.length > 0) {
+                filter._id = { $in: req.user.stores };
+            } else {
+                // Si no tiene tiendas asignadas, devolvemos lista vacía
+                return res.json([]);
+            }
         }
 
+        // 2. Si es ADMIN, el filtro se queda vacío {} y Store.find({}) 
+        // traerá TODO el catálogo universal para poder asignar nuevas.
         const stores = await Store.find(filter).sort({ name: 1 });
+        res.json(stores);
         
-        // Enviamos siempre un array (aunque esté vacío) para que la app no explote
-        res.json(stores || []);
     } catch (err) { 
-        console.error("Error al cargar catálogo global:", err);
-        res.status(500).json({ error: "Error al conectar con el catálogo de tiendas" }); 
+        console.error("Error en stores:", err);
+        res.status(500).json({ error: "Error al cargar catálogo" }); 
     }
 });
+
 
 
 

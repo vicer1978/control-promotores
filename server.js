@@ -403,24 +403,35 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        const projectId = req.headers.projectid;
-        const filter = { agencyId: req.user.agencyId };
-        
-        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
-            filter.projectId = projectId;
-        }
+        // Filtro base: solo por agencia (hace la tienda global para tu empresa)
+        let filter = { agencyId: req.user.agencyId };
+
+        // Si el usuario es promotor/demo y tiene tiendas en su array 'stores'
+        if (req.user.role !== 'admin' && req.user.stores && req.user.stores.length > 0) {
+            filter._id = { $in: req.user.stores };
+        } 
+        // Nota: Ya NO filtramos por projectId aquí para que Maria vea su Walmart
         
         const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
-    } catch (err) { res.status(500).json({ error: "Error al cargar tiendas" }); }
+    } catch (err) { 
+        res.status(500).json({ error: "Error al cargar tiendas" }); 
+    }
 });
 
 app.post("/stores", auth, async (req, res) => {
     try {
-        const newStore = new Store({ ...req.body, agencyId: req.user.agencyId });
+        // Quitamos la dependencia forzada de projectId al crear
+        const newStore = new Store({ 
+            ...req.body, 
+            agencyId: req.user.agencyId 
+            // projectId queda opcional o se omite para ser global
+        });
         await newStore.save();
         res.json({ message: "Tienda creada", store: newStore });
-    } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
+    } catch (err) { 
+        res.status(500).json({ error: "Error al crear tienda" }); 
+    }
 });
 
 app.delete("/stores/:id", auth, async (req, res) => {

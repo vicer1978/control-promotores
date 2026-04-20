@@ -92,13 +92,21 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (CORREGIDO SIN POPULATE CONFLICTIVO) ---
+// --- GESTIÓN DE PROYECTOS (MODIFICADO PARA MOSTRAR CLIENTE) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Se eliminó .populate("clientId") porque no existe en tu esquema de Project
+        // Agregamos .populate para traer el nombre del cliente desde la colección de Usuarios
         const projects = await Project.find({ agencyId: req.user.agencyId })
+            .populate("clientId", "name") 
             .sort({ name: 1 });
-        res.json(projects);
+        
+        // Formateamos la respuesta para que el frontend reciba "clientName" directamente si existe
+        const formattedProjects = projects.map(p => ({
+            ...p._doc,
+            clientName: p.clientId ? p.clientId.name : "Sin asignar"
+        }));
+        
+        res.json(formattedProjects);
     } catch (err) { 
         console.error("Error al obtener proyectos:", err);
         res.status(500).json({ error: "Error al obtener proyectos" }); 
@@ -111,7 +119,7 @@ app.get("/client-projects", auth, async (req, res) => {
         if (req.user.role.toLowerCase() === 'cliente') {
             filter.clientId = req.user._id;
         }
-        const projects = await Project.find(filter).sort({ name: 1 });
+        const projects = await Project.find(filter).populate("clientId", "name").sort({ name: 1 });
         res.json(projects);
     } catch (err) {
         res.status(500).json({ error: "Error al cargar proyectos del cliente" });
@@ -120,11 +128,12 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, clientId } = req.body;
         if (!name) return res.status(400).json({ error: "El nombre de la marca/proyecto es necesario" });
 
         const newProject = new Project({ 
             ...req.body, 
+            clientId: clientId || null, // Aseguramos que se guarde el cliente seleccionado
             agencyId: req.user.agencyId
         });
         await newProject.save();
@@ -138,7 +147,7 @@ app.post("/projects", auth, async (req, res) => {
 app.put("/projects/:id", auth, async (req, res) => {
     try {
         const updates = req.body;
-        const project = await Project.findByIdAndUpdate(req.params.id, updates, { new: true });
+        const project = await Project.findByIdAndUpdate(req.params.id, updates, { new: true }).populate("clientId", "name");
         res.json({ message: "Proyecto actualizado con éxito", project });
     } catch (err) { res.status(500).json({ error: "Error al actualizar proyecto" }); }
 });
@@ -198,7 +207,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS (SIN POPULATE DE PROJECTS) ---
+// --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
@@ -306,4 +315,3 @@ app.get(/.*/, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));
-

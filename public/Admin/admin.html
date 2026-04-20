@@ -193,7 +193,7 @@ function closeDrawer() {
     document.getElementById("drawerOverlay").classList.remove("active");
 }
 
-// --- SECCIÓN PROYECTOS ACTUALIZADA ---
+// --- SECCIÓN PROYECTOS ---
 async function loadProjectsSection() {
     if(session.role && session.role.toLowerCase() === 'cliente') return;
     
@@ -259,8 +259,8 @@ async function createProject() {
 
     if(result) {
         alert("✅ Proyecto creado y vinculado con éxito.");
-        await loadGlobalProjects(); // Actualiza el selector de la sidebar
-        loadProjectsSection(); // Recarga la tabla
+        await loadGlobalProjects(); 
+        loadProjectsSection(); 
     }
 }
 
@@ -454,31 +454,37 @@ async function createUser() {
     const password = document.getElementById("newUserPass").value;
     const role = document.getElementById("newUserRole").value;
     if(!name || !email || !password) return alert("Datos incompletos");
-    await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) });
+    
+    await fetchAPI(`${BACKEND_URL}/users`, { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+            name, email, password, role, 
+            agencyId: session.agencyId,
+            projectId: null // Por defecto sin proyecto al crear
+        }) 
+    });
     loadUsers();
 }
 
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
+
     let html = `
         <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
-        <label>🏷️ Proyectos / Marcas Asignadas</label>
+        
+        <label>🏷️ Proyecto Principal (Marca)</label>
         <div class="tag-search-container">
-            <select style="width:100%" onchange="assignProject('${userId}', this.value); this.value=''">
-                <option value="">+ Agregar Proyecto...</option>
-                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientName || 'Gral'})</option>`).join('')}
+            <select id="userProjectSelect" style="width:100%" onchange="updateUserField('${u._id}', 'projectId', this.value)">
+                <option value="">-- Sin Proyecto Asignado --</option>
+                ${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name.toUpperCase()} (${p.clientName || 'Gral'})</option>`).join('')}
             </select>
         </div>
-        <div class="assigned-chips-box" style="margin-bottom:20px;">
-            ${(u.projects || []).map(pid => {
-                const proj = allProjects.find(p => p._id === pid);
-                return proj ? `<div class="chip project-chip">${proj.name} <span onclick="unassignProject('${userId}', '${pid}')">&times;</span></div>` : '';
-            }).join('')}
-        </div>
+        <p style="font-size:10px; color:#64748b; margin-top:-5px; margin-bottom:20px;">* El proyecto principal define qué marcas ve el colaborador en su App.</p>
+
         <label>📍 Tiendas Asignadas</label>
         <div class="tag-search-container">
-            <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
+            <input type="text" placeholder="Buscar tienda para asignar..." onkeyup="filterTagSearch('${userId}', this.value)">
             <div id="tagSearchResults" class="search-results-dropdown"></div>
         </div>
         <div class="assigned-chips-box">
@@ -488,14 +494,20 @@ function viewUserDetail(userId) {
                 return store ? `<div class="chip">${store.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : '';
             }).join('')}
         </div>
+
         <hr style="margin:20px 0; opacity:0.2">
-        <label>Cambiar Rol</label>
-        <select style="width:100%" onchange="updateUserField('${u._id}', 'role', this.value)">
-            <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
-            <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
-            <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
-            <option value="cliente" ${u.role==='cliente'?'selected':''}>Cliente</option>
-        </select>`;
+        <label>Configuración de Cuenta</label>
+        <div class="grid-filters" style="grid-template-columns: 1fr; margin-top:10px;">
+            <div>
+                <label>Rol de Usuario</label>
+                <select style="width:100%" onchange="updateUserField('${u._id}', 'role', this.value)">
+                    <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+                    <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
+                    <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
+                    <option value="cliente" ${u.role==='cliente'?'selected':''}>Cliente</option>
+                </select>
+            </div>
+        </div>`;
     openDrawer(html);
 }
 
@@ -542,24 +554,24 @@ async function createStore() {
 }
 
 // --- UTILIDADES ---
-async function assignProject(userId, projectId) {
-    if(!projectId) return;
-    await fetchAPI(`${BACKEND_URL}/users/${userId}/assign-project`, { method: 'POST', body: JSON.stringify({ projectId }) });
-    const users = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = Array.isArray(users) ? users : [];
-    viewUserDetail(userId);
-}
-
-async function unassignProject(userId, projectId) {
-    await fetchAPI(`${BACKEND_URL}/users/${userId}/projects/${projectId}`, { method: 'DELETE' });
-    const users = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = Array.isArray(users) ? users : [];
-    viewUserDetail(userId);
-}
-
 async function updateUserField(userId, field, value) {
-    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify({ [field]: value }) });
-    loadUsers();
+    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, { 
+        method: 'PUT', 
+        body: JSON.stringify({ [field]: value }) 
+    });
+    
+    if(res) {
+        // Actualizamos caché local para no recargar todo
+        const uIdx = allUsersCached.findIndex(x => x._id === userId);
+        if(uIdx !== -1) allUsersCached[uIdx][field] = value;
+        
+        // Si estamos en el drawer, refrescamos la vista del detalle
+        if(document.getElementById("drawerOverlay").classList.contains("active")) {
+            viewUserDetail(userId);
+        } else {
+            loadUsers();
+        }
+    }
 }
 
 async function assignStore(userId, storeId) {

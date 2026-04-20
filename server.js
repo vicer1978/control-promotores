@@ -92,17 +92,16 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (MODIFICADO PARA MOSTRAR CLIENTE) ---
+// --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Agregamos .populate para traer el nombre del cliente desde la colección de Usuarios
         const projects = await Project.find({ agencyId: req.user.agencyId })
             .populate("clientId", "name") 
-            .sort({ name: 1 });
+            .sort({ name: 1 })
+            .lean();
         
-        // Formateamos la respuesta para que el frontend reciba "clientName" directamente si existe
         const formattedProjects = projects.map(p => ({
-            ...p._doc,
+            ...p,
             clientName: p.clientId ? p.clientId.name : "Sin asignar"
         }));
         
@@ -133,7 +132,7 @@ app.post("/projects", auth, async (req, res) => {
 
         const newProject = new Project({ 
             ...req.body, 
-            clientId: clientId || null, // Aseguramos que se guarde el cliente seleccionado
+            clientId: clientId || null,
             agencyId: req.user.agencyId
         });
         await newProject.save();
@@ -254,15 +253,34 @@ app.post("/users", auth, async (req, res) => {
     }
 });
 
+// RUTA ACTUALIZADA: Asegura el guardado del projectId
 app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
+        
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
+        
+        // Manejo especial de projectId para asegurar que se guarde correctamente
+        if (updates.projectId === "" || updates.projectId === "null") {
+            updates.projectId = null;
+        }
+
+        // Seguridad: No permitir cambiar la agencia
         delete updates.agencyId; 
 
-        const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
+        const user = await User.findByIdAndUpdate(
+            req.params.id, 
+            { $set: updates }, // Usamos $set para forzar la actualización de los campos enviados
+            { new: true }
+        ).populate('stores');
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
         res.json({ message: "Usuario actualizado", user });
-    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+    } catch (err) { 
+        console.error("Error al actualizar usuario:", err);
+        res.status(500).json({ error: "Error al actualizar" }); 
+    }
 });
 
 app.delete("/users/:id", auth, async (req, res) => {

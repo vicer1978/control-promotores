@@ -94,7 +94,6 @@ app.post("/login", async (req, res) => {
 // --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Agregamos populate para que el cliente no aparezca como "Sin asignar" o solo el ID
         const projects = await Project.find({ agencyId: req.user.agencyId })
             .populate("clientId", "name email")
             .sort({ name: 1 });
@@ -127,7 +126,6 @@ app.post("/projects", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
 });
 
-// NUEVO: Editar Proyecto
 app.put("/projects/:id", auth, async (req, res) => {
     try {
         const updates = req.body;
@@ -301,17 +299,28 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS ---
+// --- GESTIÓN DE USUARIOS (CORREGIDO) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
         const filter = { agencyId: req.user.agencyId };
-        if (projectId) filter.projects = projectId;
+        
+        // CORRECCIÓN: Si hay un projectId, filtramos. Si no, mostramos todos de la agencia.
+        // Usamos $in para buscar el proyecto dentro del array de proyectos del usuario.
+        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+            filter.projects = { $in: [projectId] };
+        }
 
-        // Populate projects para ver los nombres asignados en la tabla
-        const users = await User.find(filter).populate('stores').populate('projects', 'name');
+        const users = await User.find(filter)
+            .populate('stores')
+            .populate('projects', 'name')
+            .sort({ name: 1 });
+            
         res.json(users);
-    } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
+    } catch (err) { 
+        console.error("Error en GET /users:", err);
+        res.status(500).json({ error: "Error al cargar usuarios" }); 
+    }
 });
 
 app.post("/users", auth, async (req, res) => {
@@ -357,6 +366,13 @@ app.put("/users/:id", auth, async (req, res) => {
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
     } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+});
+
+app.delete("/users/:id", auth, async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: "Usuario eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar usuario" }); }
 });
 
 // --- GESTIÓN DE TIENDAS ---

@@ -88,15 +88,20 @@ app.post("/login", async (req, res) => {
             email: email.trim().toLowerCase(), 
             password: password.trim() 
         });
+
         if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
+
+        // AGREGAMOS projectId a la respuesta
         res.json({ 
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
-            name: user.name 
+            name: user.name,
+            projectId: user.projectId // <--- ESTO ES VITAL PARA MARIA
         });
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
+
 
 // --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {

@@ -76,6 +76,8 @@ async function auth(req, res, next) {
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ message: "Email y password requeridos" });
+
         const user = await User.findOne({ 
             email: email.trim().toLowerCase(), 
             password: password.trim() 
@@ -147,13 +149,13 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const query = { agencyId };
         
+        const filterProject = req.headers.projectid;
         if (req.user.role.toLowerCase() === 'cliente') {
-            const filterProject = req.headers.projectid;
             const hasAccess = await Project.findOne({ _id: filterProject, clientId: req.user._id });
-            if (!hasAccess) return res.status(403).json({ error: "Acceso denegado a este proyecto" });
+            if (!hasAccess) return res.status(403).json({ error: "Acceso denegado" });
             query.projectId = filterProject;
-        } else {
-            if (req.headers.projectid) query.projectId = req.headers.projectid;
+        } else if (filterProject && mongoose.Types.ObjectId.isValid(filterProject)) {
+            query.projectId = filterProject;
         }
 
         const history = await Checkin.find(query)
@@ -163,7 +165,7 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
             .limit(100);
         res.json(history);
     } catch (err) {
-        res.status(500).json({ error: "Error al obtener historial de asistencia" });
+        res.status(500).json({ error: "Error al obtener historial" });
     }
 });
 
@@ -171,12 +173,11 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
         const { storeId, lat, lng, projectId } = req.body;
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
-        const currentProjectId = projectId || req.user.projectId;
 
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            projectId: currentProjectId,
+            projectId: projectId || req.user.projectId,
             storeId: storeId,
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkin",
@@ -184,185 +185,70 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             timestamp: new Date()
         });
         await newCheckin.save();
-
-        const checkinReport = new Report({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            projectId: currentProjectId,
-            storeId: storeId,
-            reporte: "checkin",
-            foto_url: fotoUrl,
-            location: { lat: Number(lat), lng: Number(lng) }
-        });
-        await checkinReport.save();
-
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
-        res.status(500).json({ error: "Error en checkin", detalle: err.message });
+        res.status(500).json({ error: "Error en checkin" });
     }
 });
 
-app.post("/checkout", auth, async (req, res) => {
-    try {
-        const { lat, lng, storeId, projectId } = req.body;
-        const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        if (!lastEvent || lastEvent.type === "checkout") {
-            return res.status(400).json({ error: "No hay una entrada activa." });
-        }
-        const currentProjectId = projectId || lastEvent.projectId || req.user.projectId;
-
-        const newCheckout = new Checkin({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            projectId: currentProjectId,
-            storeId: storeId || lastEvent.storeId,
-            location: { lat: Number(lat), lng: Number(lng) },
-            type: "checkout", 
-            timestamp: new Date()
-        });
-        await newCheckout.save();
-
-        const checkoutReport = new Report({
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            projectId: currentProjectId,
-            storeId: storeId || lastEvent.storeId,
-            reporte: "checkout",
-            location: { lat: Number(lat), lng: Number(lng) }
-        });
-        await checkoutReport.save();
-
-        res.json({ message: "Salida registrada con éxito" });
-    } catch (err) {
-        res.status(500).json({ error: "Error en checkout" });
-    }
-});
-
-// --- REPORTES ---
-app.get("/reports/agency/:agencyId", auth, async (req, res) => {
-    try {
-        const query = { agencyId: req.params.agencyId };
-        
-        if (req.user.role.toLowerCase() === 'cliente') {
-            const selectedProjectId = req.headers.projectid;
-            const hasAccess = await Project.findOne({ _id: selectedProjectId, clientId: req.user._id });
-            if (!hasAccess) return res.status(403).json({ error: "No tienes permiso para ver este proyecto" });
-            query.projectId = selectedProjectId;
-        } else {
-            if (req.headers.projectid) query.projectId = req.headers.projectid;
-        }
-
-        const reports = await Report.find(query)
-            .populate('userId', 'name role')
-            .populate('storeId', 'name')
-            .sort({ createdAt: -1 });
-        res.json(reports);
-    } catch (err) {
-        res.status(500).json({ error: "Error al cargar reportes" });
-    }
-});
-
-app.post("/reports", auth, upload.single("photo"), async (req, res) => {
-    try {
-        const obs = req.body.observaciones || req.body.comentarios || "";
-        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
-        if (tipoReporte.toLowerCase().includes("exhibicion")) tipoReporte = "exhibicion";
-        
-        const reportData = {
-            ...req.body,
-            userId: req.user._id,
-            agencyId: req.user.agencyId,
-            projectId: req.body.projectId || req.user.projectId,
-            storeId: req.body.storeId, 
-            reporte: tipoReporte, 
-            foto_url: req.file ? `/uploads/${req.file.filename}` : null,
-            cantidad: Number(req.body.cantidad) || 0,
-            inv_inicial: Number(req.body.inv_inicial) || 0,
-            resurtido: Number(req.body.resurtido) || 0,
-            ventas: Number(req.body.ventas) || 0, 
-            inv_final: Number(req.body.inv_final) || 0,
-            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
-            precio_oferta: Number(req.body.precio_oferta) || 0,
-            personas: Number(req.body.personas) || 0,
-            observaciones: obs,
-            location: (req.body.lat && req.body.lng) ? {
-                lat: Number(req.body.lat),
-                lng: Number(req.body.lng)
-            } : { lat: 0, lng: 0 }
-        };
-        const report = new Report(reportData);
-        await report.save();
-        res.json({ message: "Reporte guardado con éxito", id: report._id });
-    } catch (err) { 
-        res.status(500).json({ error: "Error interno al guardar", detalles: err.message }); 
-    }
-});
-
-// --- GESTIÓN DE USUARIOS (CORREGIDO) ---
+// --- GESTIÓN DE USUARIOS (MEJORADO) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
+        // Filtro base: misma agencia que el admin logueado
         const filter = { agencyId: req.user.agencyId };
-        
-        // CORRECCIÓN: Si hay un projectId, filtramos. Si no, mostramos todos de la agencia.
-        // Usamos $in para buscar el proyecto dentro del array de proyectos del usuario.
+
+        // CORRECCIÓN: Si hay un proyecto seleccionado, filtramos.
+        // Si el valor es "all", "undefined" o vacío, no aplicamos el filtro de proyecto
         if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
-            filter.projects = { $in: [projectId] };
+            filter.projectId = projectId;
         }
 
         const users = await User.find(filter)
             .populate('stores')
-            .populate('projects', 'name')
             .sort({ name: 1 });
             
         res.json(users);
     } catch (err) { 
-        console.error("Error en GET /users:", err);
+        console.error("Error al cargar usuarios:", err);
         res.status(500).json({ error: "Error al cargar usuarios" }); 
     }
 });
 
 app.post("/users", auth, async (req, res) => {
     try {
-        const { name, email, password, role, agencyId, stores, projects } = req.body;
+        console.log("Datos recibidos para nuevo usuario:", req.body); // Log para debug
+        const { name, email, password, role, projectId, stores } = req.body;
+        
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: "Nombre, email y contraseña son obligatorios" });
+        }
+
         const newUser = new User({
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
-            password: password.trim(),
+            name: name.toString().trim(),
+            email: email.toString().toLowerCase().trim(),
+            password: password.toString().trim(),
             role: (role || 'promotor').toLowerCase().trim(),
-            agencyId: agencyId || req.user.agencyId,
-            projects: projects || [], 
+            agencyId: req.user.agencyId,
+            projectId: (projectId && mongoose.Types.ObjectId.isValid(projectId)) ? projectId : null, 
             stores: stores || []
         });
+
         await newUser.save();
-        res.json({ message: "Usuario creado", user: newUser });
-    } catch (err) { res.status(500).json({ error: "Error al crear usuario", detalle: err.message }); }
-});
-
-// Asignar Proyecto a Usuario
-app.post("/users/:userId/assign-project", auth, async (req, res) => {
-    try {
-        const { projectId } = req.body;
-        if (!projectId) return res.status(400).json({ error: "projectId requerido" });
-        await User.findByIdAndUpdate(req.params.userId, { $addToSet: { projects: projectId } });
-        res.json({ message: "Proyecto asignado con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error al asignar proyecto" }); }
-});
-
-// Eliminar Proyecto de Usuario
-app.delete("/users/:userId/projects/:projectId", auth, async (req, res) => {
-    try {
-        const { userId, projectId } = req.params;
-        await User.findByIdAndUpdate(userId, { $pull: { projects: projectId } });
-        res.json({ message: "Proyecto desasignado con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error al desasignar proyecto" }); }
+        res.json({ message: "Usuario creado con éxito", user: newUser });
+    } catch (err) { 
+        console.error("Error detallado al crear usuario:", err);
+        res.status(500).json({ error: "No se pudo guardar el usuario", detalle: err.message }); 
+    }
 });
 
 app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
+        // Evitar que se cambie la agencia por error
+        delete updates.agencyId; 
+
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
     } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
@@ -372,7 +258,7 @@ app.delete("/users/:id", auth, async (req, res) => {
     try {
         await User.findByIdAndDelete(req.params.id);
         res.json({ message: "Usuario eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar usuario" }); }
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
 // --- GESTIÓN DE TIENDAS ---
@@ -380,10 +266,14 @@ app.get("/stores", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
         const filter = { agencyId: req.user.agencyId };
-        if (projectId) filter.projectId = projectId;
+        
+        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+            filter.projectId = projectId;
+        }
+        
         const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al cargar tiendas" }); }
 });
 
 app.post("/stores", auth, async (req, res) => {
@@ -391,29 +281,26 @@ app.post("/stores", auth, async (req, res) => {
         const newStore = new Store({ ...req.body, agencyId: req.user.agencyId });
         await newStore.save();
         res.json({ message: "Tienda creada", store: newStore });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
 });
 
 app.delete("/stores/:id", auth, async (req, res) => {
     try {
         await Store.findByIdAndDelete(req.params.id);
         res.json({ message: "Tienda eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
 
 // --- RUTAS DE NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
-app.get("/dashboard_tareas", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard_tareas.html")));
-app.get("/mis-proyectos", (req, res) => res.sendFile(path.resolve(__dirname, "public", "mis-proyectos.html")));
 app.get("/home", (req, res) => res.sendFile(path.resolve(__dirname, "public", "home.html")));
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
 app.get(/.*/, (req, res) => {
-    if (req.path.startsWith('/uploads/')) return res.status(404).send('Archivo no encontrado');
     res.sendFile(path.resolve(__dirname, "public", "login.html"));
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor corriendo en puerto ${PORT}`));
+app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));

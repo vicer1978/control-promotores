@@ -58,9 +58,11 @@ mongoose.connect(process.env.MONGO_URI)
 
 async function auth(req, res, next) {
     try {
-        const userId = req.headers.userid || req.headers.userId; 
+        // Buscamos el ID en cualquier variante de header
+        const userId = req.headers.userid || req.headers.userId || req.headers.UserId; 
+        
         if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(401).json({ error: "Sesión inválida o ID malformado" });
+            return res.status(401).json({ error: "Sesión inválida" });
         }
         const user = await User.findById(userId);
         if (!user) return res.status(401).json({ error: "Usuario no existe" });
@@ -71,6 +73,7 @@ async function auth(req, res, next) {
         res.status(500).json({ error: "Error de autenticación" }); 
     }
 }
+
 
 // --- LOGIN ---
 app.post("/login", async (req, res) => {
@@ -403,21 +406,23 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // Filtro base: solo por agencia (hace la tienda global para tu empresa)
+        // Filtro base: Solo por la agencia del usuario
         let filter = { agencyId: req.user.agencyId };
 
-        // Si el usuario es promotor/demo y tiene tiendas en su array 'stores'
-        if (req.user.role !== 'admin' && req.user.stores && req.user.stores.length > 0) {
+        // Si el usuario tiene tiendas asignadas manualmente (como Maria con Walmart)
+        // le damos prioridad a esas sobre cualquier otra cosa
+        if (req.user.stores && req.user.stores.length > 0) {
             filter._id = { $in: req.user.stores };
-        } 
-        // Nota: Ya NO filtramos por projectId aquí para que Maria vea su Walmart
-        
+        }
+
         const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
     } catch (err) { 
+        console.error("Error en GET /stores:", err);
         res.status(500).json({ error: "Error al cargar tiendas" }); 
     }
 });
+
 
 app.post("/stores", auth, async (req, res) => {
     try {

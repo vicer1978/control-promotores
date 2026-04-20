@@ -85,7 +85,6 @@ app.post("/login", async (req, res) => {
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
-            projectId: user.projectId, // Mantenemos por compatibilidad con app móvil si existe
             projects: user.projects || [], 
             name: user.name 
         });
@@ -95,7 +94,10 @@ app.post("/login", async (req, res) => {
 // --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        const projects = await Project.find({ agencyId: req.user.agencyId, active: true });
+        // Agregamos populate para que el cliente no aparezca como "Sin asignar" o solo el ID
+        const projects = await Project.find({ agencyId: req.user.agencyId })
+            .populate("clientId", "name email")
+            .sort({ name: 1 });
         res.json(projects);
     } catch (err) { res.status(500).json({ error: "Error al obtener proyectos" }); }
 });
@@ -103,7 +105,6 @@ app.get("/projects", auth, async (req, res) => {
 app.get("/client-projects", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId, active: true };
-        // Si es cliente, solo ve los proyectos donde él es el dueño (clientId)
         if (req.user.role.toLowerCase() === 'cliente') {
             filter.clientId = req.user._id;
         }
@@ -116,7 +117,6 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
-        // Ahora permitimos recibir clientId desde el front para vincularlo al dueño
         const newProject = new Project({ 
             ...req.body, 
             agencyId: req.user.agencyId,
@@ -125,6 +125,15 @@ app.post("/projects", auth, async (req, res) => {
         await newProject.save();
         res.json({ message: "Proyecto creado", project: newProject });
     } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
+});
+
+// NUEVO: Editar Proyecto
+app.put("/projects/:id", auth, async (req, res) => {
+    try {
+        const updates = req.body;
+        const project = await Project.findByIdAndUpdate(req.params.id, updates, { new: true });
+        res.json({ message: "Proyecto actualizado con éxito", project });
+    } catch (err) { res.status(500).json({ error: "Error al actualizar proyecto" }); }
 });
 
 app.delete("/projects/:id", auth, async (req, res) => {
@@ -142,7 +151,6 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
         
         if (req.user.role.toLowerCase() === 'cliente') {
             const filterProject = req.headers.projectid;
-            // Verificar que el cliente tenga acceso a ese proyecto
             const hasAccess = await Project.findOne({ _id: filterProject, clientId: req.user._id });
             if (!hasAccess) return res.status(403).json({ error: "Acceso denegado a este proyecto" });
             query.projectId = filterProject;
@@ -164,10 +172,6 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
 app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
         const { storeId, lat, lng, projectId } = req.body;
-        const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
-        if (lastCheckin && lastCheckin.type === "checkin") {
-            return res.status(400).json({ error: "Ya tienes una entrada activa." });
-        }
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
         const currentProjectId = projectId || req.user.projectId;
 
@@ -243,7 +247,6 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         
         if (req.user.role.toLowerCase() === 'cliente') {
             const selectedProjectId = req.headers.projectid;
-            // Validar que el cliente es dueño del proyecto solicitado
             const hasAccess = await Project.findOne({ _id: selectedProjectId, clientId: req.user._id });
             if (!hasAccess) return res.status(403).json({ error: "No tienes permiso para ver este proyecto" });
             query.projectId = selectedProjectId;
@@ -303,11 +306,10 @@ app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
         const filter = { agencyId: req.user.agencyId };
-        
-        // Si se envía un projectid en el header, filtramos usuarios que tengan ese proyecto en su array
         if (projectId) filter.projects = projectId;
 
-        const users = await User.find(filter).populate('stores');
+        // Populate projects para ver los nombres asignados en la tabla
+        const users = await User.find(filter).populate('stores').populate('projects', 'name');
         res.json(users);
     } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
 });
@@ -315,24 +317,21 @@ app.get("/users", auth, async (req, res) => {
 app.post("/users", auth, async (req, res) => {
     try {
         const { name, email, password, role, agencyId, stores, projects } = req.body;
-        if (!name || !email || !password) return res.status(400).json({ error: "Faltan datos" });
-
         const newUser = new User({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password: password.trim(),
             role: (role || 'promotor').toLowerCase().trim(),
             agencyId: agencyId || req.user.agencyId,
-            projects: projects || [], // Array de proyectos
+            projects: projects || [], 
             stores: stores || []
         });
-
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
     } catch (err) { res.status(500).json({ error: "Error al crear usuario", detalle: err.message }); }
 });
 
-// NUEVO: Asignar Proyecto a Usuario (Array)
+// Asignar Proyecto a Usuario
 app.post("/users/:userId/assign-project", auth, async (req, res) => {
     try {
         const { projectId } = req.body;
@@ -342,7 +341,7 @@ app.post("/users/:userId/assign-project", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al asignar proyecto" }); }
 });
 
-// NUEVO: Eliminar Proyecto de Usuario
+// Eliminar Proyecto de Usuario
 app.delete("/users/:userId/projects/:projectId", auth, async (req, res) => {
     try {
         const { userId, projectId } = req.params;
@@ -358,21 +357,6 @@ app.put("/users/:id", auth, async (req, res) => {
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
     } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
-});
-
-app.post("/users/:userId/assign", auth, async (req, res) => {
-    try {
-        const { storeId } = req.body;
-        await User.findByIdAndUpdate(req.params.userId, { $addToSet: { stores: storeId } });
-        res.json({ message: "Tienda asignada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.delete("/users/:userId/stores/:storeId", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.userId, { $pull: { stores: req.params.storeId } });
-        res.json({ message: "Tienda eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
 // --- GESTIÓN DE TIENDAS ---
@@ -399,13 +383,6 @@ app.delete("/stores/:id", auth, async (req, res) => {
         await Store.findByIdAndDelete(req.params.id);
         res.json({ message: "Tienda eliminada" });
     } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.delete("/reports/:id", auth, async (req, res) => {
-    try {
-        await Report.findByIdAndDelete(req.params.id);
-        res.json({ message: "Reporte eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
 // --- RUTAS DE NAVEGACIÓN ---

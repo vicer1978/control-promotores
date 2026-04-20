@@ -92,12 +92,11 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS ---
+// --- GESTIÓN DE PROYECTOS (CORREGIDO SIN POPULATE CONFLICTIVO) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Se añade populate de clientId para mostrar quién es el dueño en la tabla de proyectos
+        // Se eliminó .populate("clientId") porque no existe en tu esquema de Project
         const projects = await Project.find({ agencyId: req.user.agencyId })
-            .populate("clientId", "name email") 
             .sort({ name: 1 });
         res.json(projects);
     } catch (err) { 
@@ -199,19 +198,18 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS (MEJORADO PARA ADMIN.HTML) ---
+// --- GESTIÓN DE USUARIOS (SIN POPULATE DE PROJECTS) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
         const filter = { agencyId: req.user.agencyId };
 
         if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
-            filter.projects = projectId; // Busca si el proyecto está en el array de proyectos del usuario
+            filter.projectId = projectId;
         }
 
         const users = await User.find(filter)
-            .populate('stores', 'name address')
-            .populate('projects', 'name') // Importante para que se vean los chips en el perfil
+            .populate('stores')
             .sort({ name: 1 });
             
         res.json(users);
@@ -235,7 +233,7 @@ app.post("/users", auth, async (req, res) => {
             password: password.toString().trim(),
             role: (role || 'promotor').toLowerCase().trim(),
             agencyId: req.user.agencyId,
-            projects: (projectId && mongoose.Types.ObjectId.isValid(projectId)) ? [projectId] : [], 
+            projectId: (projectId && mongoose.Types.ObjectId.isValid(projectId)) ? projectId : null, 
             stores: stores || []
         });
 
@@ -244,30 +242,6 @@ app.post("/users", auth, async (req, res) => {
     } catch (err) { 
         console.error("Error detallado al crear usuario:", err);
         res.status(500).json({ error: "No se pudo guardar el usuario", detalle: err.message }); 
-    }
-});
-
-// Ruta específica para asignar proyectos a usuarios (usada en tu drawer)
-app.post("/users/:userId/assign-project", auth, async (req, res) => {
-    try {
-        const { projectId } = req.body;
-        await User.findByIdAndUpdate(req.params.userId, {
-            $addToSet: { projects: projectId }
-        });
-        res.json({ message: "Proyecto asignado correctamente" });
-    } catch (err) {
-        res.status(500).json({ error: "Error al asignar proyecto" });
-    }
-});
-
-app.delete("/users/:userId/projects/:projectId", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.userId, {
-            $pull: { projects: req.params.projectId }
-        });
-        res.json({ message: "Proyecto desvinculado" });
-    } catch (err) {
-        res.status(500).json({ error: "Error al desvincular proyecto" });
     }
 });
 
@@ -299,9 +273,7 @@ app.get("/stores", auth, async (req, res) => {
             filter.projectId = projectId;
         }
         
-        const stores = await Store.find(filter)
-            .populate("projectId", "name") // Para que se vea el nombre del proyecto en la tabla de tiendas
-            .sort({ name: 1 });
+        const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
     } catch (err) { res.status(500).json({ error: "Error al cargar tiendas" }); }
 });
@@ -334,3 +306,4 @@ app.get(/.*/, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));
+

@@ -58,21 +58,24 @@ mongoose.connect(process.env.MONGO_URI)
 
 async function auth(req, res, next) {
     try {
-        // Buscamos el ID en cualquier variante de header
+        // Buscamos el ID en todas las variantes posibles de headers
         const userId = req.headers.userid || req.headers.userId || req.headers.UserId; 
         
         if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            console.log("ID de usuario no recibido o malformado");
             return res.status(401).json({ error: "Sesión inválida" });
         }
+        
         const user = await User.findById(userId);
         if (!user) return res.status(401).json({ error: "Usuario no existe" });
         
         req.user = user;
         next();
     } catch (err) { 
-        res.status(500).json({ error: "Error de autenticación" }); 
+        res.status(500).json({ error: "Error de servidor en auth" }); 
     }
 }
+
 
 
 // --- LOGIN ---
@@ -406,22 +409,24 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // Filtro base: Solo por la agencia del usuario
+        // Solo filtramos por agencia para que la tienda sea global en tu sistema
         let filter = { agencyId: req.user.agencyId };
 
-        // Si el usuario tiene tiendas asignadas manualmente (como Maria con Walmart)
-        // le damos prioridad a esas sobre cualquier otra cosa
-        if (req.user.stores && req.user.stores.length > 0) {
+        // Si Maria tiene "Walmart El Sauz" en su lista personal, se lo mostramos
+        if (req.user.role !== 'admin' && req.user.stores && req.user.stores.length > 0) {
             filter._id = { $in: req.user.stores };
         }
 
         const stores = await Store.find(filter).sort({ name: 1 });
-        res.json(stores);
+        
+        // Si no hay tiendas, enviamos un array vacío en lugar de un error para evitar el mensaje de la app
+        res.json(stores || []);
     } catch (err) { 
-        console.error("Error en GET /stores:", err);
-        res.status(500).json({ error: "Error al cargar tiendas" }); 
+        console.error("Error al cargar tiendas:", err);
+        res.status(500).json({ error: "Error de conexión con el catálogo" }); 
     }
 });
+
 
 
 app.post("/stores", auth, async (req, res) => {

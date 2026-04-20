@@ -386,23 +386,42 @@ app.post("/users", auth, async (req, res) => {
 
 app.put("/users/:id", auth, async (req, res) => {
     try {
-        const updates = { ...req.body };
-        if (updates.email) updates.email = updates.email.toLowerCase().trim();
-        if (updates.projectId === "" || updates.projectId === "null") {
-            updates.projectId = null;
+        const userId = req.params.id;
+        const { name, email, role, active, projectId, stores } = req.body;
+
+        const updateData = {
+            name: name ? name.trim() : "",
+            role: role,
+            active: active,
+            // Importante: El array de tiendas del catálogo universal
+            stores: Array.isArray(stores) ? stores : [] 
+        };
+
+        // Limpieza de Email
+        if (email) updateData.email = email.toLowerCase().trim();
+
+        // Limpieza de projectId
+        if (!projectId || projectId === "null" || projectId === "") {
+            updateData.projectId = null;
+        } else {
+            updateData.projectId = projectId;
         }
-        delete updates.agencyId; 
 
         const user = await User.findByIdAndUpdate(
-            req.params.id, 
-            { $set: updates }, 
+            userId, 
+            { $set: updateData }, 
             { new: true }
         ).populate('stores');
 
         if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-        res.json({ message: "Usuario actualizado", user });
-    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+
+        res.json({ message: "Usuario actualizado con éxito", user });
+    } catch (err) {
+        console.error("Error al actualizar usuario:", err);
+        res.status(500).json({ error: "Error interno al guardar cambios" });
+    }
 });
+
 
 app.delete("/users/:id", auth, async (req, res) => {
     try {

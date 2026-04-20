@@ -31,13 +31,10 @@
 
         .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; background: #f8fafc; }
         .report-table th, .report-table td { padding: 12px 8px; border: 1px solid #e2e8f0; text-align: center; }
-        .report-table thead { background: var(--primary); color: white; }
         .report-table tr:hover { background: #f1f5f9; }
-        
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
         
-        /* Drawer */
         .drawer-overlay { position: fixed; top: 0; right: -100%; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; transition: right 0.3s ease; display: flex; justify-content: flex-end; }
         .drawer-overlay.active { right: 0; }
         .drawer { width: 450px; background: white; height: 100%; box-shadow: -5px 0 15px rgba(0,0,0,0.1); padding: 30px; overflow-y: auto; position: relative; }
@@ -46,9 +43,8 @@
         
         .assigned-chips-box { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 8px; min-height: 50px; border: 1px solid #e2e8f0; background: #f8fafc; }
         .chip { background: white; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-        .chip span { cursor: pointer; color: var(--danger); }
         .tag-search-container { position: relative; margin-bottom: 10px; }
-        .search-results-dropdown { position: absolute; width: 100%; background: white; border: 1px solid #ddd; max-height: 150px; overflow-y: auto; z-index: 100; display: none; }
+        .search-results-dropdown { position: absolute; width: 100%; background: white; border: 1px solid #ddd; max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .search-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
     </style>
 </head>
@@ -56,8 +52,9 @@
 
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
-    <div class="project-selector-container">
-        <label>PROYECTO ACTIVO:</label>
+    
+    <div class="project-selector-container" id="projectSelectorWrapper">
+        <label id="selectorLabel">PROYECTO ACTIVO:</label>
         <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
             <option value="">Cargando...</option>
         </select>
@@ -76,9 +73,11 @@
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
 
-<div class="main"><div id="content"></div></div>
+<div class="main">
+    <div id="content"></div>
+</div>
 
-<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()">
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer(event)">
     <div class="drawer" id="drawerContent" onclick="event.stopPropagation()">
         <span class="drawer-close" onclick="closeDrawer()">×</span>
         <div id="drawerInner"></div>
@@ -101,39 +100,47 @@ let allProjects = [];
 
 const REPORT_TYPES_BY_ROLE = {
     all: [
-        { val: "inventario", text: "Ventas / Inventarios" },
+        { val: "inventario", text: "Ventas / Inventario" },
         { val: "ranking", text: "Degustación" },
         { val: "competencia", text: "Competencia" },
         { val: "precios", text: "Precios" },
         { val: "exhibicion", text: "Exhibiciones" },
         { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
         { val: "foto", text: "Fotos Anaquel" }
     ],
     demostradora: [
         { val: "inventario", text: "Ventas" },
         { val: "ranking", text: "Degustación" },
         { val: "precios", text: "Precios" },
-        { val: "exhibicion", text: "Exhibiciones" }
+        { val: "exhibicion", text: "Exhibiciones" },
+        { val: "competencia", text: "Competencia" }
     ],
     promotor: [
         { val: "precios", text: "Precios" },
         { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
         { val: "inventario", text: "Inventarios" },
         { val: "exhibicion", text: "Exhibiciones Adicionales" },
-        { val: "foto", text: "Fotos Anaquel" }
+        { val: "foto", text: "Fotos Anaquel" },
+        { val: "competencia", text: "Competencia" }
     ]
 };
 
-window.onload = async () => {
-    if (!session.userId) window.location.href = "../login.html";
-    applyRoleRestrictions();
-    await loadGlobalProjects();
-    showWelcomeMessage();
-};
+if (!session.userId) {
+    window.location.href = "../login.html";
+} else {
+    window.onload = async () => { 
+        applyRoleRestrictions();
+        await loadGlobalProjects();
+        showWelcomeMessage(); 
+    };
+}
 
 function applyRoleRestrictions() {
-    if (session.role?.toLowerCase() === 'cliente') {
-        document.getElementById("adminOnlySections").style.display = "none";
+    if (session.role && session.role.toLowerCase() === 'cliente') {
+        const adminSec = document.getElementById("adminOnlySections");
+        if(adminSec) adminSec.style.display = "none";
     }
 }
 
@@ -144,20 +151,24 @@ async function fetchAPI(url, options = {}) {
         "projectid": session.selectedProjectId || "" 
     };
     options.headers = { ...(options.headers || {}), ...headers };
-    const res = await fetch(url, options);
-    return res.ok ? res.json() : null;
+    try {
+        const res = await fetch(url, options);
+        return await res.json();
+    } catch (err) { return null; }
 }
 
 async function loadGlobalProjects() {
-    const role = session.role?.toLowerCase();
-    const url = role === 'cliente' ? `${BACKEND_URL}/client-projects` : `${BACKEND_URL}/projects`;
+    const roleLower = session.role ? session.role.toLowerCase() : "";
+    const url = roleLower === 'cliente' ? `${BACKEND_URL}/client-projects` : `${BACKEND_URL}/projects`;
     const data = await fetchAPI(url);
     allProjects = Array.isArray(data) ? data : [];
-    
     const select = document.getElementById("globalProjectSelector");
-    let options = role === 'cliente' ? '' : '<option value="">Todos los Proyectos</option>';
-    options += allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
-    select.innerHTML = options;
+    if (roleLower === 'cliente') {
+        select.innerHTML = allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
+    } else {
+        select.innerHTML = '<option value="">Todos los Proyectos</option>' + 
+            allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
+    }
 }
 
 function changeGlobalProject(val) {
@@ -168,255 +179,246 @@ function changeGlobalProject(val) {
 }
 
 function showWelcomeMessage() {
-    document.getElementById("content").innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:75vh; text-align:center;">
-        <h1 style="font-size:4rem; color:var(--primary); margin:0;">StorePulse</h1>
-        <p style="font-size:1.5rem; color:#64748b;">Panel de Control Administrativo</p>
-    </div>`;
+    document.getElementById("content").innerHTML = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;"><h1 style="font-size: 4.5rem; color: var(--primary);">StorePulse</h1><div style="width: 80px; height: 6px; background: var(--gold);"></div></div>`;
 }
 
 function loadSection(section) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${section}`)?.classList.add('active');
     if (section === 'reports') loadReports();
-    if (section === 'attendance') loadAttendance();
     if (section === 'users') loadUsers();
     if (section === 'stores') loadStores();
+    if (section === 'attendance') loadAttendance();
     if (section === 'projects') loadProjectsSection();
 }
 
-// --- REPORTES (LOGICA RECUPERADA) ---
+function openDrawer(html) {
+    document.getElementById("drawerInner").innerHTML = html;
+    document.getElementById("drawerOverlay").classList.add("active");
+}
 
+function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("active"); }
+
+// --- SECCIÓN REPORTES (LÓGICA UNIFICADA) ---
 async function loadReports() {
-    document.getElementById("content").innerHTML = "<h3>Cargando Reportes...</h3>";
-    const [users, stores, reports] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users`),
-        fetchAPI(`${BACKEND_URL}/stores`),
-        fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
-    ]);
-    allUsersCached = users || [];
-    cachedStores = stores || [];
-    allReportsRaw = reports || [];
+    try {
+        document.getElementById("content").innerHTML = "<h3>Cargando Reportes...</h3>";
+        const [users, stores, reports] = await Promise.all([
+            fetchAPI(`${BACKEND_URL}/users`),
+            fetchAPI(`${BACKEND_URL}/stores`),
+            fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
+        ]);
+        allUsersCached = Array.isArray(users) ? users : [];
+        cachedStores = Array.isArray(stores) ? stores : [];
+        allReportsRaw = Array.isArray(reports) ? reports : [];
 
-    const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
+        const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
 
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>📊 Reportes Dinámicos</h2>
-            <div class="grid-filters">
-                <div><label>Desde</label><input type="date" id="fStart"></div>
-                <div><label>Hasta</label><input type="date" id="fEnd"></div>
-                <div><label>Rol</label>
-                    <select id="fRole" onchange="updateReportOptions()">
-                        <option value="all">Todos</option>
-                        <option value="demostradora">Demostradora</option>
-                        <option value="promotor">Promotor</option>
-                    </select>
+        document.getElementById("content").innerHTML = `
+            <div class="card">
+                <h2>📊 Reportes por Categoría</h2>
+                <div class="grid-filters">
+                    <div><label>Desde</label><input type="date" id="fStart"></div>
+                    <div><label>Hasta</label><input type="date" id="fEnd"></div>
+                    <div><label>Rol</label>
+                        <select id="fRole" onchange="updateReportOptions()">
+                            <option value="all">Todos</option>
+                            <option value="demostradora">Demostradora</option>
+                            <option value="promotor">Promotor</option>
+                        </select>
+                    </div>
+                    <div><label>Usuario</label>
+                        <select id="fUser">
+                            <option value="all">Todos</option>
+                            ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label>Tipo Reporte</label>
+                        <select id="fType">
+                            <option value="">-- Seleccionar Categoría --</option>
+                            ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label>Ciudad</label>
+                        <select id="fCity">
+                            <option value="all">Todas</option>
+                            ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label>Tienda</label>
+                        <select id="fStore">
+                            <option value="all">Todas</option>
+                            ${cachedStores.map(s => `<option value="${s._id}">${s.name}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
-                <div><label>Tipo Reporte</label>
-                    <select id="fType">
-                        <option value="">-- Seleccionar --</option>
-                        ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
-                    </select>
-                </div>
-                <div><label>Ciudad</label>
-                    <select id="fCity">
-                        <option value="all">Todas</option>
-                        ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
-                    </select>
-                </div>
-                <div><label>Tienda</label>
-                    <select id="fStore">
-                        <option value="all">Todas</option>
-                        ${cachedStores.map(s => `<option value="${s._id}">${s.name}</option>`).join('')}
-                    </select>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR DATOS</button>
+                    <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXPORTAR EXCEL</button>
                 </div>
             </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR DATOS</button>
-                <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXCEL</button>
-            </div>
-        </div>
-        <div id="reportList"></div>`;
+            <div id="reportList"></div>`;
+    } catch (e) { console.error(e); }
 }
 
 function updateReportOptions() {
     const role = document.getElementById("fRole").value;
     const typeSelect = document.getElementById("fType");
     const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
-    typeSelect.innerHTML = `<option value="">-- Seleccionar --</option>` + options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
+    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` +
+        options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
 }
 
 function filterReports() {
-    const typeSel = document.getElementById("fType")?.value;
+    const typeSel = document.getElementById("fType")?.value.toLowerCase();
     if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
-    
-    const start = document.getElementById("fStart").value;
-    const end = document.getElementById("fEnd").value;
-    const roleSel = document.getElementById("fRole").value;
-    const citySel = document.getElementById("fCity").value;
-    const storeSel = document.getElementById("fStore").value;
+    const start = document.getElementById("fStart")?.value;
+    const end = document.getElementById("fEnd")?.value;
+    const roleSel = document.getElementById("fRole")?.value;
+    const userSel = document.getElementById("fUser")?.value;
+    const citySel = document.getElementById("fCity")?.value;
+    const storeSel = document.getElementById("fStore")?.value;
 
     const filtered = allReportsRaw.filter(r => {
-        const userObj = (typeof r.userId === 'object') ? r.userId : allUsersCached.find(u => u._id === r.userId);
-        const storeObj = (typeof r.storeId === 'object') ? r.storeId : cachedStores.find(s => s._id === r.storeId);
-        
-        const rType = (r.reporte || r.reportType || "").toLowerCase();
+        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
+        const userObj = allUsersCached.find(u => u._id === rUid);
+        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+        const storeObj = cachedStores.find(s => s._id === rSid);
+        const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
-
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
-        
+        let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
         let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
-        let matchRole = (roleSel === "all" || userObj?.role === roleSel);
-
-        return (!start || rDate >= start) && (!end || rDate <= end) &&
-               matchType && matchRole && (citySel === "all" || rCity === citySel) &&
-               (storeSel === "all" || storeObj?._id === storeSel);
+        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel) && (storeSel === "all" || rSid === storeSel);
     });
-
-    renderTableReport(filtered);
+    renderTableReport(filtered, typeSel);
 }
 
-function renderTableReport(data) {
+function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
-    if (!data.length) { container.innerHTML = `<div class="card">No hay datos.</div>`; return; }
-
+    if (data.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
+        return;
+    }
     const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
-    let dynamicKeys = Object.keys(data[0]).filter(k => !exclude.includes(k) && data.some(item => item[k]));
+    const roleSel = document.getElementById("fRole")?.value;
+    let dynamicKeys = Object.keys(data[0]).filter(key => {
+        if (exclude.includes(key)) return false;
+        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad') return false;
+        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+    });
 
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
-    if (data.some(r => r.foto_url)) headers += `<th>FOTO</th>`;
-    const isClient = session.role?.toLowerCase() === 'cliente';
+    if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
+    const hasAction = (session.role?.toLowerCase() !== 'cliente');
 
-    let html = `<div class="card" style="overflow-x:auto; padding:0;"><table class="report-table"><thead><tr>${headers}${isClient?'':'<th>ACCIÓN</th>'}</tr></thead><tbody>`;
-    
+    let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
     html += data.map(r => {
-        const user = (typeof r.userId === 'object' ? r.userId?.name : allUsersCached.find(u => u._id === r.userId)?.name) || 'S/N';
-        const store = (typeof r.storeId === 'object' ? r.storeId?.name : cachedStores.find(s => s._id === r.storeId)?.name) || 'S/T';
-        let rows = `<td>${new Date(r.createdAt).toLocaleDateString()}</td><td>${user}</td><td>${store}</td>`;
-        dynamicKeys.forEach(k => rows += `<td>${r[k] || '-'}</td>`);
-        if (headers.includes('FOTO')) rows += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
-        return `<tr>${rows}${isClient?'':`<td><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>`}</tr>`;
+        const fecha = new Date(r.createdAt).toLocaleDateString();
+        const usuario = r.userId?.name || 'S/N';
+        const tienda = r.storeId?.name || 'S/T';
+        let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
+        dynamicKeys.forEach(k => {
+            let val = r[k];
+            if(k.toLowerCase().includes('precio') && !isNaN(val)) val = `$${val}`;
+            rowData += `<td>${val || '-'}</td>`;
+        });
+        if (r.foto_url || data.some(x => x.foto_url)) {
+            rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+        }
+        return `<tr>${rowData}${hasAction?`<td><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>`:''}</tr>`;
     }).join('');
-
     container.innerHTML = html + `</tbody></table></div>`;
 }
 
 // --- ASISTENCIA ---
-
 async function loadAttendance() {
-    const reports = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    const assist = (reports || []).filter(r => (r.reporte || r.reportType || "").toLowerCase().includes('check'));
-
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>⏰ Control de Asistencia</h2></div>
-        <div class="card" style="padding:0; overflow-x:auto;">
-            <table class="report-table">
-                <thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead>
-                <tbody>${assist.map(a => {
-                    const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
-                    const d = new Date(a.createdAt);
-                    const user = (typeof a.userId === 'object' ? a.userId?.name : allUsersCached.find(u => u._id === a.userId)?.name) || 'S/N';
-                    return `<tr>
-                        <td><b>${user.toUpperCase()}</b></td>
-                        <td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td>
-                        <td>${a.storeId?.name || 'Gral'}</td>
-                        <td>${d.toLocaleDateString()}</td>
-                        <td>${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-                        <td>${a.foto_url ? `<img src="${BACKEND_URL}${a.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>
-                    </tr>`;
-                }).join('')}</tbody>
-            </table>
-        </div>`;
+    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    const reports = Array.isArray(data) ? data : [];
+    const assist = reports.filter(r => {
+        const type = (r.reporte || r.reportType || "").toLowerCase();
+        return type.includes('checkin') || type.includes('checkout');
+    });
+    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
+        const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
+        const f = new Date(a.createdAt);
+        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'Gral'}</td><td>${f.toLocaleDateString()}</td><td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td>${a.foto_url?`<img src="${BACKEND_URL}${a.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">`:'-'}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
 }
 
-// --- USUARIOS & PROYECTOS ---
-
+// --- USUARIOS ---
 async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
-    allUsersCached = users || []; cachedStores = stores || [];
+    allUsersCached = Array.isArray(users) ? users : [];
+    cachedStores = Array.isArray(stores) ? stores : [];
+    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+}
 
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>👥 Usuarios</h2>
-            <div class="grid-filters">
-                <input type="text" id="uName" placeholder="Nombre">
-                <input type="email" id="uEmail" placeholder="Email">
-                <select id="uRole">
-                    <option value="promotor">Promotor</option>
-                    <option value="demostradora">Demostradora</option>
-                    <option value="admin">Administrador</option>
-                    <option value="cliente">Cliente</option>
-                </select>
-                <button class="btn-action" style="background:var(--success)" onclick="createUser()">CREAR</button>
-            </div>
-        </div>
-        <div class="card" style="padding:0;"><table class="report-table">
-            <thead><tr><th>Nombre</th><th>Rol</th><th>Asignaciones</th><th>Acción</th></tr></thead>
-            <tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')">
-                <td>${u.name}</td><td>${u.role}</td><td>${(u.stores || []).length} Tiendas</td>
-                <td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td>
-            </tr>`).join('')}</tbody>
-        </table></div>`;
+async function createUser() {
+    const name = document.getElementById("newUserName").value;
+    const email = document.getElementById("newUserEmail").value;
+    const password = document.getElementById("newUserPass").value;
+    const role = document.getElementById("newUserRole").value;
+    await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) });
+    loadUsers();
 }
 
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
-    let html = `
-        <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
-        <label>Proyecto Principal</label>
-        <select onchange="updateUserField('${u._id}', 'projectId', this.value)" style="margin-bottom:15px;">
-            <option value="">Ninguno</option>
-            ${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}
-        </select>
-        <label>Asignar Tienda</label>
-        <div class="tag-search-container">
-            <input type="text" placeholder="Buscar..." onkeyup="filterStoreSearch('${userId}', this.value)">
-            <div id="tagSearchResults" class="search-results-dropdown"></div>
-        </div>
-        <div class="assigned-chips-box">
-            ${(u.stores || []).map(sId => {
-                const s = cachedStores.find(x => x._id === (sId._id || sId));
-                return s ? `<div class="chip">${s.name} <span onclick="unassignStore('${userId}','${s._id}')">&times;</span></div>` : '';
-            }).join('')}
-        </div>`;
-    openDrawer(html);
+    if(!u) return;
+    openDrawer(`<div class="drawer-header"><h3>Perfil: ${u.name}</h3></div><label>Proyecto Principal</label><select id="userProj" style="width:100%; margin-bottom:15px;" onchange="updateUserField('${u._id}', 'projectId', this.value)"><option value="">-- Sin Proyecto --</option>${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}</select><label>Tiendas Asignadas</label><div class="tag-search-container"><input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)"><div id="tagSearchResults" class="search-results-dropdown"></div></div><div class="assigned-chips-box">${(u.stores||[]).map(st => { const sid = typeof st === 'object' ? st._id : st; const s = cachedStores.find(x => x._id === sid); return s ? `<div class="chip">${s.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : ''; }).join('')}</div>`);
 }
 
-function filterStoreSearch(uid, val) {
+function filterTagSearch(userId, val) {
     const res = document.getElementById("tagSearchResults");
     if(!val) { res.style.display="none"; return; }
     const matches = cachedStores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
-    res.innerHTML = matches.map(s => `<div class="search-item" onclick="assignStore('${uid}','${s._id}')">${s.name}</div>`).join('');
+    res.innerHTML = matches.map(s => `<div class="search-item" onclick="assignStore('${userId}', '${s._id}')">${s.name}</div>`).join('');
     res.style.display = "block";
 }
 
-async function assignStore(uid, sid) {
-    await fetchAPI(`${BACKEND_URL}/users/${uid}/assign`, { method: 'POST', body: JSON.stringify({ storeId: sid }) });
-    loadUsers(); closeDrawer();
+async function assignStore(uId, sId) { await fetchAPI(`${BACKEND_URL}/users/${uId}/assign`, { method:'POST', body:JSON.stringify({storeId:sId}) }); const users = await fetchAPI(`${BACKEND_URL}/users`); allUsersCached = users; viewUserDetail(uId); }
+async function unassignStore(uId, sId) { await fetchAPI(`${BACKEND_URL}/users/${uId}/stores/${sId}`, { method:'DELETE' }); const users = await fetchAPI(`${BACKEND_URL}/users`); allUsersCached = users; viewUserDetail(uId); }
+async function updateUserField(uId, f, v) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:'PUT', body:JSON.stringify({[f]:v}) }); loadUsers(); }
+
+// --- TIENDAS ---
+async function loadStores() {
+    const data = await fetchAPI(`${BACKEND_URL}/stores`);
+    cachedStores = Array.isArray(data) ? data : [];
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Tienda"><input type="text" id="stAddr" placeholder="Dirección"><select id="stProj"><option value="">Proyecto...</option>${allProjects.map(p=>`<option value="${p._id}">${p.name}</option>`).join('')}</select><button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${cachedStores.map(s => `<tr><td><b>${s.name}</b></td><td>${s.address||'-'}</td><td>${allProjects.find(p=>p._id===s.projectId)?.name||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
-async function unassignStore(uid, sid) {
-    await fetchAPI(`${BACKEND_URL}/users/${uid}/stores/${sid}`, { method: 'DELETE' });
-    loadUsers(); closeDrawer();
+async function createStore() {
+    const name = document.getElementById("stName").value;
+    const address = document.getElementById("stAddr").value;
+    const projectId = document.getElementById("stProj").value;
+    await fetchAPI(`${BACKEND_URL}/stores`, { method:'POST', body:JSON.stringify({name, address, agencyId:session.agencyId, projectId}) });
+    loadStores();
 }
 
-async function createUser() {
-    const name = document.getElementById("uName").value;
-    const email = document.getElementById("uEmail").value;
-    const role = document.getElementById("uRole").value;
-    await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify({ name, email, role, agencyId: session.agencyId, password: "123" }) });
-    loadUsers();
+// --- PROYECTOS ---
+async function loadProjectsSection() {
+    const [projects, users] = await Promise.all([fetchAPI(`${BACKEND_URL}/projects`), fetchAPI(`${BACKEND_URL}/users`)]);
+    allProjects = Array.isArray(projects) ? projects : [];
+    const clientes = users.filter(u => u.role === 'cliente');
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏷️ Proyectos</h2><div class="grid-filters"><select id="projClient"><option value="">Dueño (Cliente)...</option>${clientes.map(c=>`<option value="${c._id}">${c.name}</option>`).join('')}</select><input type="text" id="projName" placeholder="Marca"><input type="text" id="projDesc" placeholder="Descripción"><button class="btn-action" style="background:var(--success)" onclick="saveProject()">CREAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${allProjects.map(p => `<tr><td>${p.clientName||'--'}</td><td><b>${p.name}</b></td><td><button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+async function saveProject() {
+    const name = document.getElementById("projName").value;
+    const clientId = document.getElementById("projClient").value;
+    const description = document.getElementById("projDesc").value;
+    await fetchAPI(`${BACKEND_URL}/projects`, { method:'POST', body:JSON.stringify({name, clientId, description}) });
+    loadGlobalProjects(); loadProjectsSection();
 }
 
 // --- UTILIDADES ---
-
-function openDrawer(html) { document.getElementById("drawerInner").innerHTML = html; document.getElementById("drawerOverlay").classList.add("active"); }
-function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("active"); }
-
-async function deleteReport(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/reports/${id}`, {method:'DELETE'}); filterReports(); } }
-async function deleteUser(id) { if(confirm("¿Eliminar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }
+async function deleteUser(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }
+async function deleteStore(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:'DELETE'}); loadStores(); } }
+async function deleteProject(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/projects/${id}`, {method:'DELETE'}); loadProjectsSection(); } }
+async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/reports/${id}`, {method:'DELETE'}); filterReports(); } }
 
 function exportExcel() {
     const table = document.querySelector(".report-table");
@@ -425,8 +427,6 @@ function exportExcel() {
 }
 
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
-
-// (Secciones de Tiendas y Proyectos omitidas por brevedad pero mantienen la estructura del código 2)
 </script>
 </body>
 </html>

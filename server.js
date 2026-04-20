@@ -29,13 +29,10 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
-
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
-    setHeaders: (res) => {
-        res.set("Access-Control-Allow-Origin", "*");
-    }
+    setHeaders: (res) => { res.set("Access-Control-Allow-Origin", "*"); }
 }));
 
 const storage = multer.diskStorage({
@@ -88,13 +85,14 @@ app.post("/login", async (req, res) => {
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
-            projectId: user.projectId, 
+            projectId: user.projectId, // Mantenemos por compatibilidad con app móvil si existe
+            projects: user.projects || [], 
             name: user.name 
         });
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (CLIENTES) ---
+// --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
     try {
         const projects = await Project.find({ agencyId: req.user.agencyId, active: true });
@@ -105,8 +103,9 @@ app.get("/projects", auth, async (req, res) => {
 app.get("/client-projects", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId, active: true };
-        if (req.user.role.toLowerCase() === 'cliente' && req.user.projectId) {
-            filter._id = req.user.projectId;
+        // Si es cliente, solo ve los proyectos donde él es el dueño (clientId)
+        if (req.user.role.toLowerCase() === 'cliente') {
+            filter.clientId = req.user._id;
         }
         const projects = await Project.find(filter).sort({ name: 1 });
         res.json(projects);
@@ -117,7 +116,12 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
-        const newProject = new Project({ ...req.body, agencyId: req.user.agencyId });
+        // Ahora permitimos recibir clientId desde el front para vincularlo al dueño
+        const newProject = new Project({ 
+            ...req.body, 
+            agencyId: req.user.agencyId,
+            clientId: req.body.clientId || null 
+        });
         await newProject.save();
         res.json({ message: "Proyecto creado", project: newProject });
     } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
@@ -136,14 +140,13 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const query = { agencyId };
         
-        // REFUERZO DE SEGURIDAD PARA CLIENTE
         if (req.user.role.toLowerCase() === 'cliente') {
-            // El cliente SIEMPRE debe estar filtrado por un proyecto (el del header o el de su perfil)
-            const filterProject = req.headers.projectid || req.user.projectId;
-            if (!filterProject) return res.status(403).json({ error: "Acceso denegado: Proyecto no definido" });
+            const filterProject = req.headers.projectid;
+            // Verificar que el cliente tenga acceso a ese proyecto
+            const hasAccess = await Project.findOne({ _id: filterProject, clientId: req.user._id });
+            if (!hasAccess) return res.status(403).json({ error: "Acceso denegado a este proyecto" });
             query.projectId = filterProject;
         } else {
-            // Admin puede filtrar opcionalmente
             if (req.headers.projectid) query.projectId = req.headers.projectid;
         }
 
@@ -161,9 +164,6 @@ app.get("/checkins/:agencyId", auth, async (req, res) => {
 app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     try {
         const { storeId, lat, lng, projectId } = req.body;
-        if (!storeId || lat === undefined || lng === undefined) {
-            return res.status(400).json({ error: "Datos incompletos" });
-        }
         const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (lastCheckin && lastCheckin.type === "checkin") {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
@@ -241,14 +241,14 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const query = { agencyId: req.params.agencyId };
         
-        // REFUERZO DE SEGURIDAD PARA CLIENTE EN REPORTES
         if (req.user.role.toLowerCase() === 'cliente') {
-            const selectedProjectId = req.headers.projectid || req.user.projectId;
-            if (!selectedProjectId) return res.status(403).json({ error: "No se especificó un proyecto" });
+            const selectedProjectId = req.headers.projectid;
+            // Validar que el cliente es dueño del proyecto solicitado
+            const hasAccess = await Project.findOne({ _id: selectedProjectId, clientId: req.user._id });
+            if (!hasAccess) return res.status(403).json({ error: "No tienes permiso para ver este proyecto" });
             query.projectId = selectedProjectId;
         } else {
-            const projectId = req.headers.projectid;
-            if (projectId) query.projectId = projectId;
+            if (req.headers.projectid) query.projectId = req.headers.projectid;
         }
 
         const reports = await Report.find(query)
@@ -265,9 +265,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
         const obs = req.body.observaciones || req.body.comentarios || "";
         let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
-        if (tipoReporte.toLowerCase().includes("exhibicion")) {
-            tipoReporte = "exhibicion";
-        }
+        if (tipoReporte.toLowerCase().includes("exhibicion")) tipoReporte = "exhibicion";
         
         const reportData = {
             ...req.body,
@@ -300,111 +298,89 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-app.delete("/reports/:id", auth, async (req, res) => {
-    try {
-        await Report.findByIdAndDelete(req.params.id);
-        res.json({ message: "Reporte eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
-});
-
 // --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
-        const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
-        if (projectId) filter.projectId = projectId;
+        const filter = { agencyId: req.user.agencyId };
+        
+        // Si se envía un projectid en el header, filtramos usuarios que tengan ese proyecto en su array
+        if (projectId) filter.projects = projectId;
 
         const users = await User.find(filter).populate('stores');
         res.json(users);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.get("/users/:id", auth, async (req, res) => {
-    try {
-        const user = await User.findById(req.params.id).populate('stores');
-        res.json(user);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
 });
 
 app.post("/users", auth, async (req, res) => {
     try {
-        const { name, email, password, role, agencyId, stores, projectId } = req.body;
-        
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: "Faltan datos obligatorios" });
-        }
-
-        let finalProjectId = null;
-        if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
-            finalProjectId = projectId;
-        }
-
-        let finalRole = (role || 'promotor').toLowerCase().trim();
+        const { name, email, password, role, agencyId, stores, projects } = req.body;
+        if (!name || !email || !password) return res.status(400).json({ error: "Faltan datos" });
 
         const newUser = new User({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             password: password.trim(),
-            role: finalRole,
+            role: (role || 'promotor').toLowerCase().trim(),
             agencyId: agencyId || req.user.agencyId,
-            projectId: finalProjectId,
+            projects: projects || [], // Array de proyectos
             stores: stores || []
         });
 
         await newUser.save();
         res.json({ message: "Usuario creado", user: newUser });
+    } catch (err) { res.status(500).json({ error: "Error al crear usuario", detalle: err.message }); }
+});
 
-    } catch (err) { 
-        console.error("Error Mongo:", err);
-        if (err.code === 11000) {
-            const field = Object.keys(err.keyPattern)[0];
-            return res.status(400).json({ 
-                error: `El ${field} ya está registrado.`,
-                detalle: `Duplicado detectado en: ${field}` 
-            });
-        }
-        res.status(500).json({ error: "Error interno al crear usuario", detalle: err.message }); 
-    }
+// NUEVO: Asignar Proyecto a Usuario (Array)
+app.post("/users/:userId/assign-project", auth, async (req, res) => {
+    try {
+        const { projectId } = req.body;
+        if (!projectId) return res.status(400).json({ error: "projectId requerido" });
+        await User.findByIdAndUpdate(req.params.userId, { $addToSet: { projects: projectId } });
+        res.json({ message: "Proyecto asignado con éxito" });
+    } catch (err) { res.status(500).json({ error: "Error al asignar proyecto" }); }
+});
+
+// NUEVO: Eliminar Proyecto de Usuario
+app.delete("/users/:userId/projects/:projectId", auth, async (req, res) => {
+    try {
+        const { userId, projectId } = req.params;
+        await User.findByIdAndUpdate(userId, { $pull: { projects: projectId } });
+        res.json({ message: "Proyecto desasignado con éxito" });
+    } catch (err) { res.status(500).json({ error: "Error al desasignar proyecto" }); }
 });
 
 app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
-        
-        if (updates.projectId === "" || updates.projectId === null || !mongoose.Types.ObjectId.isValid(updates.projectId)) {
-            updates.projectId = null;
-        }
-
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });
         res.json({ message: "Usuario actualizado", user });
-    } catch (err) { res.status(500).json({ error: "Error al actualizar usuario" }); }
+    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
 });
 
 app.post("/users/:userId/assign", auth, async (req, res) => {
     try {
         const { storeId } = req.body;
-        if (!storeId) return res.status(400).json({ error: "storeId es requerido" });
         await User.findByIdAndUpdate(req.params.userId, { $addToSet: { stores: storeId } });
-        res.json({ message: "Tienda asignada con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error al asignar tienda" }); }
+        res.json({ message: "Tienda asignada" });
+    } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
 app.delete("/users/:userId/stores/:storeId", auth, async (req, res) => {
     try {
-        const { userId, storeId } = req.params;
-        await User.findByIdAndUpdate(userId, { $pull: { stores: storeId } });
-        res.json({ message: "Tienda desasignada con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
+        await User.findByIdAndUpdate(req.params.userId, { $pull: { stores: req.params.storeId } });
+        res.json({ message: "Tienda eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
-        const filter = req.user.role === 'admin' ? { agencyId: req.user.agencyId } : {};
+        const filter = { agencyId: req.user.agencyId };
         if (projectId) filter.projectId = projectId;
-
         const stores = await Store.find(filter).sort({ name: 1 });
         res.json(stores);
     } catch (err) { res.status(500).json({ error: "Error" }); }
@@ -422,7 +398,14 @@ app.delete("/stores/:id", auth, async (req, res) => {
     try {
         await Store.findByIdAndDelete(req.params.id);
         res.json({ message: "Tienda eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
+    } catch (err) { res.status(500).json({ error: "Error" }); }
+});
+
+app.delete("/reports/:id", auth, async (req, res) => {
+    try {
+        await Report.findByIdAndDelete(req.params.id);
+        res.json({ message: "Reporte eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
 // --- RUTAS DE NAVEGACIÓN ---

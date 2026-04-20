@@ -35,8 +35,9 @@
         .drawer-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: var(--primary); }
         .drawer-header { margin-bottom: 20px; border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-top: 20px; }
         
-        .assigned-chips-box { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: #f0fdf4; border: 2px dashed var(--success); border-radius: 8px; min-height: 50px; }
-        .chip { background: white; border: 1px solid var(--success); color: #166534; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .assigned-chips-box { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 8px; min-height: 50px; border: 1px solid #e2e8f0; background: #f8fafc; }
+        .chip { background: white; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .chip.project-chip { border-color: var(--gold); color: #856404; background: #fffdf5; }
         .chip span { cursor: pointer; color: var(--danger); font-weight: bold; font-size: 14px; }
         .tag-search-container { position: relative; margin-bottom: 10px; }
         .search-results-dropdown { position: absolute; width: 100%; background: white; border: 1px solid #ddd; max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -50,7 +51,7 @@
     <h2>⚡ StorePulse</h2>
     
     <div class="project-selector-container" id="projectSelectorWrapper">
-        <label id="selectorLabel">CLIENTE ACTIVO:</label>
+        <label id="selectorLabel">PROYECTO ACTIVO:</label>
         <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
             <option value="">Cargando...</option>
         </select>
@@ -104,12 +105,6 @@ function applyRoleRestrictions() {
     if (session.role && session.role.toLowerCase() === 'cliente') {
         const adminSec = document.getElementById("adminOnlySections");
         if(adminSec) adminSec.style.display = "none";
-        
-        // El cliente está anclado a su proyecto asignado
-        if (session.userProjectId) {
-            session.selectedProjectId = session.userProjectId;
-            localStorage.setItem("selectedProjectId", session.userProjectId);
-        }
     }
 }
 
@@ -130,23 +125,19 @@ async function fetchAPI(url, options = {}) {
 }
 
 async function loadGlobalProjects() {
-    // Usamos el endpoint específico para filtrar si es cliente
     const url = session.role.toLowerCase() === 'cliente' ? `${BACKEND_URL}/client-projects` : `${BACKEND_URL}/projects`;
     allProjects = await fetchAPI(url);
     const select = document.getElementById("globalProjectSelector");
     
     if (session.role.toLowerCase() === 'cliente') {
-        const myProj = allProjects.find(p => p._id === session.userProjectId) || allProjects[0];
-        if (myProj) {
-            select.innerHTML = `<option value="${myProj._id}">${myProj.name}</option>`;
-            session.selectedProjectId = myProj._id;
-            localStorage.setItem("selectedProjectId", myProj._id);
-        } else {
-            select.innerHTML = `<option value="">Sin proyecto asignado</option>`;
+        // Si es cliente, solo ve los proyectos que le pertenecen (o el que tiene asignado)
+        select.innerHTML = allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
+        if(!session.selectedProjectId && allProjects.length > 0) {
+            session.selectedProjectId = allProjects[0]._id;
+            localStorage.setItem("selectedProjectId", session.selectedProjectId);
         }
-        select.disabled = true; 
     } else {
-        select.innerHTML = '<option value="">Todos los Clientes</option>' + 
+        select.innerHTML = '<option value="">Todos los Proyectos</option>' + 
             allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
     }
 }
@@ -166,7 +157,7 @@ function showWelcomeMessage() {
     document.getElementById("content").innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;">
             <h1 style="font-size: 4.5rem; font-weight: 800; margin: 0; color: var(--primary); letter-spacing: -2px;">StorePulse ${roleText}</h1>
-            <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">Monitoreo de marca en tiempo real.</p>
+            <p style="font-size: 1.8rem; font-weight: 400; margin-top: 10px; color: #4a5568;">Gestión de Proyectos y Marcas.</p>
             <div style="width: 80px; height: 6px; background: var(--gold); margin-top: 30px; border-radius: 10px;"></div>
         </div>
     `;
@@ -193,37 +184,42 @@ function closeDrawer() {
 
 async function loadProjectsSection() {
     if(session.role.toLowerCase() === 'cliente') return;
-    allProjects = await fetchAPI(`${BACKEND_URL}/projects`);
+    
+    const [projects, users] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/projects`),
+        fetchAPI(`${BACKEND_URL}/users`)
+    ]);
+    allProjects = projects;
+    const clientes = users.filter(u => u.role === 'cliente');
+
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>🏷️ Gestión de Clientes / Proyectos</h2>
+            <h2>🏷️ Gestión de Proyectos por Cliente</h2>
             <div class="grid-filters">
-                <input type="text" id="projName" placeholder="Nombre de la marca (ej. Nestlé)">
-                <input type="text" id="projDesc" placeholder="Descripción corta">
+                <select id="projClientId">
+                    <option value="">Seleccionar Cliente...</option>
+                    ${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}
+                </select>
+                <input type="text" id="projName" placeholder="Nombre de la marca/proyecto">
+                <input type="text" id="projDesc" placeholder="Descripción">
                 <button class="btn-action" style="background:var(--success)" onclick="createProject()">CREAR PROYECTO</button>
             </div>
         </div>
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estatus</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Cliente Dueño</th><th>Marca / Proyecto</th><th>Descripción</th><th>Acción</th></tr></thead>
                 <tbody>
                     ${allProjects.map(p => `
                         <tr>
-                            <td><b>${p.name}</b></td>
+                            <td><b>${p.clientName || 'Sin asignar'}</b></td>
+                            <td>${p.name}</td>
                             <td>${p.description || '-'}</td>
-                            <td><span class="badge" style="background:#dcfce7; color:#16a34a">Activo</span></td>
-                            <td><button class="btn-delete" onclick="deleteProject('${p._id}', '${p.name}')">Eliminar</button></td>
+                            <td><button class="btn-delete" onclick="deleteProject('${p._id}')">Eliminar</button></td>
                         </tr>`).join('')}
                 </tbody>
             </table>
         </div>`;
 }
-
-const REPORT_TYPES_BY_ROLE = {
-    all: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "competencia", text: "Competencia" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "agotado", text: "Agotados" }, { val: "preagotado", text: "Pre-Agotados" }, { val: "foto", text: "Fotos Anaquel" }],
-    demostradora: [{ val: "inventario", text: "Ventas" }, { val: "ranking", text: "Degustación" }, { val: "precios", text: "Precios" }, { val: "exhibicion", text: "Exhibiciones" }, { val: "competencia", text: "Competencia" }],
-    promotor: [{ val: "precios", text: "Precios" }, { val: "agotado", text: "Agotados" }, { val: "preagotado", text: "Pre-Agotados" }, { val: "inventario", text: "Inventarios" }, { val: "exhibicion", text: "Exhibiciones Adicionales" }, { val: "foto", text: "Fotos Anaquel" }, { val: "competencia", text: "Competencia" }]
-};
 
 async function loadReports() {
     try {
@@ -236,7 +232,7 @@ async function loadReports() {
         cachedStores = stores;
         allReportsRaw = Array.isArray(reports) ? reports : [];
 
-        const currentProjName = session.selectedProjectId ? allProjects.find(p => p._id === session.selectedProjectId)?.name : 'Todos los Clientes';
+        const currentProjName = session.selectedProjectId ? allProjects.find(p => p._id === session.selectedProjectId)?.name : 'Todos los Proyectos';
 
         document.getElementById("content").innerHTML = `
             <div class="card">
@@ -260,7 +256,10 @@ async function loadReports() {
                     <div><label>Tipo Reporte</label>
                         <select id="fType">
                             <option value="">-- Seleccionar Categoría --</option>
-                            ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
+                            <option value="inventario">Ventas/Inventario</option>
+                            <option value="precios">Precios</option>
+                            <option value="exhibicion">Exhibiciones</option>
+                            <option value="foto">Fotos</option>
                         </select>
                     </div>
                     <div><label>Tienda</label>
@@ -277,13 +276,6 @@ async function loadReports() {
             </div>
             <div id="reportList"></div>`;
     } catch (e) { console.error(e); }
-}
-
-function updateReportOptions() {
-    const role = document.getElementById("fRole").value;
-    const typeSelect = document.getElementById("fType");
-    const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
-    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` + options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
 }
 
 function filterReports() {
@@ -303,7 +295,7 @@ function filterReports() {
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
-        let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
+        let matchType = rType.includes(typeSel.substring(0, 4));
         return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (storeSel === "all" || rSid === storeSel);
     });
     renderTableReport(filtered, typeSel);
@@ -335,9 +327,7 @@ function renderTableReport(data, type) {
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
         dynamicKeys.forEach(k => {
             let val = r[k];
-            if (typeof val === 'object' && val !== null) val = '-';
-            if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== '-') val = `$${val}`;
-            rowData += `<td>${val}</td>`;
+            rowData += `<td>${val || '-'}</td>`;
         });
         if (hasPhoto) {
             const img = r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-';
@@ -375,7 +365,7 @@ function renderUsersTable() {
             <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
             <td>${u.email}</td>
             <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
-            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length}</span></td>
+            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length} Tiendas</span></td>
             <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
         </tr>`).join('');
 }
@@ -383,21 +373,17 @@ function renderUsersTable() {
 async function loadUsers() {
     if(session.role.toLowerCase() === 'cliente') return;
     
-    const content = document.getElementById("content");
-    if(!document.getElementById("usersTableBody")) {
-        content.innerHTML = `<div class="card" style="text-align:center">🔄 Sincronizando usuarios...</div>`;
-    }
-
-    const ts = new Date().getTime();
-    const [users, stores] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users?t=${ts}`), 
-        fetchAPI(`${BACKEND_URL}/stores?t=${ts}`)
+    const [users, stores, projects] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/users`), 
+        fetchAPI(`${BACKEND_URL}/stores`),
+        fetchAPI(`${BACKEND_URL}/projects`)
     ]);
     
     allUsersCached = Array.isArray(users) ? users : [];
     cachedStores = Array.isArray(stores) ? stores : [];
+    allProjects = projects;
     
-    content.innerHTML = `
+    document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>👥 Gestión de Usuarios</h2>
             <div class="grid-filters">
@@ -408,18 +394,14 @@ async function loadUsers() {
                     <option value="promotor">Promotor</option>
                     <option value="demostradora">Demostradora</option>
                     <option value="admin">Administrador</option>
-                    <option value="cliente">Cliente (Solo Reportes)</option>
+                    <option value="cliente">Cliente</option>
                 </select>
-                <select id="newUserProject">
-                    <option value="">Asignar Cliente/Marca...</option>
-                    ${allProjects.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
-                </select>
-                <button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button>
+                <button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR USUARIO</button>
             </div>
         </div>
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Asignaciones</th><th>Acción</th></tr></thead>
                 <tbody id="usersTableBody"></tbody>
             </table>
         </div>`;
@@ -427,55 +409,21 @@ async function loadUsers() {
 }
 
 async function createUser() {
-    const nameInput = document.getElementById("newUserName");
-    const emailInput = document.getElementById("newUserEmail");
-    const passInput = document.getElementById("newUserPass");
-    const roleInput = document.getElementById("newUserRole");
-    const projectInput = document.getElementById("newUserProject");
-
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim().toLowerCase();
-    const password = passInput.value.trim();
-    const role = roleInput.value;
-    const projectId = projectInput.value && projectInput.value !== "" ? projectInput.value : null;
+    const name = document.getElementById("newUserName").value.trim();
+    const email = document.getElementById("newUserEmail").value.trim().toLowerCase();
+    const password = document.getElementById("newUserPass").value.trim();
+    const role = document.getElementById("newUserRole").value;
     
-    if(!name || !email || !password) return alert("⚠️ Nombre, Email y Contraseña son obligatorios");
-    
-    const btn = document.querySelector("button[onclick='createUser()']");
-    btn.disabled = true;
-    btn.innerText = "PROCESANDO...";
+    if(!name || !email || !password) return alert("⚠️ Datos incompletos");
 
-    try {
-        const response = await fetch(`${BACKEND_URL}/users?timestamp=${Date.now()}`, { 
-            method: 'POST', 
-            headers: {
-                "userid": session.userId,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId, projectId }) 
-        });
+    const result = await fetchAPI(`${BACKEND_URL}/users`, { 
+        method: 'POST', 
+        body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) 
+    });
 
-        const result = await response.json();
-
-        if(!response.ok) {
-            alert("Error: " + (result.error || result.message || "Error desconocido"));
-            return;
-        }
-
-        if(result && (result._id || result.user)) {
-            alert("✅ ¡Usuario creado exitosamente!");
-            const createdUser = result.user || result;
-            allUsersCached.unshift(createdUser); 
-            renderUsersTable(); 
-            nameInput.value = "";
-            emailInput.value = "";
-            passInput.value = "";
-        }
-    } catch (err) {
-        alert("❌ Error de conexión o error interno");
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "GUARDAR";
+    if(result._id) {
+        alert("✅ Usuario creado. Ahora selecciónalo en la tabla para asignar sus proyectos.");
+        loadUsers();
     }
 }
 
@@ -484,72 +432,78 @@ function viewUserDetail(userId) {
     if(!u) return;
 
     let html = `
-        <div class="drawer-header"><h3>Gestión de Colaborador</h3><p>${u.name}</p></div>
+        <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
         
-        <label>Contraseña</label>
-        <div style="display:flex; gap:5px; margin-bottom:15px;">
-            <input type="password" id="editUserPass" placeholder="Nueva contraseña (opcional)">
-            <button class="btn-action" style="padding:5px 10px; font-size:10px;" onclick="updateUserField('${u._id}', 'password', document.getElementById('editUserPass').value)">ACTUALIZAR</button>
+        <label>🏷️ Proyectos / Marcas Asignadas</label>
+        <div class="tag-search-container">
+            <select style="width:100%" onchange="assignProject('${userId}', this.value); this.value=''">
+                <option value="">+ Agregar Proyecto...</option>
+                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientName || 'Gral'})</option>`).join('')}
+            </select>
+        </div>
+        <div class="assigned-chips-box" style="margin-bottom:20px;">
+            ${(u.projects || []).map(pid => {
+                const proj = allProjects.find(p => p._id === pid);
+                return proj ? `<div class="chip project-chip">${proj.name} <span onclick="unassignProject('${userId}', '${pid}')">&times;</span></div>` : '';
+            }).join('')}
         </div>
 
-        <label>Proyecto / Cliente</label>
-        <select style="width:100%; margin-bottom:15px;" onchange="updateUserField('${u._id}', 'projectId', this.value)">
-            <option value="">Ninguno</option>
-            ${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('')}
-        </select>
-        <label>Rol</label>
-        <select style="width:100%; margin-bottom:20px;" onchange="updateUserField('${u._id}', 'role', this.value)">
+        <label>📍 Tiendas Asignadas</label>
+        <div class="tag-search-container">
+            <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
+            <div id="tagSearchResults" class="search-results-dropdown"></div>
+        </div>
+        <div class="assigned-chips-box">
+            ${(u.stores || []).map(st => {
+                const sid = typeof st === 'object' ? st._id : st;
+                const store = cachedStores.find(x => x._id === sid);
+                return store ? `<div class="chip">${store.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : '';
+            }).join('')}
+        </div>
+
+        <hr style="margin:20px 0; opacity:0.2">
+        <label>Cambiar Rol</label>
+        <select style="width:100%" onchange="updateUserField('${u._id}', 'role', this.value)">
             <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
             <option value="promotor" ${u.role==='promotor'?'selected':''}>Promotor</option>
             <option value="demostradora" ${u.role==='demostradora'?'selected':''}>Demostradora</option>
             <option value="cliente" ${u.role==='cliente'?'selected':''}>Cliente</option>
-        </select>
-        <div class="store-list">
-            <label>📍 Asignar nuevas tiendas</label>
-            <div class="tag-search-container">
-                <input type="text" id="tagSearch" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
-                <div id="tagSearchResults" class="search-results-dropdown"></div>
-            </div>
-            <label>✅ Tiendas Asignadas (${(u.stores || []).length})</label>
-            <div class="assigned-chips-box">
-                ${(u.stores || []).map(st => {
-                    const sid = typeof st === 'object' ? st._id : st;
-                    const store = cachedStores.find(x => x._id === sid);
-                    return store ? `<div class="chip">${store.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : '';
-                }).join('')}
-            </div>
-        </div>`;
+        </select>`;
     openDrawer(html);
 }
 
-async function updateUserField(userId, field, value) {
-    if(field === 'password' && !value) return alert("Escribe una contraseña");
-    const body = {}; 
-    body[field] = (field === 'projectId' && value === "") ? null : value;
-    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(body) });
-    
-    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = updatedUsers;
-    if(field === 'password') alert("Contraseña actualizada con éxito");
-    
-    await loadUsers();
+async function assignProject(userId, projectId) {
+    if(!projectId) return;
+    await fetchAPI(`${BACKEND_URL}/users/${userId}/assign-project`, { method: 'POST', body: JSON.stringify({ projectId }) });
+    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = users;
     viewUserDetail(userId);
+}
+
+async function unassignProject(userId, projectId) {
+    await fetchAPI(`${BACKEND_URL}/users/${userId}/projects/${projectId}`, { method: 'DELETE' });
+    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = users;
+    viewUserDetail(userId);
+}
+
+async function updateUserField(userId, field, value) {
+    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify({ [field]: value }) });
+    loadUsers();
 }
 
 async function assignStore(userId, storeId) {
     await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, { method: 'POST', body: JSON.stringify({ storeId }) });
-    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = updatedUsers;
+    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = users;
     viewUserDetail(userId);
-    loadUsers();
 }
 
 async function unassignStore(userId, storeId) {
     await fetchAPI(`${BACKEND_URL}/users/${userId}/stores/${storeId}`, { method: 'DELETE' });
-    const updatedUsers = await fetchAPI(`${BACKEND_URL}/users`);
-    allUsersCached = updatedUsers;
+    const users = await fetchAPI(`${BACKEND_URL}/users`);
+    allUsersCached = users;
     viewUserDetail(userId);
-    loadUsers();
 }
 
 function filterTagSearch(userId, val) {
@@ -571,19 +525,19 @@ async function loadStores() {
                 <input type="text" id="stName" placeholder="Nombre de Tienda">
                 <input type="text" id="stAddr" placeholder="Ciudad / Dirección">
                 <select id="stProject">
-                    <option value="">Asignar Cliente...</option>
+                    <option value="">Vincular a Proyecto...</option>
                     ${allProjects.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
                 </select>
-                <button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR TIENDA</button>
+                <button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR</button>
             </div>
         </div>
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
-                <thead><tr><th>Nombre</th><th>Dirección/Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
                 <tbody>${stores.map(s => `
                     <tr>
                         <td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td>
-                        <td>${s.address || 'Sin dirección'}</td>
+                        <td>${s.address || '-'}</td>
                         <td>${allProjects.find(p => p._id === s.projectId)?.name || '-'}</td>
                         <td><button class="btn-delete" onclick="deleteStore('${s._id}')">Eliminar</button></td>
                     </tr>`).join('')}
@@ -596,32 +550,29 @@ async function createStore() {
     const name = document.getElementById("stName").value;
     const address = document.getElementById("stAddr").value;
     const projectId = document.getElementById("stProject").value;
-    if(!name) return alert("Nombre obligatorio");
     await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: JSON.stringify({ name, address, agencyId: session.agencyId, projectId: projectId || null }) });
     loadStores();
 }
 
 async function createProject() {
     const name = document.getElementById("projName").value;
+    const clientId = document.getElementById("projClientId").value;
     const description = document.getElementById("projDesc").value;
-    if(!name) return alert("Nombre de marca requerido");
-    await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, description }) });
-    await loadGlobalProjects();
+    if(!name || !clientId) return alert("Nombre y Cliente son requeridos");
+    await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, clientId, description }) });
     loadProjectsSection();
 }
 
-async function deleteProject(id, name) {
-    if(!confirm(`¿Estás seguro?`)) return;
+async function deleteProject(id) {
+    if(!confirm(`¿Borrar proyecto?`)) return;
     await fetchAPI(`${BACKEND_URL}/projects/${id}`, { method: 'DELETE' });
-    await loadGlobalProjects();
     loadProjectsSection();
 }
 
 async function deleteUser(id) {
     if(!confirm("¿Borrar usuario?")) return;
     await fetchAPI(`${BACKEND_URL}/users/${id}`, { method: 'DELETE' });
-    allUsersCached = allUsersCached.filter(u => u._id !== id);
-    renderUsersTable();
+    loadUsers();
 }
 
 async function deleteStore(id) {

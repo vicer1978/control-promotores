@@ -113,7 +113,6 @@ let allUsersCached = [];
 let cachedStores = [];
 let allProjects = [];
 
-// FETCH MEJORADO PARA EVITAR BLOQUEOS
 async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
@@ -129,7 +128,7 @@ async function fetchAPI(url, options = {}) {
         return data;
     } catch (err) {
         console.error("Fetch Error:", err);
-        return []; // Devuelve array vacío para no romper los .map()
+        return [];
     }
 }
 
@@ -222,13 +221,16 @@ async function loadProjectsSection() {
             <table class="report-table" style="margin:0;">
                 <thead><tr><th>Cliente Dueño</th><th>Marca / Proyecto</th><th>Descripción</th><th>Acción</th></tr></thead>
                 <tbody>
-                    ${allProjects.map(p => `
+                    ${allProjects.map(p => {
+                        const clientName = (typeof p.clientId === 'object') ? p.clientId?.name : (clientes.find(c => c._id === p.clientId)?.name || 'Sin asignar');
+                        return `
                         <tr>
-                            <td><b>${p.clientName || 'Sin asignar'}</b></td>
+                            <td><b>${clientName}</b></td>
                             <td>${p.name}</td>
                             <td>${p.description || '-'}</td>
                             <td><button class="btn-delete" onclick="deleteProject('${p._id}')">Eliminar</button></td>
-                        </tr>`).join('')}
+                        </tr>`;
+                    }).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -336,8 +338,9 @@ function renderTableReport(data, type) {
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${actionHeader}</tr></thead><tbody>`;
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
-        const usuario = r.userId?.name || 'S/N';
-        const tienda = r.storeId?.name || 'S/T';
+        const usuario = (typeof r.userId === 'object') ? (r.userId?.name || 'S/N') : (allUsersCached.find(u => u._id === r.userId)?.name || 'S/N');
+        const tienda = (typeof r.storeId === 'object') ? (r.storeId?.name || 'S/T') : (cachedStores.find(s => s._id === r.storeId)?.name || 'S/T');
+        
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
         dynamicKeys.forEach(k => {
             let val = r[k];
@@ -368,7 +371,10 @@ async function loadAttendance() {
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
         const fechaObj = new Date(a.createdAt);
         const fotoUrl = a.foto_url ? `${BACKEND_URL}${a.foto_url}` : null;
-        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'General'}</td><td>${fechaObj.toLocaleDateString()}</td><td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}</td></tr>`;
+        const usuarioName = (typeof a.userId === 'object') ? (a.userId?.name || 'S/N') : (allUsersCached.find(u => u._id === a.userId)?.name || 'S/N');
+        const tiendaName = (typeof a.storeId === 'object') ? (a.storeId?.name || 'S/T') : (cachedStores.find(s => s._id === a.storeId)?.name || 'General');
+
+        return `<tr><td><b>${usuarioName.toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${tiendaName}</td><td>${fechaObj.toLocaleDateString()}</td><td>${fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td><td>${fotoUrl ? `<img src="${fotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` : '---'}</td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
 
@@ -381,14 +387,17 @@ function renderUsersTable() {
         return;
     }
 
-    tableBody.innerHTML = allUsersCached.map(u => `
+    tableBody.innerHTML = allUsersCached.map(u => {
+        const userProjects = Array.isArray(u.projects) ? u.projects.length : 0;
+        return `
         <tr onclick="viewUserDetail('${u._id}')">
             <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
             <td>${u.email}</td>
             <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
-            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length} Tiendas</span></td>
+            <td><span class="badge" style="background:var(--gold); color:white">${userProjects} Proyectos</span></td>
             <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 }
 
 async function loadUsers() {
@@ -446,11 +455,10 @@ async function createUser() {
 
     if(result && result._id) {
         alert("✅ Usuario creado exitosamente.");
-        // Limpiar campos
         document.getElementById("newUserName").value = "";
         document.getElementById("newUserEmail").value = "";
         document.getElementById("newUserPass").value = "";
-        loadUsers(); // Recarga la tabla
+        loadUsers();
     } else {
         alert("❌ Error al guardar: " + (result.message || "Verifica los datos."));
     }
@@ -467,11 +475,12 @@ function viewUserDetail(userId) {
         <div class="tag-search-container">
             <select style="width:100%" onchange="assignProject('${userId}', this.value); this.value=''">
                 <option value="">+ Agregar Proyecto...</option>
-                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientName || 'Gral'})</option>`).join('')}
+                ${allProjects.map(p => `<option value="${p._id}">${p.name}</option>`).join('')}
             </select>
         </div>
         <div class="assigned-chips-box" style="margin-bottom:20px;">
-            ${(u.projects || []).map(pid => {
+            ${(u.projects || []).map(pItem => {
+                const pid = (typeof pItem === 'object') ? pItem._id : pItem;
                 const proj = allProjects.find(p => p._id === pid);
                 return proj ? `<div class="chip project-chip">${proj.name} <span onclick="unassignProject('${userId}', '${pid}')">&times;</span></div>` : '';
             }).join('')}
@@ -564,13 +573,16 @@ async function loadStores() {
         <div class="card" style="padding:0;">
             <table class="report-table" style="margin:0;">
                 <thead><tr><th>Nombre</th><th>Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
-                <tbody>${cachedStores.map(s => `
+                <tbody>${cachedStores.map(s => {
+                    const projName = (typeof s.projectId === 'object') ? (s.projectId?.name || '-') : (allProjects.find(p => p._id === s.projectId)?.name || '-');
+                    return `
                     <tr>
                         <td style="text-align:left; padding-left:15px;"><b>${s.name}</b></td>
                         <td>${s.address || '-'}</td>
-                        <td>${allProjects.find(p => p._id === s.projectId)?.name || '-'}</td>
+                        <td>${projName}</td>
                         <td><button class="btn-delete" onclick="deleteStore('${s._id}')">Eliminar</button></td>
-                    </tr>`).join('')}
+                    </tr>`;
+                }).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -631,4 +643,3 @@ function logout() {
 </script>
 </body>
 </html>
-

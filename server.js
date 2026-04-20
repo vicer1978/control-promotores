@@ -87,20 +87,23 @@ app.post("/login", async (req, res) => {
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
-            projects: user.projects || [], 
             name: user.name 
         });
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS ---
+// --- GESTIÓN DE PROYECTOS (CORREGIDO) ---
 app.get("/projects", auth, async (req, res) => {
     try {
+        // Buscamos proyectos vinculados a la agencia del administrador logueado
         const projects = await Project.find({ agencyId: req.user.agencyId })
             .populate("clientId", "name email")
             .sort({ name: 1 });
         res.json(projects);
-    } catch (err) { res.status(500).json({ error: "Error al obtener proyectos" }); }
+    } catch (err) { 
+        console.error("Error al obtener proyectos:", err);
+        res.status(500).json({ error: "Error al obtener proyectos" }); 
+    }
 });
 
 app.get("/client-projects", auth, async (req, res) => {
@@ -118,14 +121,20 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
+        const { name } = req.body;
+        if (!name) return res.status(400).json({ error: "El nombre de la marca/proyecto es necesario" });
+
         const newProject = new Project({ 
             ...req.body, 
-            agencyId: req.user.agencyId,
+            agencyId: req.user.agencyId, // Forzamos que se guarde con tu agencia
             clientId: req.body.clientId || null 
         });
         await newProject.save();
-        res.json({ message: "Proyecto creado", project: newProject });
-    } catch (err) { res.status(500).json({ error: "Error al crear proyecto" }); }
+        res.json({ message: "Proyecto creado con éxito", project: newProject });
+    } catch (err) { 
+        console.error("Error al guardar proyecto:", err);
+        res.status(500).json({ error: "Error al crear proyecto" }); 
+    }
 });
 
 app.put("/projects/:id", auth, async (req, res) => {
@@ -191,19 +200,17 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS (MEJORADO) ---
+// --- GESTIÓN DE USUARIOS (MEJORADO SIN ERROR DE POPULATE) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
-        // Filtro base: misma agencia que el admin logueado
         const filter = { agencyId: req.user.agencyId };
 
-        // CORRECCIÓN: Si hay un proyecto seleccionado, filtramos.
-        // Si el valor es "all", "undefined" o vacío, no aplicamos el filtro de proyecto
         if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
             filter.projectId = projectId;
         }
 
+        // SE ELIMINÓ .populate('projects') PARA EVITAR EL ERROR DE RENDER
         const users = await User.find(filter)
             .populate('stores')
             .sort({ name: 1 });
@@ -217,7 +224,6 @@ app.get("/users", auth, async (req, res) => {
 
 app.post("/users", auth, async (req, res) => {
     try {
-        console.log("Datos recibidos para nuevo usuario:", req.body); // Log para debug
         const { name, email, password, role, projectId, stores } = req.body;
         
         if (!name || !email || !password) {
@@ -246,7 +252,6 @@ app.put("/users/:id", auth, async (req, res) => {
     try {
         const updates = { ...req.body };
         if (updates.email) updates.email = updates.email.toLowerCase().trim();
-        // Evitar que se cambie la agencia por error
         delete updates.agencyId; 
 
         const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true });

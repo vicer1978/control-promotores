@@ -92,12 +92,11 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (CORREGIDO) ---
+// --- GESTIÓN DE PROYECTOS (CORREGIDO SIN POPULATE CONFLICTIVO) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Buscamos proyectos vinculados a la agencia del administrador logueado
+        // Se eliminó .populate("clientId") porque no existe en tu esquema de Project
         const projects = await Project.find({ agencyId: req.user.agencyId })
-            .populate("clientId", "name email")
             .sort({ name: 1 });
         res.json(projects);
     } catch (err) { 
@@ -126,8 +125,7 @@ app.post("/projects", auth, async (req, res) => {
 
         const newProject = new Project({ 
             ...req.body, 
-            agencyId: req.user.agencyId, // Forzamos que se guarde con tu agencia
-            clientId: req.body.clientId || null 
+            agencyId: req.user.agencyId
         });
         await newProject.save();
         res.json({ message: "Proyecto creado con éxito", project: newProject });
@@ -200,7 +198,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS (MEJORADO SIN ERROR DE POPULATE) ---
+// --- GESTIÓN DE USUARIOS (SIN POPULATE DE PROJECTS) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
@@ -210,7 +208,6 @@ app.get("/users", auth, async (req, res) => {
             filter.projectId = projectId;
         }
 
-        // SE ELIMINÓ .populate('projects') PARA EVITAR EL ERROR DE RENDER
         const users = await User.find(filter)
             .populate('stores')
             .sort({ name: 1 });

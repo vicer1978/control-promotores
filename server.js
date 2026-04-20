@@ -92,11 +92,12 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (CORREGIDO SIN POPULATE CONFLICTIVO) ---
+// --- GESTIÓN DE PROYECTOS (ACTUALIZADO CON CLIENTID) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Se eliminó .populate("clientId") porque no existe en tu esquema de Project
+        // Habilitamos populate de clientId para obtener el nombre del cliente en la tabla
         const projects = await Project.find({ agencyId: req.user.agencyId })
+            .populate("clientId", "name email") 
             .sort({ name: 1 });
         res.json(projects);
     } catch (err) { 
@@ -108,9 +109,12 @@ app.get("/projects", auth, async (req, res) => {
 app.get("/client-projects", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId, active: true };
+        
+        // Si es cliente, solo mostramos donde sea el dueño (clientId)
         if (req.user.role.toLowerCase() === 'cliente') {
             filter.clientId = req.user._id;
         }
+        
         const projects = await Project.find(filter).sort({ name: 1 });
         res.json(projects);
     } catch (err) {
@@ -120,12 +124,14 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, clientId } = req.body;
         if (!name) return res.status(400).json({ error: "El nombre de la marca/proyecto es necesario" });
 
         const newProject = new Project({ 
             ...req.body, 
-            agencyId: req.user.agencyId
+            agencyId: req.user.agencyId,
+            // Aseguramos que el clientId se guarde si viene en el body
+            clientId: (clientId && mongoose.Types.ObjectId.isValid(clientId)) ? clientId : null
         });
         await newProject.save();
         res.json({ message: "Proyecto creado con éxito", project: newProject });
@@ -198,7 +204,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS (SIN POPULATE DE PROJECTS) ---
+// --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;

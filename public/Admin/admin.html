@@ -113,7 +113,6 @@ let allUsersCached = [];
 let cachedStores = [];
 let allProjects = [];
 
-// FETCH MEJORADO PARA EVITAR BLOQUEOS
 async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
@@ -129,7 +128,7 @@ async function fetchAPI(url, options = {}) {
         return data;
     } catch (err) {
         console.error("Fetch Error:", err);
-        return []; // Devuelve array vacío para no romper los .map()
+        return [];
     }
 }
 
@@ -203,14 +202,15 @@ async function loadProjectsSection() {
         fetchAPI(`${BACKEND_URL}/users`)
     ]);
     allProjects = Array.isArray(projects) ? projects : [];
-    const clientes = Array.isArray(users) ? users.filter(u => u.role === 'cliente') : [];
+    // Filtramos solo usuarios con rol cliente para el selector
+    const clientes = Array.isArray(users) ? users.filter(u => u.role.toLowerCase() === 'cliente') : [];
 
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>🏷️ Gestión de Proyectos por Cliente</h2>
             <div class="grid-filters">
                 <select id="projClientId">
-                    <option value="">Seleccionar Cliente...</option>
+                    <option value="">Seleccionar Cliente Dueño...</option>
                     ${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}
                 </select>
                 <input type="text" id="projName" placeholder="Nombre de la marca/proyecto">
@@ -222,13 +222,17 @@ async function loadProjectsSection() {
             <table class="report-table" style="margin:0;">
                 <thead><tr><th>Cliente Dueño</th><th>Marca / Proyecto</th><th>Descripción</th><th>Acción</th></tr></thead>
                 <tbody>
-                    ${allProjects.map(p => `
+                    ${allProjects.map(p => {
+                        // Extraemos el nombre del cliente del objeto clientId que viene del populate
+                        const clientName = (p.clientId && p.clientId.name) ? p.clientId.name : 'Sin asignar';
+                        return `
                         <tr>
-                            <td><b>${p.clientName || 'Sin asignar'}</b></td>
+                            <td><b>${clientName.toUpperCase()}</b></td>
                             <td>${p.name}</td>
                             <td>${p.description || '-'}</td>
                             <td><button class="btn-delete" onclick="deleteProject('${p._id}')">Eliminar</button></td>
-                        </tr>`).join('')}
+                        </tr>`;
+                    }).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -446,11 +450,10 @@ async function createUser() {
 
     if(result && result._id) {
         alert("✅ Usuario creado exitosamente.");
-        // Limpiar campos
         document.getElementById("newUserName").value = "";
         document.getElementById("newUserEmail").value = "";
         document.getElementById("newUserPass").value = "";
-        loadUsers(); // Recarga la tabla
+        loadUsers(); 
     } else {
         alert("❌ Error al guardar: " + (result.message || "Verifica los datos."));
     }
@@ -467,7 +470,10 @@ function viewUserDetail(userId) {
         <div class="tag-search-container">
             <select style="width:100%" onchange="assignProject('${userId}', this.value); this.value=''">
                 <option value="">+ Agregar Proyecto...</option>
-                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientName || 'Gral'})</option>`).join('')}
+                ${allProjects.map(p => {
+                    const cName = (p.clientId && p.clientId.name) ? p.clientId.name : 'Gral';
+                    return `<option value="${p._id}">${p.name} (${cName})</option>`;
+                }).join('')}
             </select>
         </div>
         <div class="assigned-chips-box" style="margin-bottom:20px;">
@@ -589,7 +595,12 @@ async function createProject() {
     const clientId = document.getElementById("projClientId").value;
     const description = document.getElementById("projDesc").value;
     if(!name || !clientId) return alert("Nombre y Cliente son requeridos");
-    await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, clientId, description }) });
+    
+    // Al enviar el POST, mandamos el clientId que seleccionamos del dropdown
+    await fetchAPI(`${BACKEND_URL}/projects`, { 
+        method: 'POST', 
+        body: JSON.stringify({ name, clientId, description }) 
+    });
     loadProjectsSection();
 }
 

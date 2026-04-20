@@ -92,10 +92,10 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (ACTUALIZADO CON CLIENTID) ---
+// --- GESTIÓN DE PROYECTOS (CON POPULATE RESTAURADO) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Habilitamos populate de clientId para obtener el nombre del cliente en la tabla
+        // Restauramos el populate de clientId para que el admin vea el nombre del cliente
         const projects = await Project.find({ agencyId: req.user.agencyId })
             .populate("clientId", "name email") 
             .sort({ name: 1 });
@@ -109,12 +109,9 @@ app.get("/projects", auth, async (req, res) => {
 app.get("/client-projects", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId, active: true };
-        
-        // Si es cliente, solo mostramos donde sea el dueño (clientId)
         if (req.user.role.toLowerCase() === 'cliente') {
             filter.clientId = req.user._id;
         }
-        
         const projects = await Project.find(filter).sort({ name: 1 });
         res.json(projects);
     } catch (err) {
@@ -130,8 +127,7 @@ app.post("/projects", auth, async (req, res) => {
         const newProject = new Project({ 
             ...req.body, 
             agencyId: req.user.agencyId,
-            // Aseguramos que el clientId se guarde si viene en el body
-            clientId: (clientId && mongoose.Types.ObjectId.isValid(clientId)) ? clientId : null
+            clientId: clientId || null // Aseguramos que se guarde el cliente vinculado
         });
         await newProject.save();
         res.json({ message: "Proyecto creado con éxito", project: newProject });
@@ -216,6 +212,7 @@ app.get("/users", auth, async (req, res) => {
 
         const users = await User.find(filter)
             .populate('stores')
+            .populate('projects') // Añadido para que se vean los proyectos asignados
             .sort({ name: 1 });
             
         res.json(users);
@@ -296,6 +293,37 @@ app.delete("/stores/:id", auth, async (req, res) => {
     try {
         await Store.findByIdAndDelete(req.params.id);
         res.json({ message: "Tienda eliminada" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
+});
+
+// --- ASIGNACIONES ESPECIALES ---
+app.post("/users/:id/assign-project", auth, async (req, res) => {
+    try {
+        const { projectId } = req.body;
+        await User.findByIdAndUpdate(req.params.id, { $addToSet: { projects: projectId } });
+        res.json({ message: "Proyecto asignado" });
+    } catch (err) { res.status(500).json({ error: "Error al asignar proyecto" }); }
+});
+
+app.delete("/users/:id/projects/:projectId", auth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.params.id, { $pull: { projects: req.params.projectId } });
+        res.json({ message: "Proyecto desasignado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar proyecto" }); }
+});
+
+app.post("/users/:id/assign", auth, async (req, res) => {
+    try {
+        const { storeId } = req.body;
+        await User.findByIdAndUpdate(req.params.id, { $addToSet: { stores: storeId } });
+        res.json({ message: "Tienda asignada" });
+    } catch (err) { res.status(500).json({ error: "Error al asignar tienda" }); }
+});
+
+app.delete("/users/:id/stores/:storeId", auth, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.params.id, { $pull: { stores: req.params.storeId } });
+        res.json({ message: "Tienda desasignada" });
     } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
 

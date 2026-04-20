@@ -92,12 +92,11 @@ app.post("/login", async (req, res) => {
     } catch (err) { res.status(500).json({ message: "Error en login" }); }
 });
 
-// --- GESTIÓN DE PROYECTOS (CON POPULATE RESTAURADO) ---
+// --- GESTIÓN DE PROYECTOS (CORREGIDO SIN POPULATE CONFLICTIVO) ---
 app.get("/projects", auth, async (req, res) => {
     try {
-        // Restauramos el populate de clientId para que el admin vea el nombre del cliente
+        // Se eliminó .populate("clientId") porque no existe en tu esquema de Project
         const projects = await Project.find({ agencyId: req.user.agencyId })
-            .populate("clientId", "name email") 
             .sort({ name: 1 });
         res.json(projects);
     } catch (err) { 
@@ -121,13 +120,12 @@ app.get("/client-projects", auth, async (req, res) => {
 
 app.post("/projects", auth, async (req, res) => {
     try {
-        const { name, clientId } = req.body;
+        const { name } = req.body;
         if (!name) return res.status(400).json({ error: "El nombre de la marca/proyecto es necesario" });
 
         const newProject = new Project({ 
             ...req.body, 
-            agencyId: req.user.agencyId,
-            clientId: clientId || null // Aseguramos que se guarde el cliente vinculado
+            agencyId: req.user.agencyId
         });
         await newProject.save();
         res.json({ message: "Proyecto creado con éxito", project: newProject });
@@ -200,7 +198,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
-// --- GESTIÓN DE USUARIOS ---
+// --- GESTIÓN DE USUARIOS (SIN POPULATE DE PROJECTS) ---
 app.get("/users", auth, async (req, res) => {
     try {
         const projectId = req.headers.projectid;
@@ -212,7 +210,6 @@ app.get("/users", auth, async (req, res) => {
 
         const users = await User.find(filter)
             .populate('stores')
-            .populate('projects') // Añadido para que se vean los proyectos asignados
             .sort({ name: 1 });
             
         res.json(users);
@@ -296,37 +293,6 @@ app.delete("/stores/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
 });
 
-// --- ASIGNACIONES ESPECIALES ---
-app.post("/users/:id/assign-project", auth, async (req, res) => {
-    try {
-        const { projectId } = req.body;
-        await User.findByIdAndUpdate(req.params.id, { $addToSet: { projects: projectId } });
-        res.json({ message: "Proyecto asignado" });
-    } catch (err) { res.status(500).json({ error: "Error al asignar proyecto" }); }
-});
-
-app.delete("/users/:id/projects/:projectId", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.id, { $pull: { projects: req.params.projectId } });
-        res.json({ message: "Proyecto desasignado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar proyecto" }); }
-});
-
-app.post("/users/:id/assign", auth, async (req, res) => {
-    try {
-        const { storeId } = req.body;
-        await User.findByIdAndUpdate(req.params.id, { $addToSet: { stores: storeId } });
-        res.json({ message: "Tienda asignada" });
-    } catch (err) { res.status(500).json({ error: "Error al asignar tienda" }); }
-});
-
-app.delete("/users/:id/stores/:storeId", auth, async (req, res) => {
-    try {
-        await User.findByIdAndUpdate(req.params.id, { $pull: { stores: req.params.storeId } });
-        res.json({ message: "Tienda desasignada" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar tienda" }); }
-});
-
 // --- RUTAS DE NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/admin/super", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "super-admin.html")));
@@ -340,3 +306,4 @@ app.get(/.*/, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));
+

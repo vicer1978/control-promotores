@@ -113,6 +113,7 @@ let allUsersCached = [];
 let cachedStores = [];
 let allProjects = [];
 
+// FETCH MEJORADO PARA EVITAR BLOQUEOS
 async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
@@ -128,7 +129,7 @@ async function fetchAPI(url, options = {}) {
         return data;
     } catch (err) {
         console.error("Fetch Error:", err);
-        return [];
+        return []; // Devuelve array vacío para no romper los .map()
     }
 }
 
@@ -209,11 +210,11 @@ async function loadProjectsSection() {
             <h2>🏷️ Gestión de Proyectos por Cliente</h2>
             <div class="grid-filters">
                 <select id="projClientId">
-                    <option value="">Seleccionar Cliente Dueño...</option>
+                    <option value="">Seleccionar Cliente...</option>
                     ${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}
                 </select>
                 <input type="text" id="projName" placeholder="Nombre de la marca/proyecto">
-                <input type="text" id="projDesc" placeholder="Descripción (opcional)">
+                <input type="text" id="projDesc" placeholder="Descripción">
                 <button class="btn-action" style="background:var(--success)" onclick="createProject()">CREAR PROYECTO</button>
             </div>
         </div>
@@ -221,16 +222,13 @@ async function loadProjectsSection() {
             <table class="report-table" style="margin:0;">
                 <thead><tr><th>Cliente Dueño</th><th>Marca / Proyecto</th><th>Descripción</th><th>Acción</th></tr></thead>
                 <tbody>
-                    ${allProjects.map(p => {
-                        const clientLabel = p.clientId?.name || p.clientName || 'Sin asignar';
-                        return `
+                    ${allProjects.map(p => `
                         <tr>
-                            <td><b>${clientLabel}</b></td>
+                            <td><b>${p.clientName || 'Sin asignar'}</b></td>
                             <td>${p.name}</td>
                             <td>${p.description || '-'}</td>
                             <td><button class="btn-delete" onclick="deleteProject('${p._id}')">Eliminar</button></td>
-                        </tr>`;
-                    }).join('')}
+                        </tr>`).join('')}
                 </tbody>
             </table>
         </div>`;
@@ -374,6 +372,25 @@ async function loadAttendance() {
     }).join('')}</tbody></table></div>`;
 }
 
+function renderUsersTable() {
+    const tableBody = document.querySelector("#usersTableBody");
+    if(!tableBody) return;
+    
+    if(allUsersCached.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados o hubo un error de carga.</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = allUsersCached.map(u => `
+        <tr onclick="viewUserDetail('${u._id}')">
+            <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
+            <td>${u.email}</td>
+            <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
+            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length} Tiendas</span></td>
+            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
+        </tr>`).join('');
+}
+
 async function loadUsers() {
     if(session.role && session.role.toLowerCase() === 'cliente') return;
     
@@ -414,32 +431,26 @@ async function loadUsers() {
     renderUsersTable();
 }
 
-function renderUsersTable() {
-    const tableBody = document.querySelector("#usersTableBody");
-    if(!tableBody) return;
-    tableBody.innerHTML = allUsersCached.map(u => `
-        <tr onclick="viewUserDetail('${u._id}')">
-            <td style="text-align:left; padding-left:15px;"><b>${(u.name || 'S/N').toUpperCase()}</b></td>
-            <td>${u.email}</td>
-            <td><span class="badge" style="background:#e2e8f0">${u.role}</span></td>
-            <td><span class="badge" style="background:var(--gold); color:white">${(u.stores || []).length} Tiendas</span></td>
-            <td><button class="btn-delete" onclick="event.stopPropagation(); deleteUser('${u._id}')">Borrar</button></td>
-        </tr>`).join('');
-}
-
 async function createUser() {
     const name = document.getElementById("newUserName").value.trim();
     const email = document.getElementById("newUserEmail").value.trim().toLowerCase();
     const password = document.getElementById("newUserPass").value.trim();
     const role = document.getElementById("newUserRole").value;
+    
     if(!name || !email || !password) return alert("⚠️ Datos incompletos");
+
     const result = await fetchAPI(`${BACKEND_URL}/users`, { 
         method: 'POST', 
         body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) 
     });
+
     if(result && result._id) {
         alert("✅ Usuario creado exitosamente.");
-        loadUsers();
+        // Limpiar campos
+        document.getElementById("newUserName").value = "";
+        document.getElementById("newUserEmail").value = "";
+        document.getElementById("newUserPass").value = "";
+        loadUsers(); // Recarga la tabla
     } else {
         alert("❌ Error al guardar: " + (result.message || "Verifica los datos."));
     }
@@ -448,13 +459,15 @@ async function createUser() {
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
+
     let html = `
         <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
+        
         <label>🏷️ Proyectos / Marcas Asignadas</label>
         <div class="tag-search-container">
             <select style="width:100%" onchange="assignProject('${userId}', this.value); this.value=''">
                 <option value="">+ Agregar Proyecto...</option>
-                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientId?.name || 'Gral'})</option>`).join('')}
+                ${allProjects.map(p => `<option value="${p._id}">${p.name} (${p.clientName || 'Gral'})</option>`).join('')}
             </select>
         </div>
         <div class="assigned-chips-box" style="margin-bottom:20px;">
@@ -463,6 +476,7 @@ function viewUserDetail(userId) {
                 return proj ? `<div class="chip project-chip">${proj.name} <span onclick="unassignProject('${userId}', '${pid}')">&times;</span></div>` : '';
             }).join('')}
         </div>
+
         <label>📍 Tiendas Asignadas</label>
         <div class="tag-search-container">
             <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
@@ -475,6 +489,7 @@ function viewUserDetail(userId) {
                 return store ? `<div class="chip">${store.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : '';
             }).join('')}
         </div>
+
         <hr style="margin:20px 0; opacity:0.2">
         <label>Cambiar Rol</label>
         <select style="width:100%" onchange="updateUserField('${u._id}', 'role', this.value)">
@@ -501,6 +516,11 @@ async function unassignProject(userId, projectId) {
     viewUserDetail(userId);
 }
 
+async function updateUserField(userId, field, value) {
+    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify({ [field]: value }) });
+    loadUsers();
+}
+
 async function assignStore(userId, storeId) {
     await fetchAPI(`${BACKEND_URL}/users/${userId}/assign`, { method: 'POST', body: JSON.stringify({ storeId }) });
     const users = await fetchAPI(`${BACKEND_URL}/users`);
@@ -513,11 +533,6 @@ async function unassignStore(userId, storeId) {
     const users = await fetchAPI(`${BACKEND_URL}/users`);
     allUsersCached = Array.isArray(users) ? users : [];
     viewUserDetail(userId);
-}
-
-async function updateUserField(userId, field, value) {
-    await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify({ [field]: value }) });
-    loadUsers();
 }
 
 function filterTagSearch(userId, val) {
@@ -575,14 +590,12 @@ async function createProject() {
     const description = document.getElementById("projDesc").value;
     if(!name || !clientId) return alert("Nombre y Cliente son requeridos");
     await fetchAPI(`${BACKEND_URL}/projects`, { method: 'POST', body: JSON.stringify({ name, clientId, description }) });
-    await loadGlobalProjects(); // Actualiza el selector global
     loadProjectsSection();
 }
 
 async function deleteProject(id) {
     if(!confirm(`¿Borrar proyecto?`)) return;
     await fetchAPI(`${BACKEND_URL}/projects/${id}`, { method: 'DELETE' });
-    await loadGlobalProjects();
     loadProjectsSection();
 }
 
@@ -618,3 +631,4 @@ function logout() {
 </script>
 </body>
 </html>
+

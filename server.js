@@ -414,40 +414,42 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // Solo filtramos por agencia para que la tienda sea global en tu sistema
-        let filter = { agencyId: req.user.agencyId };
+        // Eliminamos el filtro de agencyId y projectId. 
+        // Ahora el filtro está vacío {}, lo que trae TODAS las tiendas del catálogo global.
+        let filter = {}; 
 
-        // Si Maria tiene "Walmart El Sauz" en su lista personal, se lo mostramos
+        // Si quieres que el usuario SOLO vea las que tiene asignadas en su perfil:
         if (req.user.role !== 'admin' && req.user.stores && req.user.stores.length > 0) {
             filter._id = { $in: req.user.stores };
         }
 
         const stores = await Store.find(filter).sort({ name: 1 });
         
-        // Si no hay tiendas, enviamos un array vacío en lugar de un error para evitar el mensaje de la app
+        // Enviamos siempre un array (aunque esté vacío) para que la app no explote
         res.json(stores || []);
     } catch (err) { 
-        console.error("Error al cargar tiendas:", err);
-        res.status(500).json({ error: "Error de conexión con el catálogo" }); 
+        console.error("Error al cargar catálogo global:", err);
+        res.status(500).json({ error: "Error al conectar con el catálogo de tiendas" }); 
     }
 });
+
 
 
 
 app.post("/stores", auth, async (req, res) => {
     try {
-        // Quitamos la dependencia forzada de projectId al crear
+        // Creamos la tienda limpia, sin pegarla a una agencia o proyecto
         const newStore = new Store({ 
-            ...req.body, 
-            agencyId: req.user.agencyId 
-            // projectId queda opcional o se omite para ser global
+            ...req.body 
+            // agencyId: req.user.agencyId <--- QUITAMOS ESTO
         });
         await newStore.save();
-        res.json({ message: "Tienda creada", store: newStore });
+        res.json({ message: "Tienda añadida al catálogo global", store: newStore });
     } catch (err) { 
         res.status(500).json({ error: "Error al crear tienda" }); 
     }
 });
+
 
 app.delete("/stores/:id", auth, async (req, res) => {
     try {

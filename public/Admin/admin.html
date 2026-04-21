@@ -144,48 +144,49 @@ function applyRoleRestrictions() {
     }
 }
 
-async function guardarCambiosUsuario(userId) {
-    try {
-        const elName = document.getElementById('editName');
-        const elEmail = document.getElementById('editEmail');
-        
-        if (!elName || !elEmail) {
-            console.error("Error: No se encontraron los campos del formulario en el HTML.");
-            alert("Error interno: Los campos de edición no coinciden. Revisa la consola.");
-            return;
-        }
+<script>
+    // 1. Datos de sesión primero
+    const session = {
+        userId: localStorage.getItem('userId'),
+        selectedProjectId: localStorage.getItem('selectedProjectId')
+    };
 
-        const tiendasRestantes = Array.from(document.querySelectorAll('.tienda-tag'))
-                                      .map(tag => tag.dataset.id)
-                                      .filter(id => id); // Elimina IDs vacíos
-
-        const datos = {
-            name: elName.value,
-            email: elEmail.value,
-            role: document.getElementById('editRole')?.value || 'Promotor',
-            active: document.getElementById('editActive')?.checked || false,
-            projectId: document.getElementById('editProject')?.value || null,
-            stores: tiendasRestantes
+    // 2. Función fetchAPI (DEBE IR AQUÍ PARA QUE loadGlobalProjects LA VEA)
+    async function fetchAPI(url, options = {}) {
+        const headers = { 
+            "userid": session.userId, 
+            "Content-Type": "application/json"
         };
+        if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
+        options.headers = { ...(options.headers || {}), ...headers };
 
-        const url = `https://storepulse.onrender.com/users/${userId}`;
-        
-        console.log("Enviando datos:", datos); // Para que veas qué se envía en la consola
-
-        const res = await fetchAPI(url, {
-            method: 'PUT',
-            body: JSON.stringify(datos)
-        });
-
-        if (res) {
-            alert("¡Usuario actualizado con éxito!");
-            location.reload();
+        try {
+            const res = await fetch(url, options);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (err) { 
+            console.error("Error de conexión:", err);
+            return null; 
         }
-    } catch (error) {
-        console.error("Error crítico al guardar:", error);
-        alert("Ocurrió un error al procesar el guardado.");
     }
-}
+
+    // 3. Funciones que usan fetchAPI
+    async function loadGlobalProjects() {
+        const projects = await fetchAPI('https://storepulse.onrender.com/projects');
+        // ... lógica para llenar el select
+    }
+
+    // 4. Tu nueva función de guardado
+    async function guardarCambiosUsuario(userId) {
+        // ... (el código que pusimos antes con los IDs correctos)
+    }
+
+    window.onload = () => {
+        loadGlobalProjects();
+        // otras cargas...
+    };
+</script>
+
 
 
 

@@ -315,48 +315,67 @@
     };
 
     async function startCheckin(fotoFile) {
-        const btn = document.getElementById("btnCheckin");
-        const userId = localStorage.getItem("userId");
-        const agencyId = localStorage.getItem("agencyId");
-        
-        if (!navigator.geolocation) return alert("GPS no disponible.");
-        btn.innerText = "PROCESANDO...";
-        btn.disabled = true;
+    const btn = document.getElementById("btnCheckin");
+    const userId = localStorage.getItem("userId");
+    const agencyId = localStorage.getItem("agencyId");
+    
+    // VALIDACIÓN CRÍTICA: Si no hay AgencyId, el backend rebotará el checkin
+    if (!agencyId || agencyId === "undefined" || agencyId === "null") {
+        alert("❌ Error: No se encontró tu ID de Agencia. Cierra sesión y vuelve a entrar.");
+        resetBtn(btn);
+        return;
+    }
 
-        navigator.geolocation.getCurrentPosition(async pos => {
-            try {
-                const formData = new FormData();
-                formData.append("storeId", selectedStore._id);
-                formData.append("agencyId", agencyId);
-                formData.append("lat", pos.coords.latitude);
-                formData.append("lng", pos.coords.longitude);
-                formData.append("photo", fotoFile);
+    if (!navigator.geolocation) return alert("GPS no disponible.");
+    
+    btn.innerText = "PROCESANDO...";
+    btn.disabled = true;
 
-                const res = await fetch(`${BACKEND_URL}/checkin`, {
-                    method: "POST",
-                    headers: { "userid": userId },
-                    body: formData
-                });
+    navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+            const formData = new FormData();
+            formData.append("storeId", selectedStore._id);
+            formData.append("agencyId", agencyId);
+            formData.append("lat", pos.coords.latitude);
+            formData.append("lng", pos.coords.longitude);
+            formData.append("photo", fotoFile);
 
-                if (res.ok) {
-                    localStorage.setItem("activeStoreId", selectedStore._id);
-                    localStorage.setItem("activeStoreName", selectedStore.name);
-                    alert(`✅ Entrada registrada en ${selectedStore.name}`);
-                    window.location.href = "./dashboard_tareas.html"; 
-                } else {
-                    const data = await res.json();
-                    alert("❌ " + (data.error || "Error"));
-                    resetBtn(btn);
-                }
-            } catch (err) {
-                alert("Error de red.");
+            // LOG DE DEPURACIÓN: Verificamos qué se envía
+            console.log("Enviando Check-in:", {
+                store: selectedStore._id,
+                agency: agencyId,
+                user: userId
+            });
+
+            const res = await fetch(`${BACKEND_URL}/checkin`, {
+                method: "POST",
+                headers: { "userid": userId },
+                body: formData
+            });
+
+            if (res.ok) {
+                localStorage.setItem("activeStoreId", selectedStore._id);
+                localStorage.setItem("activeStoreName", selectedStore.name);
+                alert(`✅ Entrada registrada en ${selectedStore.name}`);
+                window.location.href = "./dashboard_tareas.html"; 
+            } else {
+                const data = await res.json();
+                // Si el backend nos da un error específico, lo mostramos
+                alert("❌ Error del Servidor: " + (data.error || data.message || "Falla al iniciar turno"));
                 resetBtn(btn);
             }
-        }, () => {
-            alert("Se requiere GPS.");
+        } catch (err) {
+            console.error("Error en la petición:", err);
+            alert("Error de red. Revisa tu conexión a internet.");
             resetBtn(btn);
-        }, { enableHighAccuracy: true });
-    }
+        }
+    }, (error) => {
+        console.warn("Error de GPS:", error);
+        alert("Se requiere GPS. Por favor activa la ubicación.");
+        resetBtn(btn);
+    }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
 
     async function finalizarTurno() {
         if (!confirm("¿Deseas cerrar tu turno por hoy?")) return;

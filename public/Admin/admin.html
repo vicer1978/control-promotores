@@ -144,38 +144,23 @@ function applyRoleRestrictions() {
     }
 }
 
-    // 1. Primero define las variables de sesión
-    const session = {
-        userId: localStorage.getItem('userId'),
-        selectedProjectId: localStorage.getItem('selectedProjectId')
+async function fetchAPI(url, options = {}) {
+    const headers = { 
+        "userid": session.userId, 
+        "Content-Type": "application/json",
+        "projectid": session.selectedProjectId || "" 
     };
-
-    // 2. LUEGO define la función fetchAPI (Debe estar antes de que otras funciones la usen)
-    async function fetchAPI(url, options = {}) {
-        const headers = { 
-            "userid": session.userId, 
-            "Content-Type": "application/json"
-        };
-        if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
-        options.headers = { ...(options.headers || {}), ...headers };
-
-        try {
-            const res = await fetch(url, options);
-            if (!res.ok) return null;
-            return await res.json();
-        } catch (err) { 
-            console.error("Error de conexión:", err);
-            return null; 
-        }
+    options.headers = { ...(options.headers || {}), ...headers };
+    
+    try {
+        const res = await fetch(url, options);
+        if(!res.ok) throw new Error("Error en servidor");
+        return await res.json();
+    } catch (err) {
+        console.error("Fetch Error:", err);
+        return null;
     }
-
-    // 3. Después define las funciones que usan fetchAPI
-    async function loadGlobalProjects() {
-        const data = await fetchAPI('https://storepulse.onrender.com/projects');
-        // ... resto de tu código
-    }
-
-
+}
 
 
 

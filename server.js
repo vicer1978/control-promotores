@@ -84,23 +84,30 @@ app.post("/login", async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: "Email y password requeridos" });
 
+        // Buscamos al usuario y traemos (populate) sus tiendas asignadas
         const user = await User.findOne({ 
             email: email.trim().toLowerCase(), 
             password: password.trim() 
-        });
+        }).populate('stores'); // <-- IMPORTANTE: Carga la información de las tiendas
 
         if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
 
-        // AGREGAMOS projectId a la respuesta
+        // Enviamos la respuesta con TODO lo que la App necesita
         res.json({ 
             userId: user._id, 
             role: user.role, 
             agencyId: user.agencyId, 
             name: user.name,
-            projectId: user.projectId // <--- ESTO ES VITAL PARA MARIA
+            projectId: user.projectId, // Vital para el feed de vacantes
+            stores: user.stores // Envíamos el array de tiendas para que la App las pinte
         });
-    } catch (err) { res.status(500).json({ message: "Error en login" }); }
+
+    } catch (err) { 
+        console.error("Error en login:", err);
+        res.status(500).json({ message: "Error en login" }); 
+    }
 });
+
 
 
 // --- GESTIÓN DE PROYECTOS ---

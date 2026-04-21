@@ -28,7 +28,7 @@
 <body>
 
 <header>
-    <button class="back-btn" onclick="history.back()">✕</button>
+    <button class="back-btn" onclick="window.location.href='dashboard_tareas.html'">✕</button>
     <span id="headerTitle">Nuevo Reporte</span>
 </header>
 
@@ -70,7 +70,7 @@
             </div>
 
             <div class="form-group hidden" id="group-cantidad">
-                <label id="label-cantidad">Cantidad / Piezas / Ventas</label>
+                <label id="label-cantidad">Cantidad / Piezas</label>
                 <input type="number" id="cantidad" value="0">
             </div>
 
@@ -78,12 +78,12 @@
                 <label>Foto de Evidencia</label>
                 <input type="file" id="foto" accept="image/*" capture="environment" onchange="previewImage(this)" class="hidden">
                 <div class="photo-preview" id="preview" onclick="document.getElementById('foto').click()">
-                    <span style="color:#94a3b8; font-size: 14px; text-align: center;">📸<br>Toca para tomar foto o subir archivo</span>
+                    <span style="color:#94a3b8; font-size: 14px; text-align: center;">📸<br>Toca para tomar foto</span>
                 </div>
             </div>
 
             <div class="form-group hidden" id="group-comentarios">
-                <label id="label-comentarios">Comentarios / Observaciones</label>
+                <label id="label-comentarios">Observaciones</label>
                 <textarea id="comentarios" rows="4" placeholder="Escribe aquí los detalles..."></textarea>
             </div>
 
@@ -97,33 +97,35 @@
     const urlParams = new URLSearchParams(window.location.search);
     const typeFromUrl = urlParams.get('type') || localStorage.getItem("currentReportType");
     const userId = localStorage.getItem("userId");
-    const userRole = localStorage.getItem("role") || "Promotor";
+    const userRole = (localStorage.getItem("role") || "promotor").toLowerCase();
     const storeId = localStorage.getItem("activeStoreId");
     const agencyId = localStorage.getItem("agencyId");
 
+    // CONFIGURACIÓN DE FORMULARIOS: Aquí ajustamos etiquetas y campos
     const config = {
-        'ventas': { title: 'Reporte de Ventas', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
-        'ranking': { title: 'Degustación', fields: ['group-articulo', 'group-comentarios', 'group-foto'], labelArt: 'Producto Degustado' },
-        'competencia': { title: 'Competencia (Demo)', fields: ['group-articulo', 'group-foto', 'group-comentarios'], labelArt: 'Marca Competencia' },
-        'degustacion': { title: 'Degustaciones', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Degustada' },
-        'precios': { title: 'Chequeo de Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
-        'agotados': { title: 'Reporte de Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
-        'preagotados': { title: 'Reporte de Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
-        'inventario': { title: 'Levantamiento de Inventario', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Física' },
+        'ventas': { title: 'Ventas', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
+        'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', 'group-foto'], labelCant: 'Cantidad de degustación' },
+        'precios': { title: 'Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
+        'agotados': { title: 'Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
+        'preagotados': { title: 'Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
+        'inventario': { title: 'Inventarios', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Física' },
         'exhibicion': { title: 'Exhibiciones Adicionales', fields: ['group-comentarios', 'group-foto'], labelCom: 'Descripción de la Exhibición' },
-        'competencia_p': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios'], labelArt: 'Marca Competencia' },
+        'competencia': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios'], labelArt: 'Marca Competencia' },
         'fotos': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
     };
 
     window.onload = () => {
         if (!userId) window.location.href = "login.html";
-        const s = config[typeFromUrl] || config['reporte_diario'];
+        const s = config[typeFromUrl] || config['ventas'];
+        
         document.getElementById("formTitle").innerText = s.title;
         document.getElementById("headerTitle").innerText = s.title;
+
         s.fields.forEach(id => {
             const el = document.getElementById(id);
             if(el) el.classList.remove("hidden");
         });
+
         if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
         if(s.labelCant) document.getElementById("label-cantidad").innerText = s.labelCant;
         if(s.labelCom) document.getElementById("label-comentarios").innerText = s.labelCom;
@@ -150,7 +152,6 @@
         const btn = document.getElementById("btnSend");
         btn.disabled = true; btn.innerText = "OBTENIENDO GPS...";
 
-        // Función para obtener coordenadas antes de enviar
         const getCoords = () => {
             return new Promise((resolve) => {
                 navigator.geolocation.getCurrentPosition(
@@ -168,7 +169,11 @@
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
-        formData.append("reportType", typeFromUrl);
+        
+        // Enviamos el título de la config para que el Admin lo reconozca
+        const reportTitle = config[typeFromUrl] ? config[typeFromUrl].title : typeFromUrl;
+        formData.append("reportType", reportTitle); 
+        
         formData.append("lat", coords.lat);
         formData.append("lng", coords.lng);
 
@@ -193,7 +198,6 @@
         }
 
         formData.append("observaciones", document.getElementById("comentarios").value || "");
-
         const fotoInput = document.getElementById("foto");
         if(fotoInput && fotoInput.files[0]) formData.append("photo", fotoInput.files[0]);
 
@@ -206,10 +210,11 @@
 
             if(res.ok) {
                 alert("✅ Reporte enviado correctamente");
-                window.location.href = userRole.toLowerCase() === 'promotor' ? "./dashboard_tareas.html" : "./home.html";
+                // REDIRECCIÓN ÚNICA AL DASHBOARD DE TAREAS PARA AMBOS ROLES
+                window.location.href = "dashboard_tareas.html";
             } else {
                 const err = await res.json();
-                alert("❌ Error: " + (err.detalles || err.error || "Falla al enviar"));
+                alert("❌ Error: " + (err.error || "Falla al enviar"));
             }
         } catch (err) {
             alert("❌ Error de conexión con el servidor");
@@ -218,6 +223,5 @@
         }
     }
 </script>
-
 </body>
 </html>

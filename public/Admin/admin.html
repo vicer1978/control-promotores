@@ -442,36 +442,41 @@ function removeStoreChip(element) {
 }
 
 async function syncUserStores(userId) {
-    // 1. Primero traemos los datos actuales para NO perder nada importante
-    const currentUser = await fetchAPI(`${BACKEND_URL}/users/${userId}`);
+    // 1. En lugar de ir al servidor, buscamos al usuario en nuestra lista local
+    const currentUser = allUsersCached.find(u => u._id === userId);
 
     if (!currentUser) {
-        return alert("No se pudo conectar con el servidor para obtener los datos del usuario.");
+        return alert("Error: No se encontró al usuario en la lista local.");
     }
 
-    // 2. Sacamos los IDs de las tiendas que pusiste en las burbujas (chips)
+    // 2. Recolectamos los IDs de las tiendas de las burbujas (chips)
     const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip'))
                            .map(chip => chip.getAttribute('data-id'));
 
-    // 3. Creamos el paquete de actualización manteniendo los datos originales (password, agencyId, etc.)
+    // 3. Obtenemos el ID del proyecto seleccionado en el selector del drawer
+    const userProjectElement = document.getElementById('userProj');
+    const selectedProjectId = userProjectElement ? userProjectElement.value : "";
+
+    // 4. Creamos el paquete de actualización
+    // IMPORTANTE: Aquí mandamos los campos básicos para asegurar que no se borren
     const updateData = {
-        ...currentUser, 
-        projectId: document.getElementById('userProj').value,
+        ...currentUser, // Copia los datos que ya tenemos (nombre, email, rol, etc.)
+        projectId: selectedProjectId,
         stores: storesIds 
     };
 
-    // 4. Lo mandamos al servidor con el método PUT
+    // 5. Lo mandamos al servidor con el método PUT
     const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(updateData)
     });
 
     if (res) {
-        alert("¡Listo! Datos sincronizados. Dile a Maria que reinicie su App.");
+        alert("¡Listo! Datos sincronizados correctamente.");
         closeDrawer();
-        loadUsers(); 
+        loadUsers(); // Recargamos la tabla para ver los cambios
     } else {
-        alert("Hubo un error al guardar los cambios. Revisa la consola.");
+        alert("Error al intentar guardar. Revisa si el servidor en Render está encendido.");
     }
 }
 

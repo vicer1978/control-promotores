@@ -145,34 +145,48 @@ function applyRoleRestrictions() {
 }
 
 async function guardarCambiosUsuario(userId) {
-    // 1. Recolectamos TODAS las tiendas que quedaron visibles en pantalla
-    const tiendasRestantes = Array.from(document.querySelectorAll('.tienda-tag'))
-                                  .map(tag => tag.dataset.id);
+    try {
+        const elName = document.getElementById('editName');
+        const elEmail = document.getElementById('editEmail');
+        
+        if (!elName || !elEmail) {
+            console.error("Error: No se encontraron los campos del formulario en el HTML.");
+            alert("Error interno: Los campos de edición no coinciden. Revisa la consola.");
+            return;
+        }
 
-    // 2. Armamos el objeto con los datos (incluyendo el array de tiendas)
-    const datos = {
-        name: document.getElementById('editName').value,
-        email: document.getElementById('editEmail').value,
-        role: document.getElementById('editRole').value,
-        active: document.getElementById('editActive').checked,
-        projectId: document.getElementById('editProject').value,
-        stores: tiendasRestantes // <-- Mandamos el catálogo actualizado
-    };
+        const tiendasRestantes = Array.from(document.querySelectorAll('.tienda-tag'))
+                                      .map(tag => tag.dataset.id)
+                                      .filter(id => id); // Elimina IDs vacíos
 
-    // 3. Llamamos a tu fetchAPI con la URL correcta
-    // Asegúrate de que la URL sea /users/ y NO /stones/
-    const url = `https://storepulse.onrender.com/users/${userId}`;
-    
-    const res = await fetchAPI(url, {
-        method: 'PUT',
-        body: JSON.stringify(datos)
-    });
+        const datos = {
+            name: elName.value,
+            email: elEmail.value,
+            role: document.getElementById('editRole')?.value || 'Promotor',
+            active: document.getElementById('editActive')?.checked || false,
+            projectId: document.getElementById('editProject')?.value || null,
+            stores: tiendasRestantes
+        };
 
-    if (res) {
-        alert("¡Usuario actualizado con éxito!");
-        location.reload();
+        const url = `https://storepulse.onrender.com/users/${userId}`;
+        
+        console.log("Enviando datos:", datos); // Para que veas qué se envía en la consola
+
+        const res = await fetchAPI(url, {
+            method: 'PUT',
+            body: JSON.stringify(datos)
+        });
+
+        if (res) {
+            alert("¡Usuario actualizado con éxito!");
+            location.reload();
+        }
+    } catch (error) {
+        console.error("Error crítico al guardar:", error);
+        alert("Ocurrió un error al procesar el guardado.");
     }
 }
+
 
 
 

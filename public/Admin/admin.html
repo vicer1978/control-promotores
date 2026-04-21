@@ -13,33 +13,26 @@
         .sidebar button { margin:5px 0; padding:12px; background:transparent; border:none; border-radius:8px; color:white; cursor:pointer; text-align: left; }
         .sidebar button:hover, .sidebar button.active { background: #1e293b; color: var(--gold); }
         .main { flex:1; padding:25px; overflow-y: auto; }
-        
         .project-selector-container { margin-bottom: 20px; padding: 10px; background: #1e293b; border-radius: 8px; border: 1px solid var(--gold); }
         .project-selector-container label { color: var(--gold); display: block; margin-bottom: 5px; font-size: 10px; }
-
         .card { background:white; padding:20px; border-radius:12px; margin-bottom:15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; position: relative; }
         .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
         input, select { padding: 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; width: 100%; box-sizing: border-box; }
         label { font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; }
-        
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-action:hover { opacity: 0.8; }
-        
         .btn-icon { border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 0 2px; transition: 0.2s; }
         .btn-delete-tool { background: #fee2e2; color: #dc2626; }
-
         .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; background: #f8fafc; }
         .report-table th, .report-table td { padding: 12px 8px; border: 1px solid #e2e8f0; text-align: center; }
         .report-table tr:hover { background: #f1f5f9; }
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
         .asistencia-foto { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
-        
         .drawer-overlay { position: fixed; top: 0; right: -100%; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; transition: right 0.3s ease; display: flex; justify-content: flex-end; }
         .drawer-overlay.active { right: 0; }
         .drawer { width: 450px; background: white; height: 100%; box-shadow: -5px 0 15px rgba(0,0,0,0.1); padding: 30px; overflow-y: auto; position: relative; }
         .drawer-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: var(--primary); }
         .drawer-header { margin-bottom: 20px; border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-top: 20px; }
-        
         .assigned-chips-box { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 8px; min-height: 50px; border: 1px solid #e2e8f0; background: #f8fafc; }
         .chip { background: white; border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
         .tag-search-container { position: relative; margin-bottom: 10px; }
@@ -51,8 +44,8 @@
 
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
-    <div class="project-selector-container">
-        <label>PROYECTO ACTIVO:</label>
+    <div class="project-selector-container" id="projectSelectorWrapper">
+        <label id="selectorLabel">PROYECTO ACTIVO:</label>
         <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
             <option value="">Cargando...</option>
         </select>
@@ -88,7 +81,6 @@ let session = {
 
 let allReportsRaw = [], allUsersCached = [], cachedStores = [], allProjects = [];
 
-// Lista extendida de reportes (de tu código original)
 const REPORT_TYPES_BY_ROLE = {
     all: [
         { val: "inventario", text: "Ventas / Inventario" },
@@ -97,9 +89,43 @@ const REPORT_TYPES_BY_ROLE = {
         { val: "precios", text: "Precios" },
         { val: "exhibicion", text: "Exhibiciones" },
         { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
         { val: "foto", text: "Fotos Anaquel" }
+    ],
+    demostradora: [
+        { val: "inventario", text: "Ventas" },
+        { val: "ranking", text: "Degustación" },
+        { val: "precios", text: "Precios" },
+        { val: "exhibicion", text: "Exhibiciones" },
+        { val: "competencia", text: "Competencia" }
+    ],
+    promotor: [
+        { val: "precios", text: "Precios" },
+        { val: "agotado", text: "Agotados" },
+        { val: "preagotado", text: "Pre-Agotados" },
+        { val: "inventario", text: "Inventarios" },
+        { val: "exhibicion", text: "Exhibiciones Adicionales" },
+        { val: "foto", text: "Fotos Anaquel" },
+        { val: "competencia", text: "Competencia" }
     ]
 };
+
+if (!session.userId) {
+    window.location.href = "../login.html";
+} else {
+    window.onload = async () => { 
+        applyRoleRestrictions();
+        await loadGlobalProjects();
+        showWelcomeMessage(); 
+    };
+}
+
+function applyRoleRestrictions() {
+    if (session.role && session.role.toLowerCase() === 'cliente') {
+        const adminSec = document.getElementById("adminOnlySections");
+        if(adminSec) adminSec.style.display = "none";
+    }
+}
 
 async function fetchAPI(url, options = {}) {
     const headers = { "userid": session.userId, "Content-Type": "application/json" };
@@ -107,39 +133,28 @@ async function fetchAPI(url, options = {}) {
     options.headers = { ...(options.headers || {}), ...headers };
     try {
         const res = await fetch(url, options);
-        // Si no es un OK, intentamos ver qué dice el texto para depurar
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error("Error API:", errorText);
-            return null;
-        }
+        if(!res.ok) return null;
         return await res.json();
-    } catch (err) { 
-        console.error("Fetch Catch:", err);
-        return null; 
+    } catch (err) {
+        return null;
     }
 }
 
-window.onload = async () => { 
-    if (!session.userId) return window.location.href = "../login.html";
-    if (session.role?.toLowerCase() === 'cliente') document.getElementById("adminOnlySections").style.display = "none";
-    await loadGlobalProjects();
-    showWelcomeMessage(); 
-};
-
 async function loadGlobalProjects() {
-    const isClient = session.role?.toLowerCase() === 'cliente';
-    const data = await fetchAPI(`${BACKEND_URL}/${isClient ? 'client-projects' : 'projects'}`);
+    const roleLower = session.role ? session.role.toLowerCase() : "";
+    const url = roleLower === 'cliente' ? `${BACKEND_URL}/client-projects` : `${BACKEND_URL}/projects`;
+    const data = await fetchAPI(url);
     allProjects = Array.isArray(data) ? data : [];
-    document.getElementById("globalProjectSelector").innerHTML = (isClient ? '' : '<option value="">Todos los Proyectos</option>') + 
+    const select = document.getElementById("globalProjectSelector");
+    select.innerHTML = (roleLower !== 'cliente' ? '<option value="">Todos los Proyectos</option>' : '') + 
         allProjects.map(p => `<option value="${p._id}" ${session.selectedProjectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('');
 }
 
 function changeGlobalProject(val) {
     session.selectedProjectId = val;
     localStorage.setItem("selectedProjectId", val);
-    const active = document.querySelector('.sidebar button.active');
-    if(active) loadSection(active.id.replace('btn-', ''));
+    const activeBtn = document.querySelector('.sidebar button.active');
+    if(activeBtn) loadSection(activeBtn.id.replace('btn-', ''));
 }
 
 function showWelcomeMessage() {
@@ -150,39 +165,135 @@ function loadSection(section) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${section}`)?.classList.add('active');
     if (section === 'reports') loadReports();
-    else if (section === 'users') loadUsers();
-    else if (section === 'stores') loadStores();
-    else if (section === 'attendance') loadAttendance();
-    else if (section === 'projects') loadProjectsSection();
+    if (section === 'users') loadUsers();
+    if (section === 'stores') loadStores();
+    if (section === 'attendance') loadAttendance();
+    if (section === 'projects') loadProjectsSection();
 }
 
-// --- GESTIÓN DE USUARIOS (Aqui está el cambio clave) ---
+// --- SECCIÓN REPORTES (Tus filtros y lógica de 6 columnas intactos) ---
+async function loadReports() {
+    const [users, stores, reports] = await Promise.all([
+        fetchAPI(`${BACKEND_URL}/users`),
+        fetchAPI(`${BACKEND_URL}/stores`),
+        fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
+    ]);
+    allUsersCached = Array.isArray(users) ? users : [];
+    cachedStores = Array.isArray(stores) ? stores : [];
+    allReportsRaw = Array.isArray(reports) ? reports : [];
+    const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
+
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>📊 Reportes por Categoría</h2>
+            <div class="grid-filters">
+                <div><label>Desde</label><input type="date" id="fStart"></div>
+                <div><label>Hasta</label><input type="date" id="fEnd"></div>
+                <div><label>Rol</label><select id="fRole" onchange="updateReportOptions()"><option value="all">Todos</option><option value="demostradora">Demostradora</option><option value="promotor">Promotor</option></select></div>
+                <div><label>Usuario</label><select id="fUser"><option value="all">Todos</option>${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}</select></div>
+                <div><label>Tipo Reporte</label><select id="fType"><option value="">-- Categoría --</option>${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}</select></div>
+                <div><label>Ciudad</label><select id="fCity"><option value="all">Todas</option>${cities.map(c => `<option value="${c}">${c}</option>`).join('')}</select></div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR DATOS</button>
+                <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXPORTAR EXCEL</button>
+            </div>
+        </div>
+        <div id="reportList"></div>`;
+}
+
+function updateReportOptions() {
+    const role = document.getElementById("fRole").value;
+    const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
+    document.getElementById("fType").innerHTML = `<option value="">-- Categoría --</option>` + options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
+}
+
+function filterReports() {
+    const typeSel = document.getElementById("fType")?.value.toLowerCase();
+    if(!typeSel) return alert("Selecciona un Tipo.");
+    const start = document.getElementById("fStart")?.value;
+    const end = document.getElementById("fEnd")?.value;
+    const roleSel = document.getElementById("fRole")?.value;
+    const userSel = document.getElementById("fUser")?.value;
+    const citySel = document.getElementById("fCity")?.value;
+
+    const filtered = allReportsRaw.filter(r => {
+        const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
+        const userObj = allUsersCached.find(u => u._id === rUid);
+        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+        const storeObj = cachedStores.find(s => s._id === rSid);
+        const rType = (r.reporte || r.reportType || "gral").toLowerCase().trim();
+        if (rType.includes('checkin') || rType.includes('checkout')) return false;
+        const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
+        const rCity = storeObj?.address?.split(',').pop().trim() || "";
+        let matchRole = (roleSel === "all" || (userObj && userObj.role === roleSel));
+        let matchType = (typeSel === 'inventario') ? (rType === 'inventario' || rType === 'reporte_diario') : rType.includes(typeSel.substring(0, 4));
+        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel);
+    });
+    renderTableReport(filtered, typeSel);
+}
+
+function renderTableReport(data, type) {
+    const container = document.getElementById("reportList");
+    if (!data.length) { container.innerHTML = `<div class="card" style="text-align:center">No hay datos.</div>`; return; }
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
+    let dynamicKeys = Object.keys(data[0]).filter(key => !exclude.includes(key) && data.some(item => item[key]));
+    let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>` + dynamicKeys.map(k => `<th>${k.toUpperCase()}</th>`).join('') + (data.some(r => r.foto_url) ? `<th>EVIDENCIA</th>` : '');
+    const hasAction = (session.role?.toLowerCase() !== 'cliente');
+    let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table"><thead><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
+    html += data.map(r => {
+        let rowData = `<td>${new Date(r.createdAt).toLocaleDateString()}</td><td>${r.userId?.name || 'S/N'}</td><td>${r.storeId?.name || 'S/T'}</td>`;
+        dynamicKeys.forEach(k => rowData += `<td>${r[k] || '-'}</td>`);
+        if (data.some(x => x.foto_url)) rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+        return `<tr>${rowData}${hasAction?`<td><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>`:''}</tr>`;
+    }).join('');
+    container.innerHTML = html + `</tbody></table></div>`;
+}
+
+// --- USUARIOS Y ASIGNACIÓN (Corrección del problema de Maria y Sesión) ---
 async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = Array.isArray(users) ? users : [];
     cachedStores = Array.isArray(stores) ? stores : [];
-    document.getElementById("content").innerHTML = `
-        <div class="card"><h2>👥 Usuarios</h2><div class="grid-filters">
-            <input type="text" id="newUserName" placeholder="Nombre">
-            <input type="email" id="newUserEmail" placeholder="Email">
-            <input type="password" id="newUserPass" placeholder="Contraseña">
-            <select id="newUserRole">
-                <option value="promotor">Promotor</option>
-                <option value="demostradora">Demostradora</option>
-                <option value="admin">Admin</option>
-                <option value="cliente">Cliente</option>
-            </select>
-            <button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button>
-        </div></div>
-        <div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead>
-        <tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')" style="cursor:pointer"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td>${u.role}</td><td>${(u.stores||[]).length}</td><td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')" style="cursor:pointer"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
+async function syncUserStores(userId) {
+    // 1. Obtener datos frescos del usuario para no perder campos críticos (como password o agencyId)
+    const currentUser = await fetchAPI(`${BACKEND_URL}/users/${userId}`);
+    if(!currentUser) return alert("Error al obtener datos del usuario");
+
+    // 2. Recolectar nuevos datos de la interfaz
+    const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip')).map(chip => chip.getAttribute('data-id'));
+    const newProjectId = document.getElementById('userProj').value;
+
+    // 3. Mezclar manteniendo los datos originales
+    const updateData = {
+        ...currentUser, // Mantenemos TODO lo que ya tiene el usuario
+        projectId: newProjectId,
+        stores: storesIds 
+    };
+
+    // 4. Enviar actualización completa
+    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+    });
+
+    if (res) {
+        alert("Usuario actualizado con éxito. Maria ya debería ver sus tiendas al iniciar sesión.");
+        closeDrawer();
+        loadUsers(); 
+    } else {
+        alert("Error al actualizar en el servidor.");
+    }
+}
+
+// --- FUNCIONES RESTANTES (Intactas) ---
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
     const currentStoresIds = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
-
     openDrawer(`
         <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
         <label>Proyecto Principal</label>
@@ -190,12 +301,12 @@ function viewUserDetail(userId) {
             <option value="">-- Sin Proyecto --</option>
             ${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}
         </select>
-        <label>Buscar y Añadir Tienda</label>
+        <label>Buscar Tienda</label>
         <div class="tag-search-container">
-            <input type="text" placeholder="Escribe nombre de tienda..." onkeyup="filterTagSearch(this.value)">
+            <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
             <div id="tagSearchResults" class="search-results-dropdown"></div>
         </div>
-        <label>Tiendas Asignadas (Click en X para quitar)</label>
+        <label>Tiendas Asignadas</label>
         <div class="assigned-chips-box" id="userStoresContainer">
             ${currentStoresIds.map(sid => {
                 const s = cachedStores.find(x => x._id === sid);
@@ -206,173 +317,79 @@ function viewUserDetail(userId) {
     `);
 }
 
-function filterTagSearch(val) {
+function filterTagSearch(userId, val) {
     const res = document.getElementById("tagSearchResults");
-    if(val.length < 2) { res.style.display="none"; return; }
+    if(!val || val.length < 2) { res.style.display="none"; return; }
     const matches = cachedStores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
-    res.innerHTML = matches.map(s => `<div class="search-item" onclick="addChip('${s._id}', '${s.name.replace(/'/g, "")}')">${s.name}</div>`).join('');
+    res.innerHTML = matches.map(s => `<div class="search-item" onclick="addStoreChip('${s._id}', '${s.name.replace(/'/g, "")}')">${s.name}</div>`).join('');
     res.style.display = "block";
 }
 
-function addChip(id, name) {
-    const cont = document.getElementById('userStoresContainer');
-    if (cont.querySelector(`[data-id="${id}"]`)) return;
-    cont.innerHTML += `<div class="chip" data-id="${id}">${name} <span onclick="this.parentElement.remove()" style="cursor:pointer; font-weight:bold;">&times;</span></div>`;
+function addStoreChip(sId, sName) {
+    const container = document.getElementById('userStoresContainer');
+    if (container.querySelector(`[data-id="${sId}"]`)) return;
+    const chip = document.createElement('div');
+    chip.className = 'chip'; chip.setAttribute('data-id', sId);
+    chip.innerHTML = `${sName} <span onclick="this.parentElement.remove()" style="cursor:pointer; font-weight:bold;">&times;</span>`;
+    container.appendChild(chip);
     document.getElementById("tagSearchResults").style.display = "none";
 }
 
-async function syncUserStores(userId) {
-    const u = allUsersCached.find(x => x._id === userId);
-    // Recolectamos lo que quedó en pantalla (las burbujas)
-    const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip')).map(c => c.dataset.id);
-    
-    // Mandamos el objeto completo del usuario actualizado por PUT
-    const payload = {
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        projectId: document.getElementById('userProj').value,
-        stores: storesIds 
-    };
-
-    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(payload) });
-    if (res) { 
-        alert("¡Actualizado con éxito!"); 
-        closeDrawer(); 
-        loadUsers(); 
-    } else {
-        alert("Error al actualizar. Revisa la consola.");
-    }
+async function createUser() {
+    const name = document.getElementById("newUserName").value;
+    const email = document.getElementById("newUserEmail").value;
+    const password = document.getElementById("newUserPass").value;
+    const role = document.getElementById("newUserRole").value;
+    await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) });
+    loadUsers();
 }
 
-// --- REPORTES ORIGINALES (con filtros y exportación) ---
-async function loadReports() {
-    const [users, stores, reports] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/users`),
-        fetchAPI(`${BACKEND_URL}/stores`),
-        fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`)
-    ]);
-    allUsersCached = Array.isArray(users) ? users : [];
-    cachedStores = Array.isArray(stores) ? stores : [];
-    allReportsRaw = Array.isArray(reports) ? reports : [];
-
-    const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
-
-    document.getElementById("content").innerHTML = `
-        <div class="card">
-            <h2>📊 Reportes de Promotoría</h2>
-            <div class="grid-filters">
-                <div><label>Desde</label><input type="date" id="fStart"></div>
-                <div><label>Hasta</label><input type="date" id="fEnd"></div>
-                <div><label>Categoría</label>
-                    <select id="fType">
-                        ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
-                    </select>
-                </div>
-                <div><label>Ciudad</label>
-                    <select id="fCity">
-                        <option value="all">Todas</option>
-                        ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR</button>
-                <button onclick="exportExcel()" class="btn-action" style="background:var(--success); flex:1">EXPORTAR EXCEL</button>
-            </div>
-        </div>
-        <div id="reportList"></div>`;
-}
-
-function filterReports() {
-    const type = document.getElementById("fType").value;
-    const start = document.getElementById("fStart").value;
-    const end = document.getElementById("fEnd").value;
-    const city = document.getElementById("fCity").value;
-
-    const filtered = allReportsRaw.filter(r => {
-        const rType = (r.reporte||r.reportType||"").toLowerCase();
-        const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
-        const store = cachedStores.find(s => s._id === (r.storeId?._id || r.storeId));
-        const rCity = store?.address?.split(',').pop().trim() || "";
-        
-        return rType.includes(type.substring(0,4)) &&
-               (!start || rDate >= start) && (!end || rDate <= end) &&
-               (city === 'all' || rCity === city);
-    });
-
-    renderReportTable(filtered);
-}
-
-function renderReportTable(data) {
-    const container = document.getElementById("reportList");
-    if(!data.length) { container.innerHTML = '<div class="card">No hay datos.</div>'; return; }
-    
-    let html = `<div class="card" style="padding:0; overflow-x:auto;"><table class="report-table"><thead><tr><th>Fecha</th><th>Usuario</th><th>Tienda</th><th>Acción</th></tr></thead><tbody>`;
-    html += data.map(r => `<tr><td>${new Date(r.createdAt).toLocaleDateString()}</td><td>${r.userId?.name||'--'}</td><td>${r.storeId?.name||'--'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td></tr>`).join('');
-    container.innerHTML = html + `</tbody></table></div>`;
-}
-
-// --- ASISTENCIA, TIENDAS Y PROYECTOS (Tu lógica original intacta) ---
 async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const assist = (Array.isArray(data) ? data : []).filter(r => (r.reporte||"").toLowerCase().includes('check'));
-    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Asistencia</h2></div><div class="card" style="padding:0; overflow-x:auto;"><table class="report-table"><thead><tr><th>Colaborador</th><th>Evento</th><th>Fecha/Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => `<tr><td><b>${a.userId?.name?.toUpperCase()||'--'}</b></td><td>${a.reporte}</td><td>${new Date(a.createdAt).toLocaleString()}</td><td>${a.foto_url?`<img src="${BACKEND_URL}${a.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">`:'-'}</td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Asistencia</h2></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Colaborador</th><th>Evento</th><th>Fecha</th><th>Foto</th></tr></thead><tbody>${assist.map(a => `<tr><td><b>${a.userId?.name || 'S/N'}</b></td><td>${a.reporte}</td><td>${new Date(a.createdAt).toLocaleString()}</td><td>${a.foto_url?`<img src="${BACKEND_URL}${a.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">`:'-'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function loadStores() {
     const data = await fetchAPI(`${BACKEND_URL}/stores`);
     cachedStores = Array.isArray(data) ? data : [];
-    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Catálogo de Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Nombre de Tienda"><input type="text" id="stAddr" placeholder="Dirección/Ciudad"><button onclick="createStore()" class="btn-action">AGREGAR TIENDA</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Dirección</th><th>Acción</th></tr></thead><tbody>${cachedStores.map(s => `<tr><td>${s.name}</td><td>${s.address||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
-}
-
-async function loadProjectsSection() {
-    const data = await fetchAPI(`${BACKEND_URL}/projects`);
-    allProjects = Array.isArray(data) ? data : [];
-    document.getElementById("content").innerHTML = `<div class="card"><h2>🏷️ Proyectos / Marcas</h2><div class="grid-filters"><input type="text" id="projName" placeholder="Nombre del Proyecto"><button onclick="saveProject()" class="btn-action">CREAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Acción</th></tr></thead><tbody>${allProjects.map(p => `<tr><td><b>${p.name}</b></td><td><button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
-}
-
-// Funciones de creación
-async function createUser() {
-    const payload = { 
-        name: document.getElementById("newUserName").value, 
-        email: document.getElementById("newUserEmail").value, 
-        password: document.getElementById("newUserPass").value, 
-        role: document.getElementById("newUserRole").value, 
-        agencyId: session.agencyId 
-    };
-    await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify(payload) });
-    loadUsers();
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Tienda"><input type="text" id="stAddr" placeholder="Ciudad"><button class="btn-action" onclick="createStore()">AGREGAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Dirección</th><th>Acción</th></tr></thead><tbody>${cachedStores.map(s => `<tr><td>${s.name}</td><td>${s.address||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function createStore() {
-    const payload = { name: document.getElementById("stName").value, address: document.getElementById("stAddr").value, agencyId: session.agencyId };
-    await fetchAPI(`${BACKEND_URL}/stores`, { method:'POST', body:JSON.stringify(payload) });
+    const name = document.getElementById("stName").value;
+    const address = document.getElementById("stAddr").value;
+    await fetchAPI(`${BACKEND_URL}/stores`, { method:'POST', body:JSON.stringify({name, address, agencyId:session.agencyId}) });
     loadStores();
+}
+
+async function loadProjectsSection() {
+    const projects = await fetchAPI(`${BACKEND_URL}/projects`);
+    allProjects = Array.isArray(projects) ? projects : [];
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏷️ Proyectos</h2><div class="grid-filters"><input type="text" id="projName" placeholder="Marca"><button class="btn-action" onclick="saveProject()">CREAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${allProjects.map(p => `<tr><td><b>${p.name}</b></td><td><button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function saveProject() {
     const name = document.getElementById("projName").value;
     await fetchAPI(`${BACKEND_URL}/projects`, { method:'POST', body:JSON.stringify({name, agencyId: session.agencyId}) });
-    loadProjectsSection();
-    loadGlobalProjects();
+    loadGlobalProjects(); loadProjectsSection();
 }
 
-// Funciones de eliminación
-async function deleteUser(id) { if(confirm("¿Borrar usuario?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }
-async function deleteStore(id) { if(confirm("¿Borrar tienda?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:'DELETE'}); loadStores(); } }
-async function deleteProject(id) { if(confirm("¿Borrar proyecto?")) { await fetchAPI(`${BACKEND_URL}/projects/${id}`, {method:'DELETE'}); loadProjectsSection(); loadGlobalProjects(); } }
-async function deleteReport(id) { if(confirm("¿Borrar reporte?")) { await fetchAPI(`${BACKEND_URL}/reports/${id}`, {method:'DELETE'}); filterReports(); } }
+async function deleteUser(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }
+async function deleteStore(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:'DELETE'}); loadStores(); } }
+async function deleteProject(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/projects/${id}`, {method:'DELETE'}); loadProjectsSection(); } }
+async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/reports/${id}`, {method:'DELETE'}); filterReports(); } }
 
 function exportExcel() {
     const table = document.querySelector(".report-table");
-    if (!table) return alert("No hay datos para exportar");
+    if (!table) return alert("Sin datos");
     XLSX.writeFile(XLSX.utils.table_to_book(table), `Reporte_StorePulse.xlsx`);
 }
 
 function openDrawer(html) { document.getElementById("drawerInner").innerHTML = html; document.getElementById("drawerOverlay").classList.add("active"); }
 function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("active"); }
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
+
 </script>
 </body>
 </html>

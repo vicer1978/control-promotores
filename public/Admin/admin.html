@@ -145,59 +145,39 @@ function applyRoleRestrictions() {
 }
 
 <script>
-// --- 1. CONFIGURACIÓN INICIAL ---
-const BACKEND_URL = "https://storepulse.onrender.com"; // Asegúrate de que esta variable exista
-const session = {
-    userId: localStorage.getItem('userId'),
-    role: localStorage.getItem('role'),
-    selectedProjectId: localStorage.getItem('selectedProjectId')
-};
-
-// --- 2. LA FUNCIÓN MAESTRA (DEBE IR AQUÍ ARRIBA) ---
-async function fetchAPI(url, options = {}) {
-    const headers = { 
-        "userid": session.userId, 
-        "Content-Type": "application/json"
+    // 1. Primero define las variables de sesión
+    const session = {
+        userId: localStorage.getItem('userId'),
+        selectedProjectId: localStorage.getItem('selectedProjectId')
     };
-    if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
-    
-    options.headers = { ...(options.headers || {}), ...headers };
 
-    try {
-        const res = await fetch(url, options);
-        if (!res.ok) {
-            console.error(`Error en API: ${res.status}`);
-            return null;
+    // 2. LUEGO define la función fetchAPI (Debe estar antes de que otras funciones la usen)
+    async function fetchAPI(url, options = {}) {
+        const headers = { 
+            "userid": session.userId, 
+            "Content-Type": "application/json"
+        };
+        if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
+        options.headers = { ...(options.headers || {}), ...headers };
+
+        try {
+            const res = await fetch(url, options);
+            if (!res.ok) return null;
+            return await res.json();
+        } catch (err) { 
+            console.error("Error de conexión:", err);
+            return null; 
         }
-        return await res.json();
-    } catch (err) { 
-        console.error("Error de conexión:", err);
-        return null; 
     }
-}
 
-// --- 3. FUNCIONES OPERATIVAS ---
-async function loadGlobalProjects() {
-    console.log("Cargando proyectos...");
-    const url = `${BACKEND_URL}/projects`;
-    const data = await fetchAPI(url); // Ahora fetchAPI ya está definido y no dará error
-    
-    const select = document.getElementById('globalProjectSelector');
-    if (!select) return;
-
-    if (data && Array.isArray(data)) {
-        select.innerHTML = data.map(p => `<option value="${p._id}">${p.name}</option>`).join('');
-    } else {
-        select.innerHTML = '<option value="">Sin proyectos</option>';
+    // 3. Después define las funciones que usan fetchAPI
+    async function loadGlobalProjects() {
+        const data = await fetchAPI('https://storepulse.onrender.com/projects');
+        // ... resto de tu código
     }
-}
+</script>
 
-// --- 4. ARRANQUE DEL SISTEMA ---
-window.onload = async () => {
-    // Al ser async, esperamos a que carguen los proyectos antes de seguir
-    await loadGlobalProjects();
-    // Aquí puedes llamar a otras funciones de carga
-};
+
 
 
 

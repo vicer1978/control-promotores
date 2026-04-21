@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StorePulse - Tareas de Promotoría</title>
+    <title>StorePulse - Tareas</title>
     <style>
         :root { 
             --primary: #0B1F3A; 
@@ -21,7 +21,6 @@
             color: var(--text); 
         }
 
-        /* HEADER ESTILO APP */
         .header-status {
             background: var(--primary);
             color: white;
@@ -51,7 +50,6 @@
             margin-right: 5px;
         }
 
-        /* GRID DE MENÚ */
         .container { padding: 20px; max-width: 500px; margin: auto; }
         
         .menu-grid {
@@ -75,10 +73,7 @@
             align-items: center;
         }
 
-        .menu-item:active { 
-            transform: scale(0.95); 
-            background: #f1f5f9; 
-        }
+        .menu-item:active { transform: scale(0.95); background: #f1f5f9; }
 
         .menu-item img {
             width: 45px;
@@ -93,10 +88,7 @@
             line-height: 1.2;
         }
 
-        /* BOTÓN DE SALIDA */
-        .footer-action {
-            margin-top: 25px;
-        }
+        .footer-action { margin-top: 25px; }
 
         .btn-exit {
             width: 100%;
@@ -115,7 +107,7 @@
 <body>
 
 <div class="header-status">
-    <div class="store-tag">PROMOTOR</div>
+    <div class="store-tag" id="roleTag">PROMOTOR</div>
     <h2 id="activeStoreName" style="margin: 5px 0;">Cargando Tienda...</h2>
     <div style="font-size: 0.85rem; opacity: 0.9;">
         <span class="status-dot"></span> Operación en curso
@@ -123,47 +115,7 @@
 </div>
 
 <div class="container">
-    <div class="menu-grid">
-        <div class="menu-item" onclick="irAReporte('inventario')">
-            <img src="https://cdn-icons-png.flaticon.com/512/2897/2897785.png" alt="Icon">
-            <span>Inventarios</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('agotados')">
-            <img src="https://cdn-icons-png.flaticon.com/512/5952/5952766.png" alt="Icon">
-            <span>Agotados</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('preagotados')">
-            <img src="https://cdn-icons-png.flaticon.com/512/4222/4222031.png" alt="Icon">
-            <span>Pre-agotados</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('precios')">
-            <img src="https://cdn-icons-png.flaticon.com/512/1162/1162251.png" alt="Icon">
-            <span>Chequeo Precios</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('competencia')">
-            <img src="https://cdn-icons-png.flaticon.com/512/900/900667.png" alt="Icon">
-            <span>Competencia</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('exhibicion')">
-            <img src="https://cdn-icons-png.flaticon.com/512/2331/2331966.png" alt="Icon">
-            <span>Exhibiciones</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('fotos')">
-            <img src="https://cdn-icons-png.flaticon.com/512/1040/1040241.png" alt="Icon">
-            <span>Fotos Anaquel</span>
-        </div>
-
-        <div class="menu-item" onclick="irAReporte('reporte_diario')">
-            <img src="https://cdn-icons-png.flaticon.com/512/3482/3482458.png" alt="Icon">
-            <span>Reporte Diario</span>
-        </div>
-    </div>
+    <div class="menu-grid" id="menuGrid"></div>
 
     <div class="footer-action">
         <button class="btn-exit" onclick="volverAlPanel()">VOLVER AL PANEL / TERMINAR TIENDA</button>
@@ -171,41 +123,64 @@
 </div>
 
 <script>
+    const CONFIG_MENU = {
+        "demostradora": [
+            { id: 'ventas', label: 'Ventas', icon: 'https://cdn-icons-png.flaticon.com/512/3482/3482458.png' },
+            { id: 'degustacion', label: 'Degustación', icon: 'https://cdn-icons-png.flaticon.com/512/2619/2619553.png' },
+            { id: 'precios', label: 'Chequeo Precios', icon: 'https://cdn-icons-png.flaticon.com/512/1162/1162251.png' }
+        ],
+        "promotor": [
+            { id: 'inventario', label: 'Inventarios', icon: 'https://cdn-icons-png.flaticon.com/512/2897/2897785.png' },
+            { id: 'agotados', label: 'Agotados', icon: 'https://cdn-icons-png.flaticon.com/512/5952/5952766.png' },
+            { id: 'preagotados', label: 'Pre-agotados', icon: 'https://cdn-icons-png.flaticon.com/512/4222/4222031.png' },
+            { id: 'precios', label: 'Chequeo Precios', icon: 'https://cdn-icons-png.flaticon.com/512/1162/1162251.png' },
+            { id: 'competencia', label: 'Competencia', icon: 'https://cdn-icons-png.flaticon.com/512/900/900667.png' },
+            { id: 'exhibicion', label: 'Exhibiciones', icon: 'https://cdn-icons-png.flaticon.com/512/2331/2331966.png' },
+            { id: 'fotos', label: 'Fotos Anaquel', icon: 'https://cdn-icons-png.flaticon.com/512/1040/1040241.png' },
+            { id: 'ventas', label: 'Ventas', icon: 'https://cdn-icons-png.flaticon.com/512/3482/3482458.png' }
+        ]
+    };
+
     window.onload = function() {
         const storeId = localStorage.getItem("activeStoreId");
         const storeName = localStorage.getItem("activeStoreName");
+        const userRole = (localStorage.getItem("role") || "promotor").toLowerCase();
 
-        // Si no hay una tienda activa, forzar regreso al dashboard principal
         if (!storeId) {
-            alert("⚠️ No hay una tienda seleccionada. Por favor, selecciona una tienda primero.");
             window.location.href = "dashboard.html";
             return;
         }
 
-        if (storeName) {
-            document.getElementById("activeStoreName").innerText = storeName;
-        }
+        if (storeName) document.getElementById("activeStoreName").innerText = storeName;
+        
+        // Actualizar etiqueta de rol
+        document.getElementById("roleTag").innerText = userRole.toUpperCase();
+
+        renderMenu(userRole);
     };
 
+    function renderMenu(role) {
+        const grid = document.getElementById("menuGrid");
+        const items = CONFIG_MENU[role] || CONFIG_MENU["promotor"];
+
+        grid.innerHTML = items.map(item => `
+            <div class="menu-item" onclick="irAReporte('${item.id}')">
+                <img src="${item.icon}" alt="${item.label}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/660/660611.png'">
+                <span>${item.label}</span>
+            </div>
+        `).join("");
+    }
+
     function irAReporte(tipo) {
-        // Guardamos el tipo en localStorage como respaldo
         localStorage.setItem("currentReportType", tipo);
-        // Enviamos por URL para que report.html lo detecte de inmediato
         window.location.href = `report.html?type=${tipo}`;
     }
 
     function volverAlPanel() {
-        if(confirm("¿Deseas volver a la lista de tiendas? Podrás regresar a esta pantalla siempre que no cierres tu turno general.")){
+        if(confirm("¿Deseas volver a la lista de tiendas?")){
             window.location.href = "dashboard.html";
         }
     }
-
-    // Manejo de iconos si fallan los enlaces externos
-    document.querySelectorAll('.menu-item img').forEach(img => {
-        img.onerror = function() {
-            this.src = "https://cdn-icons-png.flaticon.com/512/660/660611.png"; // Icono de respaldo
-        };
-    });
 </script>
 
 </body>

@@ -389,13 +389,13 @@ app.put("/users/:id", auth, async (req, res) => {
         const userId = req.params.id;
         const { name, email, role, active, projectId, stores } = req.body;
 
-        const updateData = {
-            name: name ? name.trim() : "",
-            role: role,
-            active: active,
-            // Importante: El array de tiendas del catálogo universal
-            stores: Array.isArray(stores) ? stores : [] 
-        };
+        // Construimos el objeto de actualización de forma dinámica
+        const updateData = {};
+        
+        if (name !== undefined) updateData.name = name.trim();
+        if (role !== undefined) updateData.role = role;
+        if (active !== undefined) updateData.active = active;
+        if (Array.isArray(stores)) updateData.stores = stores;
 
         // Limpieza de Email
         if (email) updateData.email = email.toLowerCase().trim();
@@ -403,10 +403,11 @@ app.put("/users/:id", auth, async (req, res) => {
         // Limpieza de projectId
         if (!projectId || projectId === "null" || projectId === "") {
             updateData.projectId = null;
-        } else {
+        } else if (mongoose.Types.ObjectId.isValid(projectId)) {
             updateData.projectId = projectId;
         }
 
+        // USAMOS $set para que solo modifique lo que enviamos y no borre lo demás
         const user = await User.findByIdAndUpdate(
             userId, 
             { $set: updateData }, 
@@ -421,6 +422,7 @@ app.put("/users/:id", auth, async (req, res) => {
         res.status(500).json({ error: "Error interno al guardar cambios" });
     }
 });
+
 
 
 app.delete("/users/:id", auth, async (req, res) => {

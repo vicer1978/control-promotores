@@ -442,27 +442,32 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        let filter = {};
+        // Buscamos al usuario directamente en la BD por seguridad
+        const user = await User.findById(req.user.id); 
 
-        // 1. Si el usuario NO es admin (es decir, es Maria/Promotor), 
-        // solo le mostramos las tiendas que tiene asignadas en su perfil.
-        if (req.user.role !== 'admin' && req.user.role !== 'super-admin') {
-            if (req.user.stores && req.user.stores.length > 0) {
-                filter._id = { $in: req.user.stores };
-            } else {
-                // Si no tiene tiendas asignadas, devolvemos lista vacía
-                return res.json([]);
-            }
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        // Si es Admin, mandamos todo
+        if (user.role === 'admin' || user.role === 'super-admin') {
+            const allStores = await Store.find({}).sort({ name: 1 });
+            return res.json(allStores);
         }
 
-        // 2. Si es ADMIN, el filtro se queda vacío {} y Store.find({}) 
-        // traerá TODO el catálogo universal para poder asignar nuevas.
+        // Si es promotor (Maria), filtramos por su array de tiendas
+        // Usamos un condicional para evitar que el filtro sea undefined
+        const filter = {
+            _id: { $in: Array.isArray(user.stores) ? user.stores : [] }
+        };
+
         const stores = await Store.find(filter).sort({ name: 1 });
-        res.json(stores);
+        
+        // IMPORTANTE: Siempre responder con un array, aunque esté vacío
+        res.json(stores || []); 
         
     } catch (err) { 
-        console.error("Error en stores:", err);
-        res.status(500).json({ error: "Error al cargar catálogo" }); 
+        console.error("Error crítico en stores:", err);
+        // Enviamos un array vacío en lugar de un 500 para que la App no ponga el cartel de error
+        res.json([]); 
     }
 });
 

@@ -252,38 +252,48 @@
     }
 
     async function loadStores(userId) {
-        const container = document.getElementById("storesContainer");
-        try {
-            const res = await fetch(`${BACKEND_URL}/users/${userId}`, {
-                method: 'GET',
-                headers: { 
-                    "Content-Type": "application/json",
-                    "userid": userId 
-                }
-            });
-
-            if (!res.ok) throw new Error("No se pudo conectar");
-            const userData = await res.json();
-            const stores = userData.stores || [];
-
-            if (stores.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding:40px;"><h3>No tienes tiendas asignadas</h3></div>`;
-                return;
+    const container = document.getElementById("storesContainer");
+    try {
+        // CAMBIO CLAVE: Consultamos directamente a /stores, no a /users/id
+        const res = await fetch(`${BACKEND_URL}/stores`, {
+            method: 'GET',
+            headers: { 
+                "Content-Type": "application/json",
+                // Enviamos el userId en el header para el middleware 'auth' si es necesario
+                "userid": userId 
             }
+        });
 
-            container.innerHTML = stores.map(s => `
-                <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
-                    <div class="store-info">
-                        <b>${s.name}</b>
-                        <small>${s.address || "Dirección no disponible"}</small>
-                    </div>
-                    <div class="arrow">➔</div>
-                </div>
-            `).join("");
-        } catch (err) {
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3>";
+        if (!res.ok) throw new Error("No se pudo conectar");
+        
+        // El backend ahora nos devuelve directamente el array de tiendas
+        const stores = await res.json();
+
+        if (stores.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px;">
+                    <h3>No tienes tiendas asignadas</h3>
+                    <p style="color: #64748b;">Contacta a tu supervisor.</p>
+                </div>`;
+            return;
         }
+
+        container.innerHTML = stores.map(s => `
+            <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
+                <div class="store-info">
+                    <b>${s.name}</b>
+                    <small>${s.address || "Dirección no disponible"}</small>
+                </div>
+                <div class="arrow">➔</div>
+            </div>
+        `).join("");
+
+    } catch (err) {
+        console.error("Error al cargar tiendas:", err);
+        container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>Intenta refrescar la página</p>";
     }
+}
+
 
     function openModal(store) {
         selectedStore = store;

@@ -147,9 +147,13 @@ function applyRoleRestrictions() {
 async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
-        "Content-Type": "application/json",
-        "projectid": session.selectedProjectId || "" 
+        "Content-Type": "application/json"
     };
+    // Solo agregamos projectid si existe un valor
+    if (session.selectedProjectId) {
+        headers["projectid"] = session.selectedProjectId;
+    }
+    
     options.headers = { ...(options.headers || {}), ...headers };
     
     try {
@@ -161,8 +165,6 @@ async function fetchAPI(url, options = {}) {
         return null;
     }
 }
-
-
 
 async function loadGlobalProjects() {
     const roleLower = session.role ? session.role.toLowerCase() : "";
@@ -206,7 +208,7 @@ function openDrawer(html) {
 
 function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("active"); }
 
-// --- SECCIÓN REPORTES (LÓGICA UNIFICADA) ---
+// --- SECCIÓN REPORTES ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando Reportes...</h3>";
@@ -360,7 +362,7 @@ async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = Array.isArray(users) ? users : [];
     cachedStores = Array.isArray(stores) ? stores : [];
-    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="createUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')" style="cursor:pointer"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function createUser() {
@@ -372,23 +374,107 @@ async function createUser() {
     loadUsers();
 }
 
+// --- NUEVA LÓGICA DE ASIGNACIÓN (DETALLE USUARIO) ---
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
-    openDrawer(`<div class="drawer-header"><h3>Perfil: ${u.name}</h3></div><label>Proyecto Principal</label><select id="userProj" style="width:100%; margin-bottom:15px;" onchange="updateUserField('${u._id}', 'projectId', this.value)"><option value="">-- Sin Proyecto --</option>${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}</select><label>Tiendas Asignadas</label><div class="tag-search-container"><input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)"><div id="tagSearchResults" class="search-results-dropdown"></div></div><div class="assigned-chips-box">${(u.stores||[]).map(st => { const sid = typeof st === 'object' ? st._id : st; const s = cachedStores.find(x => x._id === sid); return s ? `<div class="chip">${s.name} <span onclick="unassignStore('${userId}', '${sid}')">&times;</span></div>` : ''; }).join('')}</div>`);
+    
+    // IDs de tiendas actuales del usuario
+    const currentStoresIds = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
+
+    openDrawer(`
+        <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
+        
+        <label>Proyecto Principal</label>
+        <select id="userProj" style="width:100%; margin-bottom:15px;">
+            <option value="">-- Sin Proyecto --</option>
+            ${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+
+        <label>Asignar Tiendas (Catálogo Universal)</label>
+        <div class="tag-search-container">
+            <input type="text" placeholder="Buscar por nombre de tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
+            <div id="tagSearchResults" class="search-results-dropdown"></div>
+        </div>
+
+        <label>Tiendas Actuales (Click en X para quitar)</label>
+        <div class="assigned-chips-box" id="userStoresContainer">
+            ${currentStoresIds.map(sid => {
+                const s = cachedStores.find(x => x._id === sid);
+                return s ? `<div class="chip" data-id="${sid}">${s.name} <span onclick="removeStoreChip(this)" style="cursor:pointer; font-weight:bold;">&times;</span></div>` : '';
+            }).join('')}
+        </div>
+
+        <button class="btn-action" style="width:100%; margin-top:25px; background:var(--success)" onclick="syncUserStores('${u._id}')">
+            GUARDAR TODOS LOS CAMBIOS
+        </button>
+    `);
 }
 
 function filterTagSearch(userId, val) {
     const res = document.getElementById("tagSearchResults");
-    if(!val) { res.style.display="none"; return; }
+    if(!val || val.length < 2) { res.style.display="none"; return; }
+    
     const matches = cachedStores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
-    res.innerHTML = matches.map(s => `<div class="search-item" onclick="assignStore('${userId}', '${s._id}')">${s.name}</div>`).join('');
+    res.innerHTML = matches.map(s => `<div class="search-item" onclick="addStoreChip('${s._id}', '${s.name.replace(/'/g, "")}')">${s.name}</div>`).join('');
     res.style.display = "block";
 }
 
-async function assignStore(uId, sId) { await fetchAPI(`${BACKEND_URL}/users/${uId}/assign`, { method:'POST', body:JSON.stringify({storeId:sId}) }); const users = await fetchAPI(`${BACKEND_URL}/users`); allUsersCached = users; viewUserDetail(uId); }
-async function unassignStore(uId, sId) { await fetchAPI(`${BACKEND_URL}/users/${uId}/stores/${sId}`, { method:'DELETE' }); const users = await fetchAPI(`${BACKEND_URL}/users`); allUsersCached = users; viewUserDetail(uId); }
-async function updateUserField(uId, f, v) { await fetchAPI(`${BACKEND_URL}/users/${uId}`, { method:'PUT', body:JSON.stringify({[f]:v}) }); loadUsers(); }
+function addStoreChip(sId, sName) {
+    const container = document.getElementById('userStoresContainer');
+    // Evitar duplicados visuales
+    if (container.querySelector(`[data-id="${sId}"]`)) {
+        document.getElementById("tagSearchResults").style.display = "none";
+        return;
+    }
+
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.setAttribute('data-id', sId);
+    chip.innerHTML = `${sName} <span onclick="removeStoreChip(this)" style="cursor:pointer; font-weight:bold;">&times;</span>`;
+    container.appendChild(chip);
+    
+    document.getElementById("tagSearchResults").style.display = "none";
+}
+
+function removeStoreChip(element) {
+    element.parentElement.remove();
+}
+
+async function syncUserStores(userId) {
+    const u = allUsersCached.find(x => x._id === userId);
+    if(!u) return;
+
+    // Recolectamos los IDs de las burbujas que quedaron visibles
+    const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip'))
+                           .map(chip => chip.getAttribute('data-id'));
+
+    const updateData = {
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        projectId: document.getElementById('userProj').value,
+        stores: storesIds 
+    };
+
+    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+    });
+
+    if (res) {
+        alert("Usuario actualizado correctamente.");
+        closeDrawer();
+        loadUsers(); 
+    } else {
+        alert("Error al actualizar. Revisa la consola.");
+    }
+}
+
+// Mantener las funciones originales pero simplificadas (ya no se usan directamente pero evitan errores de referencia)
+async function assignStore(uId, sId) { addStoreChip(sId, "Tienda..."); }
+async function unassignStore(uId, sId) { /* Ahora se maneja visualmente */ }
+async function updateUserField(uId, f, v) { /* Ahora se maneja en syncUserStores */ }
 
 // --- TIENDAS ---
 async function loadStores() {

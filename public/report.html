@@ -202,6 +202,11 @@
         if(fotoInput && fotoInput.files[0]) formData.append("photo", fotoInput.files[0]);
 
         try {
+            console.log("Enviando reporte con los siguientes datos:");
+for (var pair of formData.entries()) {
+    console.log(pair[0] + ': ' + pair[1]);
+}
+
             const res = await fetch(`${BACKEND_URL}/reports`, {
                 method: "POST",
                 headers: { "userId": userId },

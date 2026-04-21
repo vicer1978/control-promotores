@@ -147,15 +147,33 @@ function applyRoleRestrictions() {
 async function fetchAPI(url, options = {}) {
     const headers = { 
         "userid": session.userId, 
-        "Content-Type": "application/json",
-        "projectid": session.selectedProjectId || "" 
+        "Content-Type": "application/json"
     };
+
+    // Solo agregar projectid si tiene un valor real (no vacío)
+    if (session.selectedProjectId) {
+        headers["projectid"] = session.selectedProjectId;
+    }
+
     options.headers = { ...(options.headers || {}), ...headers };
+
     try {
         const res = await fetch(url, options);
+        
+        // Si el servidor responde 404 o 500, queremos ver por qué
+        if (!res.ok) {
+            const errorData = await res.json();
+            console.error("Error en la API:", errorData);
+            return null;
+        }
+
         return await res.json();
-    } catch (err) { return null; }
+    } catch (err) { 
+        console.error("Error de conexión:", err);
+        return null; 
+    }
 }
+
 
 async function loadGlobalProjects() {
     const roleLower = session.role ? session.role.toLowerCase() : "";

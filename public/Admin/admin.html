@@ -145,46 +145,44 @@ function applyRoleRestrictions() {
 }
 
 <script>
-    // 1. Datos de sesión primero
-    const session = {
-        userId: localStorage.getItem('userId'),
-        selectedProjectId: localStorage.getItem('selectedProjectId')
+// 1. Declarar la sesión primero
+const session = {
+    userId: localStorage.getItem('userId'),
+    role: localStorage.getItem('role'),
+    selectedProjectId: localStorage.getItem('selectedProjectId')
+};
+
+// 2. LA FUNCIÓN fetchAPI DEBE IR AQUÍ (Antes de cualquier otra)
+async function fetchAPI(url, options = {}) {
+    const headers = { 
+        "userid": session.userId, 
+        "Content-Type": "application/json"
     };
+    if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
+    
+    options.headers = { ...(options.headers || {}), ...headers };
 
-    // 2. Función fetchAPI (DEBE IR AQUÍ PARA QUE loadGlobalProjects LA VEA)
-    async function fetchAPI(url, options = {}) {
-        const headers = { 
-            "userid": session.userId, 
-            "Content-Type": "application/json"
-        };
-        if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
-        options.headers = { ...(options.headers || {}), ...headers };
-
-        try {
-            const res = await fetch(url, options);
-            if (!res.ok) return null;
-            return await res.json();
-        } catch (err) { 
-            console.error("Error de conexión:", err);
-            return null; 
-        }
+    try {
+        const res = await fetch(url, options);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (err) { 
+        console.error("Error de conexión:", err);
+        return null; 
     }
+}
 
-    // 3. Funciones que usan fetchAPI
-    async function loadGlobalProjects() {
-        const projects = await fetchAPI('https://storepulse.onrender.com/projects');
-        // ... lógica para llenar el select
-    }
+// 3. Ahora sí, todas las demás funciones
+async function loadGlobalProjects() {
+    // Ahora esta función ya sabe qué es fetchAPI
+    const url = `https://storepulse.onrender.com/projects`;
+    const allProjects = await fetchAPI(url);
+    // ... tu lógica de llenado del selector
+}
 
-    // 4. Tu nueva función de guardado
-    async function guardarCambiosUsuario(userId) {
-        // ... (el código que pusimos antes con los IDs correctos)
-    }
-
-    window.onload = () => {
-        loadGlobalProjects();
-        // otras cargas...
-    };
+async function guardarCambiosUsuario(userId) {
+    // ... el código de guardado que hicimos antes
+}
 </script>
 
 

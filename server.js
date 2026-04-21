@@ -442,34 +442,16 @@ app.delete("/users/:id", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // Buscamos al usuario directamente en la BD por seguridad
-        const user = await User.findById(req.user.id); 
-
-        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-        // Si es Admin, mandamos todo
-        if (user.role === 'admin' || user.role === 'super-admin') {
-            const allStores = await Store.find({}).sort({ name: 1 });
-            return res.json(allStores);
-        }
-
-        // Si es promotor (Maria), filtramos por su array de tiendas
-        // Usamos un condicional para evitar que el filtro sea undefined
-        const filter = {
-            _id: { $in: Array.isArray(user.stores) ? user.stores : [] }
-        };
-
-        const stores = await Store.find(filter).sort({ name: 1 });
-        
-        // IMPORTANTE: Siempre responder con un array, aunque esté vacío
-        res.json(stores || []); 
-        
-    } catch (err) { 
-        console.error("Error crítico en stores:", err);
-        // Enviamos un array vacío en lugar de un 500 para que la App no ponga el cartel de error
-        res.json([]); 
+        console.log("Petición de tiendas recibida del usuario:", req.user.id);
+        const stores = await Store.find({}).sort({ name: 1 });
+        console.log("Tiendas encontradas:", stores.length);
+        res.json(stores);
+    } catch (err) {
+        console.error("ERROR EN STORES:", err);
+        res.status(500).json([]);
     }
 });
+
 
 
 

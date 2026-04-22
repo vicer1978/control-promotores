@@ -304,14 +304,41 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     }
 });
 
-app.post("/reports", auth, upload.single("photo"), async (req, res) => {
+// Usamos .any() para que acepte reportes con foto, sin foto o con varios campos
+app.post("/reports", auth, upload.any(), async (req, res) => {
     try {
+        // Log para ver en Render qué está llegando exactamente
+        console.log("Datos recibidos en body:", req.body);
+        console.log("Archivos recibidos:", req.files);
+
         const obs = req.body.observaciones || req.body.comentarios || "";
         let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
         
         if (tipoReporte.toLowerCase().includes("exhibicion")) {
             tipoReporte = "exhibicion";
         }
+
+        // --- IMPORTANTE ---
+        // Como usamos .any(), la foto ya no está en req.file, sino en req.files[0]
+        let fotoUrl = null;
+        if (req.files && req.files.length > 0) {
+            // Aquí va tu lógica actual para subir la foto (Cloudinary, etc.)
+            // Ejemplo: const resultado = await cloudinary.uploader.upload(req.files[0].path);
+            // fotoUrl = resultado.secure_url;
+        }
+
+        // Tu lógica de guardado en MongoDB...
+        // const nuevoReporte = new Reporte({ ...req.body, photo: fotoUrl, reportType: tipoReporte });
+        // await nuevoReporte.save();
+
+        res.status(200).json({ message: "Reporte guardado con éxito" });
+
+    } catch (error) {
+        console.error("ERROR CRÍTICO EN /REPORTS:", error);
+        res.status(500).json({ error: "Error interno al guardar el reporte" });
+    }
+});
+
 
         const reportData = {
             ...req.body,

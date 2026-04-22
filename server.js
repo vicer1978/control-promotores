@@ -381,21 +381,6 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
 });
 
 
-        const report = new Report(reportData);
-        await report.save();
-        
-        console.log("✅ Reporte guardado con éxito");
-        res.json({ message: "Reporte guardado con éxito", id: report._id });
-
-    } catch (err) { 
-        console.error("❌ ERROR CRÍTICO EN /REPORTS:", err);
-        res.status(500).json({ 
-            error: "Error al guardar reporte", 
-            detalles: err.message 
-        }); 
-    }
-});
-
 
 app.delete("/reports/:id", auth, async (req, res) => {
     try {

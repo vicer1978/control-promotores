@@ -336,7 +336,7 @@ function renderTableReport(data, type) {
         container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
         return;
     }
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas'];
+    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas', 'lat', 'lng'];
     const roleSel = document.getElementById("fRole")?.value;
     let dynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;

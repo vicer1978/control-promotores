@@ -605,6 +605,53 @@ async function loadProjectsSection() {
 }
 
 
+function editProjectPrompt(projectId) {
+    const p = allProjects.find(x => x._id === projectId);
+    if (!p) return;
+    
+    // Obtenemos de nuevo la lista de clientes para el selector
+    const clientes = allUsersCached.filter(u => u.role === 'cliente');
+
+    openDrawer(`
+        <div class="drawer-header"><h3>Editar Proyecto</h3></div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <label>Nombre del Proyecto</label>
+            <input type="text" id="editProjName" value="${p.name}">
+            
+            <label>Descripción</label>
+            <input type="text" id="editProjDesc" value="${p.description || ''}">
+
+            <label>Cambiar Dueño (Cliente)</label>
+            <select id="editProjClient">
+                <option value="">-- Seleccionar --</option>
+                ${clientes.map(c => `<option value="${c._id}" ${p.clientId === c._id ? 'selected' : ''}>${c.name}</option>`).join('')}
+            </select>
+
+            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateProject('${p._id}')">
+                GUARDAR CAMBIOS
+            </button>
+        </div>
+    `);
+}
+
+async function updateProject(projectId) {
+    const name = document.getElementById('editProjName').value;
+    const description = document.getElementById('editProjDesc').value;
+    const clientId = document.getElementById('editProjClient').value;
+
+    const res = await fetchAPI(`${BACKEND_URL}/projects/${projectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, description, clientId })
+    });
+
+    if (res) {
+        alert("Proyecto actualizado");
+        closeDrawer();
+        loadProjectsSection(); // Recarga la tabla
+    }
+}
+
+
 async function saveProject() {
     const name = document.getElementById("projName").value;
     const clientId = document.getElementById("projClient").value;

@@ -207,7 +207,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             return res.status(400).json({ error: "Datos incompletos" });
         }
 
-        // Validación de entrada activa (del Código 1)
+        // --- MANTENER ESTA VALIDACIÓN ---
         const lastCheckin = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         if (lastCheckin && lastCheckin.type === "checkin") {
             return res.status(400).json({ error: "Ya tienes una entrada activa." });
@@ -215,6 +215,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
 
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
         
+        // 1. Guardar en colección Checkins (esta colección parece usar foto_url y location objeto)
         const newCheckin = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -227,59 +228,65 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         });
         await newCheckin.save();
 
-        // Crear reporte automático de checkin (del Código 1)
+        // 2. Guardar en colección Reports (Ajustado a tu NUEVO Report.js)
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
             projectId: projectId || req.user.projectId,
             storeId: storeId,
-            reporte: "checkin",
-            foto_url: fotoUrl,
-            location: { lat: Number(lat), lng: Number(lng) }
+            reportType: "checkin", 
+            photo: fotoUrl,        
+            lat: Number(lat),
+            lng: Number(lng)
         });
         await checkinReport.save();
 
         res.json({ message: "Entrada registrada", checkin: newCheckin });
     } catch (err) {
+        console.error("ERROR EN CHECKIN:", err);
         res.status(500).json({ error: "Error en checkin", detalle: err.message });
     }
 });
 
+
 app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId, projectId } = req.body;
+        
+        // Buscamos el último evento
         const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         
-        if (!lastEvent || lastEvent.type === "checkout") {
-            return res.status(400).json({ error: "No hay una entrada activa." });
-        }
-
+        // 1. Guardar salida
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            projectId: projectId || lastEvent.projectId,
-            storeId: storeId || lastEvent.storeId,
+            projectId: projectId || (lastEvent ? lastEvent.projectId : null),
+            storeId: storeId || (lastEvent ? lastEvent.storeId : null),
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkout", 
             timestamp: new Date()
         });
         await newCheckout.save();
 
+        // 2. Guardar reporte de salida (Ajustado al nuevo modelo)
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            projectId: projectId || lastEvent.projectId,
-            storeId: storeId || lastEvent.storeId,
-            reporte: "checkout",
-            location: { lat: Number(lat), lng: Number(lng) }
+            projectId: projectId || (lastEvent ? lastEvent.projectId : null),
+            storeId: storeId || (lastEvent ? lastEvent.storeId : null),
+            reportType: "checkout", // Ajustado
+            lat: Number(lat),
+            lng: Number(lng)
         });
         await checkoutReport.save();
 
         res.json({ message: "Salida registrada con éxito" });
     } catch (err) {
+        console.error("ERROR EN CHECKOUT:", err);
         res.status(500).json({ error: "Error en checkout" });
     }
 });
+
 
 // --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {

@@ -562,7 +562,12 @@ async function loadProjectsSection() {
     const [projects, users] = await Promise.all([fetchAPI(`${BACKEND_URL}/projects`), fetchAPI(`${BACKEND_URL}/users`)]);
     allProjects = Array.isArray(projects) ? projects : [];
     const clientes = users.filter(u => u.role === 'cliente');
-    document.getElementById("content").innerHTML = `<div class="card"><h2>🏷️ Proyectos</h2><div class="grid-filters"><select id="projClient"><option value="">Dueño (Cliente)...</option>${clientes.map(c=>`<option value="${c._id}">${c.name}</option>`).join('')}</select><input type="text" id="projName" placeholder="Marca"><input type="text" id="projDesc" placeholder="Descripción"><button class="btn-action" style="background:var(--success)" onclick="saveProject()">CREAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${allProjects.map(p => `<tr><td>${p.clientName||'--'}</td><td><b>${p.name}</b></td><td><button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>🏷️ Proyectos</h2><div class="grid-filters"><select id="projClient"><option value="">Dueño (Cliente)...</option>${clientes.map(c=>`<option value="${c._id}">${c.name}</option>`).join('')}</select><input type="text" id="projName" placeholder="Marca"><input type="text" id="projDesc" placeholder="Descripción"><button class="btn-action" style="background:var(--success)" onclick="saveProject()">CREAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${allProjects.map(p => `<tr><td>${p.clientName||'--'}</td><td><b>${p.name}</b></td><td><td style="white-space: nowrap;">
+    <button class="btn-icon btn-edit-tool" onclick="editProjectPrompt('${p._id}')">✏️</button>
+    
+    <button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button>
+</td>
+</tr>`).join('')}</tbody></table></div>`;
 }
 
 async function saveProject() {

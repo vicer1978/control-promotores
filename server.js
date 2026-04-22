@@ -340,8 +340,9 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
             storeId: req.body.storeId,
 
             // Nombres nuevos Y viejos para que el Admin no se pierda
-            reportType: tipoReporte, 
-            reporte: tipoReporte,    
+            reportType: tipoReporte, // Estándar nuevo
+            reporte: tipoReporte,    // Estándar viejo 1
+            tipo: tipoReporte,       // Estándar viejo 2 (común en tablas)    
             
             photo: fotoUrl,          
             foto_url: fotoUrl,       

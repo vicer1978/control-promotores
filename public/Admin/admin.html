@@ -379,7 +379,15 @@ async function loadAttendance() {
     document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
         const f = new Date(a.createdAt);
-        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'Gral'}</td><td>${f.toLocaleDateString()}</td><td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td>${a.foto_url?`<img src="${BACKEND_URL}${a.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">`:'-'}</td></tr>`;
+        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'Gral'}</td><td>${f.toLocaleDateString()}</td><td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td>
+    ${(a.foto_url || a.photo) ? 
+        `<img src="${BACKEND_URL}${a.foto_url || a.photo}" 
+              class="asistencia-foto" 
+              onerror="this.src='https://via.placeholder.com/40?text=Error'" 
+              onclick="window.open(this.src)">` 
+        : '-'}
+</td>
+</tr>`;
     }).join('')}</tbody></table></div>`;
 }
 

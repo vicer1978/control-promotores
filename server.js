@@ -318,12 +318,21 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
         console.log("Datos recibidos en body:", req.body);
 
         // 1. Limpieza de variables y lógica de tipo
-        const obs = req.body.observaciones || req.body.comentarios || "";
-        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
-        
-        if (tipoReporte.toLowerCase().includes("exhibicion")) {
-            tipoReporte = "exhibicion";
-        }
+const obs = req.body.observaciones || req.body.comentarios || "";
+let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
+
+// --- ESTE ES EL CAMBIO CLAVE ---
+// Si es ventas o precios, asegúrate de que la primera letra sea Mayúscula
+if (tipoReporte.toLowerCase() === "ventas") {
+    tipoReporte = "Ventas";
+} else if (tipoReporte.toLowerCase() === "precios") {
+    tipoReporte = "Precios";
+}
+// -------------------------------
+
+if (tipoReporte.toLowerCase().includes("exhibicion")) {
+    tipoReporte = "Exhibicion";
+}
 
         // 2. Manejo de la foto
         let fotoUrl = null;
@@ -366,7 +375,9 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
             location: { 
                 lat: Number(req.body.lat) || 0, 
                 lng: Number(req.body.lng) || 0 
-            }
+            },
+            timestamp: new Date(), // Campo extra por si el admin lo usa
+            fecha: new Date().toISOString().split('T')[0] // Formato YYYY-MM-DD
         };
 
         const report = new Report(reportData);

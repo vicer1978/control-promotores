@@ -305,72 +305,69 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 });
 
 // Usamos .any() para que acepte reportes con foto, sin foto o con varios campos
+// --- RUTA DE REPORTES CORREGIDA ---
 app.post("/reports", auth, upload.any(), async (req, res) => {
     try {
-        // Log para ver en Render qué está llegando exactamente
         console.log("Datos recibidos en body:", req.body);
         console.log("Archivos recibidos:", req.files);
 
+        // 1. Limpieza de variables
         const obs = req.body.observaciones || req.body.comentarios || "";
-        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "";
+        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
         
         if (tipoReporte.toLowerCase().includes("exhibicion")) {
             tipoReporte = "exhibicion";
         }
 
-        // --- IMPORTANTE ---
-        // Como usamos .any(), la foto ya no está en req.file, sino en req.files[0]
+        // 2. Manejo de la foto (usando el nuevo campo 'photo' del modelo)
         let fotoUrl = null;
         if (req.files && req.files.length > 0) {
-            // Aquí va tu lógica actual para subir la foto (Cloudinary, etc.)
-            // Ejemplo: const resultado = await cloudinary.uploader.upload(req.files[0].path);
-            // fotoUrl = resultado.secure_url;
+            // Guardamos la ruta del primer archivo recibido
+            fotoUrl = `/uploads/${req.files[0].filename}`;
         }
 
-        // Tu lógica de guardado en MongoDB...
-        // const nuevoReporte = new Reporte({ ...req.body, photo: fotoUrl, reportType: tipoReporte });
-        // await nuevoReporte.save();
-
-        res.status(200).json({ message: "Reporte guardado con éxito" });
-
-    } catch (error) {
-        console.error("ERROR CRÍTICO EN /REPORTS:", error);
-        res.status(500).json({ error: "Error interno al guardar el reporte" });
-    }
-});
-
-
+        // 3. Creación del objeto siguiendo tu NUEVO modelo Report.js
         const reportData = {
-            ...req.body,
             userId: req.user._id,
             agencyId: req.user.agencyId,
             projectId: req.body.projectId || req.user.projectId,
             storeId: req.body.storeId, 
-            reporte: tipoReporte, 
-            foto_url: req.file ? `/uploads/${req.file.filename}` : null,
-            cantidad: Number(req.body.cantidad) || 0,
+            reportType: tipoReporte, // Usamos el nombre nuevo del modelo
+            photo: fotoUrl,          // Usamos el nombre nuevo del modelo
+            
+            // Conversión de números para evitar el Error 500
+            articulo: req.body.articulo || "N/A",
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
             ventas: Number(req.body.ventas) || 0, 
+            cantidad: Number(req.body.cantidad) || 0,
             inv_final: Number(req.body.inv_final) || 0,
-            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
+            precio: Number(req.body.precio) || 0,
+            precio_normal: Number(req.body.precio_normal) || 0,
             precio_oferta: Number(req.body.precio_oferta) || 0,
             personas: Number(req.body.personas) || 0,
             observaciones: obs,
-            location: (req.body.lat && req.body.lng) ? {
-                lat: Number(req.body.lat),
-                lng: Number(req.body.lng)
-            } : { lat: 0, lng: 0 }
+            
+            // Ubicación directa (lat/lng) como en tu nuevo Report.js
+            lat: Number(req.body.lat) || 0,
+            lng: Number(req.body.lng) || 0
         };
 
         const report = new Report(reportData);
         await report.save();
+        
+        console.log("✅ Reporte guardado con éxito");
         res.json({ message: "Reporte guardado con éxito", id: report._id });
+
     } catch (err) { 
-        res.status(500).json({ error: "Error al guardar reporte", detalles: err.message }); 
+        console.error("❌ ERROR CRÍTICO EN /REPORTS:", err);
+        res.status(500).json({ 
+            error: "Error al guardar reporte", 
+            detalles: err.message 
+        }); 
     }
 });
+
 
 app.delete("/reports/:id", auth, async (req, res) => {
     try {

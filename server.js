@@ -316,9 +316,8 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 app.post("/reports", auth, upload.any(), async (req, res) => {
     try {
         console.log("Datos recibidos en body:", req.body);
-        console.log("Archivos recibidos:", req.files);
 
-        // 1. Limpieza de variables
+        // 1. Limpieza de variables y lógica de tipo
         const obs = req.body.observaciones || req.body.comentarios || "";
         let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
         
@@ -326,23 +325,28 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
             tipoReporte = "exhibicion";
         }
 
-        // 2. Manejo de la foto (usando el nuevo campo 'photo' del modelo)
+        // 2. Manejo de la foto
         let fotoUrl = null;
         if (req.files && req.files.length > 0) {
-            // Guardamos la ruta del primer archivo recibido
             fotoUrl = `/uploads/${req.files[0].filename}`;
         }
 
-        // 3. Creación del objeto siguiendo tu NUEVO modelo Report.js
+        // 3. Creación del objeto con DOBLE COMPATIBILIDAD
         const reportData = {
+            // IDs obligatorias (sacadas del auth y del body)
             userId: req.user._id,
             agencyId: req.user.agencyId,
             projectId: req.body.projectId || req.user.projectId,
-            storeId: req.body.storeId, 
-            reportType: tipoReporte, // Usamos el nombre nuevo del modelo
-            photo: fotoUrl,          // Usamos el nombre nuevo del modelo
+            storeId: req.body.storeId,
+
+            // Nombres nuevos Y viejos para que el Admin no se pierda
+            reportType: tipoReporte, 
+            reporte: tipoReporte,    
             
-            // Conversión de números para evitar el Error 500
+            photo: fotoUrl,          
+            foto_url: fotoUrl,       
+
+            // Campos de inventario y precios
             articulo: req.body.articulo || "N/A",
             inv_inicial: Number(req.body.inv_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
@@ -355,10 +359,27 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
             personas: Number(req.body.personas) || 0,
             observaciones: obs,
             
-            // Ubicación directa (lat/lng) como en tu nuevo Report.js
+            // Ubicación (Plana para el modelo nuevo, Objeto para el Admin viejo)
             lat: Number(req.body.lat) || 0,
-            lng: Number(req.body.lng) || 0
+            lng: Number(req.body.lng) || 0,
+            location: { 
+                lat: Number(req.body.lat) || 0, 
+                lng: Number(req.body.lng) || 0 
+            }
         };
+
+        const report = new Report(reportData);
+        await report.save();
+        
+        console.log("✅ Reporte guardado con éxito y compatible con Admin");
+        res.json({ message: "Reporte guardado con éxito", id: report._id });
+
+    } catch (err) { 
+        console.error("❌ ERROR EN /REPORTS:", err);
+        res.status(500).json({ error: "Error al guardar reporte", detalles: err.message }); 
+    }
+});
+
 
         const report = new Report(reportData);
         await report.save();

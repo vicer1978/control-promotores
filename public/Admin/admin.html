@@ -418,37 +418,54 @@ function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
     
-    // IDs de tiendas actuales del usuario
     const currentStoresIds = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
 
     openDrawer(`
-        <div class="drawer-header"><h3>Perfil: ${u.name}</h3></div>
+        <div class="drawer-header"><h3>Editar Perfil: ${u.name}</h3></div>
         
-        <label>Proyecto Principal</label>
-        <select id="userProj" style="width:100%; margin-bottom:15px;">
-            <option value="">-- Sin Proyecto --</option>
-            ${allProjects.map(p => `<option value="${p._id}" ${u.projectId===p._id?'selected':''}>${p.name}</option>`).join('')}
-        </select>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+            <label>Nombre Completo</label>
+            <input type="text" id="editUserName" value="${u.name}">
 
-        <label>Asignar Tiendas (Catálogo Universal)</label>
+            <label>Correo Electrónico</label>
+            <input type="email" id="editUserEmail" value="${u.email}">
+
+            <label>Rol del Usuario</label>
+            <select id="editUserRole">
+                <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
+                <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                <option value="cliente" ${u.role === 'cliente' ? 'selected' : ''}>Cliente</option>
+            </select>
+            
+            <label>Proyecto Principal</label>
+            <select id="userProj">
+                <option value="">-- Sin Proyecto --</option>
+                ${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('')}
+            </select>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+        <label>Asignar Tiendas</label>
         <div class="tag-search-container">
-            <input type="text" placeholder="Buscar por nombre de tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
+            <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
             <div id="tagSearchResults" class="search-results-dropdown"></div>
         </div>
 
-        <label>Tiendas Actuales (Click en X para quitar)</label>
-        <div class="assigned-chips-box" id="userStoresContainer">
+        <div class="assigned-chips-box" id="userStoresContainer" style="margin-top:10px;">
             ${currentStoresIds.map(sid => {
                 const s = cachedStores.find(x => x._id === sid);
-                return s ? `<div class="chip" data-id="${sid}">${s.name} <span onclick="removeStoreChip(this)" style="cursor:pointer; font-weight:bold;">&times;</span></div>` : '';
+                return s ? `<div class="chip" data-id="${sid}">${s.name} <span onclick="removeStoreChip(this)" style="cursor:pointer;">&times;</span></div>` : '';
             }).join('')}
         </div>
 
         <button class="btn-action" style="width:100%; margin-top:25px; background:var(--success)" onclick="syncUserStores('${u._id}')">
-            GUARDAR TODOS LOS CAMBIOS
+            GUARDAR CAMBIOS
         </button>
     `);
 }
+
 
 function filterTagSearch(userId, val) {
     const res = document.getElementById("tagSearchResults");
@@ -481,43 +498,42 @@ function removeStoreChip(element) {
 }
 
 async function syncUserStores(userId) {
-    // 1. En lugar de ir al servidor, buscamos al usuario en nuestra lista local
     const currentUser = allUsersCached.find(u => u._id === userId);
+    if (!currentUser) return;
 
-    if (!currentUser) {
-        return alert("Error: No se encontró al usuario en la lista local.");
-    }
-
-    // 2. Recolectamos los IDs de las tiendas de las burbujas (chips)
+    // 1. Capturamos los valores de los NUEVOS inputs que pusiste en el drawer
+    const updatedName = document.getElementById('editUserName').value;
+    const updatedEmail = document.getElementById('editUserEmail').value;
+    const updatedRole = document.getElementById('editUserRole').value;
+    const selectedProjectId = document.getElementById('userProj').value;
+    
+    // 2. Capturamos las tiendas (los chips)
     const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip'))
                            .map(chip => chip.getAttribute('data-id'));
 
-    // 3. Obtenemos el ID del proyecto seleccionado en el selector del drawer
-    const userProjectElement = document.getElementById('userProj');
-    const selectedProjectId = userProjectElement ? userProjectElement.value : "";
-
-    // 4. Creamos el paquete de actualización
-    // IMPORTANTE: Aquí mandamos los campos básicos para asegurar que no se borren
+    // 3. Empaquetamos todo
     const updateData = {
-        ...currentUser, // Copia los datos que ya tenemos (nombre, email, rol, etc.)
+        ...currentUser,
+        name: updatedName,
+        email: updatedEmail,
+        role: updatedRole,
         projectId: selectedProjectId,
         stores: storesIds 
     };
 
-    // 5. Lo mandamos al servidor con el método PUT
+    // 4. Enviamos al servidor
     const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(updateData)
     });
 
     if (res) {
-        alert("¡Listo! Datos sincronizados correctamente.");
+        alert("¡Usuario actualizado!");
         closeDrawer();
-        loadUsers(); // Recargamos la tabla para ver los cambios
-    } else {
-        alert("Error al intentar guardar. Revisa si el servidor en Render está encendido.");
+        loadUsers(); // Esto refresca la tabla para ver el nuevo nombre/rol
     }
 }
+
 
 
 

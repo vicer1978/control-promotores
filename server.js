@@ -304,36 +304,38 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Forzamos la conversión a ObjectId de Mongoose
-        const agencyObjectId = new mongoose.Types.ObjectId(agencyId);
+        // 1. Preparamos los IDs en ambos formatos (Texto y Objeto)
+        let idsParaBuscar = [String(agencyId)];
+        try { 
+            idsParaBuscar.push(new mongoose.Types.ObjectId(agencyId)); 
+        } catch(e) {}
 
-        let query = { agencyId: agencyObjectId };
+        // 2. Construimos la query usando $in (trae cualquiera que coincida)
+        let query = { agencyId: { $in: idsParaBuscar } };
 
-        // Si hay proyecto y es un ID válido, también lo convertimos
-        if (pid && pid !== "null" && pid !== "undefined" && mongoose.Types.ObjectId.isValid(pid)) {
-            query.projectId = new mongoose.Types.ObjectId(pid);
-        }
+        // 3. LOG DE CONTROL: Esto nos dirá qué estamos enviando exactamente
+        console.log("📡 CONSULTA RADICAL:", JSON.stringify(query));
 
-        console.log("🎯 Buscando con ObjectId real:", agencyId);
-
-        const reports = await Report.find(query)
-            .populate('userId', 'name role')
-            .populate('storeId', 'name')
+        // 4. USAMOS .collection.find(): Esto salta el Schema de Mongoose y va directo a la DB
+        const reportsRaw = await Report.collection.find(query)
             .sort({ createdAt: -1 })
-            .lean();
+            .limit(100)
+            .toArray();
 
-        const formatted = reports.map(r => ({
+        // 5. Como saltamos Mongoose, el populate hay que hacerlo manual o traer los nombres después
+        // Por ahora, vamos a ver si llegan los datos:
+        const formatted = reportsRaw.map(r => ({
             ...r,
+            _id: r._id.toString(),
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`✅ ¡POR FIN! Encontrados ${formatted.length} reportes.`);
+        console.log(`📊 RESULTADO MOTOR NATIVO: ${formatted.length} reportes.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error al convertir IDs o buscar:", err);
-        // Si falla la conversión, devolvemos vacío para no romper el front
-        res.json([]);
+        console.error("❌ Error en motor nativo:", err);
+        res.status(500).json([]);
     }
 });
 

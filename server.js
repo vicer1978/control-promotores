@@ -358,10 +358,15 @@ if (tipoReporte.toLowerCase().includes("exhibicion")) {
 
             // Campos de inventario y precios
             articulo: req.body.articulo || "N/A",
-            inv_inicial: Number(req.body.inv_inicial) || 0,
-            resurtido: Number(req.body.resurtido) || 0,
-            ventas: Number(req.body.ventas) || 0, 
-            cantidad: Number(req.body.cantidad) || 0,
+inv_inicial: Number(req.body.inv_inicial) || 0,
+resurtido: Number(req.body.resurtido) || 0,
+ventas: Number(req.body.ventas) || 0, 
+
+// Si el tipo de reporte es Degustación, guardamos como texto tal cual viene.
+// Para los demás, intentamos convertir a número.
+cantidad: tipoReporte === "Degustación" 
+    ? (req.body.cantidad || "N/A") 
+    : (Number(req.body.cantidad) || 0),
             inv_final: Number(req.body.inv_final) || 0,
             precio: Number(req.body.precio) || 0,
             precio_normal: Number(req.body.precio_normal) || 0,

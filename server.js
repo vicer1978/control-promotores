@@ -207,17 +207,18 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         const { storeId, lat, lng, projectId } = req.body;
         if (!storeId || lat === undefined) return res.status(400).json({ error: "Datos incompletos" });
 
-        // Mejora: Solo validar si hay entrada activa EL DÍA DE HOY
-        const hoy = new Date();
-        hoy.setHours(0,0,0,0);
-
-        const lastCheckin = await Checkin.findOne({ 
-            userId: req.user._id, 
-            type: "checkin",
-            timestamp: { $gte: hoy } 
+        // 1. Buscamos el ÚLTIMO evento de asistencia del usuario
+        const lastEvent = await Checkin.findOne({ 
+            userId: req.user._id 
         }).sort({ timestamp: -1 }).lean();
 
-        if (lastCheckin) return res.status(400).json({ error: "Ya registraste tu entrada hoy." });
+        // 2. LÓGICA DE RE-ENTRADA:
+        // Solo bloqueamos si el último evento fue un 'checkin' (es decir, no ha cerrado la visita anterior)
+        if (lastEvent && lastEvent.type === "checkin") {
+            return res.status(400).json({ 
+                error: "Aún tienes una visita activa. Debes registrar salida antes de iniciar otra." 
+            });
+        }
 
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
         
@@ -233,6 +234,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         });
         await newCheckin.save();
 
+        // Guardamos también en la tabla de reportes para el historial visual
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -244,42 +246,57 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         });
         await checkinReport.save();
 
-        res.json({ message: "Entrada registrada", checkin: newCheckin });
+        res.json({ message: "Entrada registrada correctamente", checkin: newCheckin });
     } catch (err) {
         console.error("ERROR EN CHECKIN:", err);
-        res.status(500).json({ error: "Error en checkin" });
+        res.status(500).json({ error: "Error al registrar entrada" });
     }
 });
+
 
 app.post("/checkout", auth, async (req, res) => {
     try {
         const { lat, lng, storeId, projectId } = req.body;
-        const lastEvent = await Checkin.findOne({ userId: req.user._id }).sort({ timestamp: -1 }).lean();
         
+        // 1. Buscamos el último CHECKIN para heredar la tienda y proyecto correctos
+        const lastCheckin = await Checkin.findOne({ 
+            userId: req.user._id, 
+            type: "checkin" 
+        }).sort({ timestamp: -1 }).lean();
+        
+        // 2. Creamos el registro de asistencia
         const newCheckout = new Checkin({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            projectId: projectId || (lastEvent?.projectId),
-            storeId: storeId || (lastEvent?.storeId),
+            projectId: projectId || (lastCheckin?.projectId),
+            storeId: storeId || (lastCheckin?.storeId),
             location: { lat: Number(lat), lng: Number(lng) },
             type: "checkout", 
             timestamp: new Date()
         });
         await newCheckout.save();
 
+        // 3. Creamos el reporte de salida para el historial del Admin
         const checkoutReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
-            projectId: projectId || (lastEvent?.projectId),
-            storeId: storeId || (lastEvent?.storeId),
+            projectId: projectId || (lastCheckin?.projectId),
+            storeId: storeId || (lastCheckin?.storeId),
             reportType: "checkout",
-            lat: Number(lat), lng: Number(lng)
+            lat: Number(lat) || 0, 
+            lng: Number(lng) || 0,
+            timestamp: new Date(),
+            fecha: new Date().toISOString().split('T')[0]
         });
         await checkoutReport.save();
 
         res.json({ message: "Salida registrada con éxito" });
-    } catch (err) { res.status(500).json({ error: "Error en checkout" }); }
+    } catch (err) { 
+        console.error("❌ ERROR EN CHECKOUT:", err);
+        res.status(500).json({ error: "Error al registrar la salida" }); 
+    }
 });
+
 
 // --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
@@ -307,7 +324,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         const obs = req.body.observaciones || req.body.comentarios || "";
         let tipoReporte = req.body.reportType || req.body.reporte || "otro";
 
-        // Normalización rápida
+        // Mantenemos tu normalización para que los filtros del Admin no fallen
         const tipoMin = tipoReporte.toLowerCase();
         if (tipoMin.includes("ventas")) tipoReporte = "Ventas";
         else if (tipoMin.includes("precios")) tipoReporte = "Precios";
@@ -316,6 +333,18 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
 
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
+        // --- PROCESAMIENTO DE DATOS EXTRA ---
+        let datosExtra = {};
+        if (req.body.datosExtra) {
+            try {
+                datosExtra = typeof req.body.datosExtra === 'string' 
+                    ? JSON.parse(req.body.datosExtra) 
+                    : req.body.datosExtra;
+            } catch (e) {
+                datosExtra = { info: req.body.datosExtra };
+            }
+        }
+
         const reportData = {
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -323,27 +352,34 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             storeId: req.body.storeId,
             reportType: tipoReporte,
             photo: fotoUrl,
-            foto_url: fotoUrl, // Para compatibilidad
+            foto_url: fotoUrl, // Mantenemos para compatibilidad con la App
             articulo: req.body.articulo || "N/A",
             inv_inicial: Number(req.body.inv_inicial) || 0,
             ventas: Number(req.body.ventas) || 0, 
+            // Mantenemos tu lógica de cantidad dinámica
             cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : (Number(req.body.cantidad) || 0),
             precio: Number(req.body.precio) || 0,
             observaciones: obs,
             lat: Number(req.body.lat) || 0,
             lng: Number(req.body.lng) || 0,
+            
+            // EL CAMPO MÁGICO
+            datosExtra: datosExtra, 
+            
             timestamp: new Date(),
             fecha: new Date().toISOString().split('T')[0]
         };
 
         const report = new Report(reportData);
         await report.save();
-        res.json({ message: "Reporte guardado", id: report._id });
+        res.json({ message: "Reporte guardado con éxito", id: report._id });
+
     } catch (err) { 
-        console.error("ERROR EN /REPORTS:", err);
-        res.status(500).json({ error: "Error al guardar reporte" }); 
+        console.error("❌ ERROR CRÍTICO EN /REPORTS:", err);
+        res.status(500).json({ error: "Error al guardar reporte", detalle: err.message }); 
     }
 });
+
 
 
 // --- ACTUALIZAR REPORTE (NUEVA RUTA) ---

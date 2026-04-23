@@ -70,9 +70,10 @@
             </div>
 
             <div class="form-group hidden" id="group-cantidad">
-                <label id="label-cantidad">Cantidad / Piezas</label>
-                <input type="number" id="cantidad" value="0">
-            </div>
+    <label id="label-cantidad">Cantidad / Piezas</label>
+    <textarea id="cantidad" rows="3" placeholder="Detalla aquí la cantidad..."></textarea>
+</div>
+
 
             <div class="form-group hidden" id="group-foto">
                 <label>Foto de Evidencia</label>
@@ -104,7 +105,7 @@
     // CONFIGURACIÓN DE FORMULARIOS: Aquí ajustamos etiquetas y campos
     const config = {
         'ventas': { title: 'Ventas', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
-        'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', 'group-foto'], labelCant: 'Cantidad de degustación' },
+        'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', labelCant: 'Detalla la cantidad de degustación proporcionada' },
         'precios': { title: 'Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
         'agotados': { title: 'Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
         'preagotados': { title: 'Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
@@ -194,8 +195,10 @@
         }
 
         if(!document.getElementById("group-cantidad").classList.contains("hidden")) {
-            formData.append("cantidad", Number(document.getElementById("cantidad").value) || 0);
-        }
+    // Lo enviamos como texto libre (string)
+    formData.append("cantidad", document.getElementById("cantidad").value || "N/A");
+}
+
 
         formData.append("observaciones", document.getElementById("comentarios").value || "");
         const fotoInput = document.getElementById("foto");

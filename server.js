@@ -334,6 +334,14 @@ if (tipoMin.includes("ventas")) {
     tipoReporte = "Exhibicion";
 }
 
+// ... dentro del if de tipoMin ...
+} else if (tipoMin.includes("degustacion") || tipoMin.includes("degustación")) {
+    tipoReporte = "Degustación"; 
+    req.body.reporte = "Degustación"; // <--- AÑADE ESTA LÍNEA EXTRA
+    req.body.tipo = "Degustación";    // <--- Y ESTA TAMBIÉN
+}
+
+
 // -------------------------------
 
 if (tipoReporte.toLowerCase().includes("exhibicion")) {

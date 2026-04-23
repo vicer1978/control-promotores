@@ -345,11 +345,18 @@ function renderTableReport(data, type) {
     }
     const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas', 'lat', 'lng'];
     const roleSel = document.getElementById("fRole")?.value;
-    let dynamicKeys = Object.keys(data[0]).filter(key => {
-        if (exclude.includes(key)) return false;
-        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad') return false;
-        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
-    });
+let dynamicKeys = Object.keys(data[0]).filter(key => {
+    if (exclude.includes(key)) return false;
+    
+    // Solo ocultamos 'cantidad' para demostradoras si NO es un reporte de Degustación
+    if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') {
+        return false;
+    }
+    
+    // Verificamos que la columna tenga datos útiles
+    return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+});
+
 
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);

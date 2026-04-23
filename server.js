@@ -313,6 +313,41 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     }
 });
 
+
+// --- ACTUALIZAR REPORTE (NUEVA RUTA) ---
+app.put("/reports/:id", auth, async (req, res) => {
+    try {
+        const reportId = req.params.id;
+        const updates = req.body;
+
+        // Si el reporte trae fecha, nos aseguramos de no romper el formato
+        if (updates.fecha) {
+            updates.fecha = new Date(updates.fecha).toISOString().split('T')[0];
+        }
+
+        // Buscamos y actualizamos
+        const updatedReport = await Report.findByIdAndUpdate(
+            reportId,
+            { $set: updates },
+            { new: true } // Para que devuelva el reporte ya modificado
+        ).populate('userId', 'name').populate('storeId', 'name');
+
+        if (!updatedReport) {
+            return res.status(404).json({ error: "El reporte no existe" });
+        }
+
+        res.json({ 
+            message: "Reporte actualizado con éxito", 
+            report: updatedReport 
+        });
+
+    } catch (err) {
+        console.error("❌ ERROR AL ACTUALIZAR REPORTE:", err);
+        res.status(500).json({ error: "Error interno al guardar cambios" });
+    }
+});
+
+
 // --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {

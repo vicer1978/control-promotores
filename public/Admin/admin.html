@@ -52,23 +52,19 @@
 
 <div class="sidebar">
     <h2>⚡ StorePulse</h2>
-    
     <div class="project-selector-container" id="projectSelectorWrapper">
         <label id="selectorLabel">PROYECTO ACTIVO:</label>
         <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
             <option value="">Cargando...</option>
         </select>
     </div>
-
     <button onclick="loadSection('reports')" id="btn-reports">📊 Reportes</button>
     <button onclick="loadSection('attendance')" id="btn-attendance">⏰ Asistencia</button>
-    
     <div id="adminOnlySections">
         <button onclick="loadSection('users')" id="btn-users">👥 Usuarios</button>
         <button onclick="loadSection('stores')" id="btn-stores">🏬 Tiendas</button>
         <button onclick="loadSection('projects')" id="btn-projects">🏷️ Proyectos</button>
     </div>
-    
     <div style="flex:1"></div>
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
@@ -145,17 +141,9 @@ function applyRoleRestrictions() {
 }
 
 async function fetchAPI(url, options = {}) {
-    const headers = { 
-        "userid": session.userId, 
-        "Content-Type": "application/json"
-    };
-    // Solo agregamos projectid si existe un valor
-    if (session.selectedProjectId) {
-        headers["projectid"] = session.selectedProjectId;
-    }
-    
+    const headers = { "userid": session.userId, "Content-Type": "application/json" };
+    if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
     options.headers = { ...(options.headers || {}), ...headers };
-    
     try {
         const res = await fetch(url, options);
         if(!res.ok) throw new Error("Error en servidor");
@@ -208,7 +196,7 @@ function openDrawer(html) {
 
 function closeDrawer() { document.getElementById("drawerOverlay").classList.remove("active"); }
 
-// --- SECCIÓN REPORTES ---
+// --- REPORTES ---
 async function loadReports() {
     try {
         document.getElementById("content").innerHTML = "<h3>Cargando Reportes...</h3>";
@@ -220,7 +208,6 @@ async function loadReports() {
         allUsersCached = Array.isArray(users) ? users : [];
         cachedStores = Array.isArray(stores) ? stores : [];
         allReportsRaw = Array.isArray(reports) ? reports : [];
-
         const cities = [...new Set(cachedStores.map(s => s.address?.split(',').pop().trim()).filter(c => c))];
 
         document.getElementById("content").innerHTML = `
@@ -229,37 +216,11 @@ async function loadReports() {
                 <div class="grid-filters">
                     <div><label>Desde</label><input type="date" id="fStart"></div>
                     <div><label>Hasta</label><input type="date" id="fEnd"></div>
-                    <div><label>Rol</label>
-                        <select id="fRole" onchange="updateReportOptions()">
-                            <option value="all">Todos</option>
-                            <option value="demostradora">Demostradora</option>
-                            <option value="promotor">Promotor</option>
-                        </select>
-                    </div>
-                    <div><label>Usuario</label>
-                        <select id="fUser">
-                            <option value="all">Todos</option>
-                            ${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label>Tipo Reporte</label>
-                        <select id="fType">
-                            <option value="">-- Seleccionar Categoría --</option>
-                            ${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label>Ciudad</label>
-                        <select id="fCity">
-                            <option value="all">Todas</option>
-                            ${cities.map(c => `<option value="${c}">${c}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label>Tienda</label>
-                        <select id="fStore">
-                            <option value="all">Todas</option>
-                            ${cachedStores.map(s => `<option value="${s._id}">${s.name}</option>`).join('')}
-                        </select>
-                    </div>
+                    <div><label>Rol</label><select id="fRole" onchange="updateReportOptions()"><option value="all">Todos</option><option value="demostradora">Demostradora</option><option value="promotor">Promotor</option></select></div>
+                    <div><label>Usuario</label><select id="fUser"><option value="all">Todos</option>${allUsersCached.map(u => `<option value="${u._id}">${u.name}</option>`).join('')}</select></div>
+                    <div><label>Tipo Reporte</label><select id="fType"><option value="">-- Seleccionar Categoría --</option>${REPORT_TYPES_BY_ROLE.all.map(t => `<option value="${t.val}">${t.text}</option>`).join('')}</select></div>
+                    <div><label>Ciudad</label><select id="fCity"><option value="all">Todas</option>${cities.map(c => `<option value="${c}">${c}</option>`).join('')}</select></div>
+                    <div><label>Tienda</label><select id="fStore"><option value="all">Todas</option>${cachedStores.map(s => `<option value="${s._id}">${s.name}</option>`).join('')}</select></div>
                 </div>
                 <div style="display:flex; gap:10px;">
                     <button onclick="filterReports()" class="btn-action" style="flex:2">VISUALIZAR DATOS</button>
@@ -274,14 +235,12 @@ function updateReportOptions() {
     const role = document.getElementById("fRole").value;
     const typeSelect = document.getElementById("fType");
     const options = REPORT_TYPES_BY_ROLE[role] || REPORT_TYPES_BY_ROLE.all;
-    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` +
-        options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
+    typeSelect.innerHTML = `<option value="">-- Seleccionar Categoría --</option>` + options.map(t => `<option value="${t.val}">${t.text}</option>`).join('');
 }
 
 function filterReports() {
-    const typeSel = document.getElementById("fType")?.value; // Quitamos el toLowerCase aquí
+    const typeSel = document.getElementById("fType")?.value;
     if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
-    
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value.toLowerCase();
@@ -290,79 +249,39 @@ function filterReports() {
     const storeSel = document.getElementById("fStore")?.value; 
 
     const filtered = allReportsRaw.filter(r => {
-        // 1. Normalización de IDs
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const userObj = allUsersCached.find(u => u._id === rUid);
-        
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
-        
-        // 2. Normalización de Tipo de Reporte (La clave corregida)
-        // Buscamos en todos los campos posibles donde el servidor guarda el nombre
         const rType = (r.reportType || r.reporte || r.tipo || "").toLowerCase().trim();
-        
-        // Ignorar asistencia en esta tabla
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
-
-        // 3. Fecha y Ciudad
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
-        
-        // 4. Lógica de "Match"
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
-        
         let matchType = false;
-        
-        // Lógica especial por categoría
-        if (typeSel === 'inventario') {
-            matchType = (rType.includes('ventas') || rType.includes('inventario'));
-        } else if (typeSel === 'ranking') {
-            // Si eliges Degustación en el Admin (val: ranking), buscamos "degust" en el reporte
-            matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
-        } else {
-            // Para los demás (precios, exhibicion, etc)
-            matchType = rType.includes(typeSel.toLowerCase().substring(0, 4));
-        }
+        if (typeSel === 'inventario') matchType = (rType.includes('ventas') || rType.includes('inventario'));
+        else if (typeSel === 'ranking') matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
+        else matchType = rType.includes(typeSel.toLowerCase().substring(0, 4));
 
-        return (!start || rDate >= start) && 
-               (!end || rDate <= end) && 
-               matchRole && 
-               (userSel === "all" || rUid === userSel) && 
-               matchType &&
-               (citySel === "all" || rCity === citySel) && 
-               (storeSel === "all" || rSid === storeSel);
+        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel) && (storeSel === "all" || rSid === storeSel);
     });
-
     renderTableReport(filtered, typeSel);
 }
 
-
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
-    if (data.length === 0) {
-        container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`;
-        return;
-    }
+    if (data.length === 0) { container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`; return; }
     const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas', 'lat', 'lng'];
     const roleSel = document.getElementById("fRole")?.value;
-let dynamicKeys = Object.keys(data[0]).filter(key => {
-    if (exclude.includes(key)) return false;
-    
-    // Solo ocultamos 'cantidad' para demostradoras si NO es un reporte de Degustación
-    if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') {
-        return false;
-    }
-    
-    // Verificamos que la columna tenga datos útiles
-    return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
-});
-
-
+    let dynamicKeys = Object.keys(data[0]).filter(key => {
+        if (exclude.includes(key)) return false;
+        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') return false;
+        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+    });
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
     if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
     const hasAction = (session.role?.toLowerCase() !== 'cliente');
-
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
@@ -374,34 +293,49 @@ let dynamicKeys = Object.keys(data[0]).filter(key => {
             if(k.toLowerCase().includes('precio') && !isNaN(val)) val = `$${val}`;
             rowData += `<td>${val || '-'}</td>`;
         });
-        if (r.foto_url || data.some(x => x.foto_url)) {
-            rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
-        }
-        return `<tr>${rowData}${hasAction?`<td><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>`:''}</tr>`;
+        if (r.foto_url || data.some(x => x.foto_url)) rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+        return `<tr>${rowData}${hasAction ? `<td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="editReportPrompt('${r._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>` : ''}</tr>`;
     }).join('');
     container.innerHTML = html + `</tbody></table></div>`;
+}
+
+function editReportPrompt(reportId) {
+    const r = allReportsRaw.find(x => x._id === reportId);
+    if (!r) return;
+    openDrawer(`
+        <div class="drawer-header"><h3>Corregir Reporte</h3></div>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <p style="font-size: 12px; color: #64748b;">ID: ${reportId}</p>
+            <label>Artículo / Producto</label><input type="text" id="editRepArticulo" value="${r.articulo || ''}">
+            <label>Cantidad (Texto o Número)</label><input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
+            <label>Observaciones</label><textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
+            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateReport('${r._id}')">GUARDAR CAMBIOS</button>
+        </div>
+    `);
+}
+
+async function updateReport(reportId) {
+    const articulo = document.getElementById('editRepArticulo').value;
+    const cantidad = document.getElementById('editRepCantidad').value;
+    const observaciones = document.getElementById('editRepObs').value;
+    const res = await fetchAPI(`${BACKEND_URL}/reports/${reportId}`, { method: 'PUT', body: JSON.stringify({ articulo, cantidad, observaciones }) });
+    if (res) {
+        alert("Reporte actualizado correctamente"); closeDrawer();
+        const index = allReportsRaw.findIndex(x => x._id === reportId);
+        if (index !== -1) { allReportsRaw[index].articulo = articulo; allReportsRaw[index].cantidad = cantidad; allReportsRaw[index].observaciones = observaciones; }
+        filterReports();
+    }
 }
 
 // --- ASISTENCIA ---
 async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const reports = Array.isArray(data) ? data : [];
-    const assist = reports.filter(r => {
-        const type = (r.reporte || r.reportType || "").toLowerCase();
-        return type.includes('checkin') || type.includes('checkout');
-    });
+    const assist = reports.filter(r => (r.reporte || r.reportType || "").toLowerCase().match(/checkin|checkout/));
     document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
         const f = new Date(a.createdAt);
-        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'Gral'}</td><td>${f.toLocaleDateString()}</td><td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td>
-    ${(a.foto_url || a.photo) ? 
-        `<img src="${BACKEND_URL}${a.foto_url || a.photo}" 
-              class="asistencia-foto" 
-              onerror="this.src='https://via.placeholder.com/40?text=Error'" 
-              onclick="window.open(this.src)">` 
-        : '-'}
-</td>
-</tr>`;
+        return `<tr><td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td><td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td><td>${a.storeId?.name || 'Gral'}</td><td>${f.toLocaleDateString()}</td><td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td>${(a.foto_url || a.photo) ? `<img src="${BACKEND_URL}${a.foto_url || a.photo}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
 
@@ -410,110 +344,41 @@ async function loadUsers() {
     const [users, stores] = await Promise.all([fetchAPI(`${BACKEND_URL}/users`), fetchAPI(`${BACKEND_URL}/stores`)]);
     allUsersCached = Array.isArray(users) ? users : [];
     cachedStores = Array.isArray(stores) ? stores : [];
-    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="saveUser()">GUARDAR</button>
-</div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')" style="cursor:pointer"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td style="white-space: nowrap;">
-    <button class="btn-icon btn-edit-tool" onclick="event.stopPropagation(); viewUserDetail('${u._id}')">✏️</button>
-    
-    <button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button>
-</td>
-</tr>`).join('')}</tbody></table></div>`;
+    document.getElementById("content").innerHTML = `<div class="card"><h2>👥 Usuarios</h2><div class="grid-filters"><input type="text" id="newUserName" placeholder="Nombre"><input type="email" id="newUserEmail" placeholder="Email"><input type="password" id="newUserPass" placeholder="Pass"><select id="newUserRole"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="cliente">Cliente</option></select><button class="btn-action" style="background:var(--success)" onclick="saveUser()">GUARDAR</button></div></div><div class="card" style="padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Tiendas</th><th>Acción</th></tr></thead><tbody>${allUsersCached.map(u => `<tr onclick="viewUserDetail('${u._id}')" style="cursor:pointer"><td><b>${u.name.toUpperCase()}</b></td><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${(u.stores||[]).length}</td><td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="event.stopPropagation(); viewUserDetail('${u._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="event.stopPropagation(); deleteUser('${u._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
-
-
 
 async function saveUser() {
     const name = document.getElementById("newUserName").value;
     const email = document.getElementById("newUserEmail").value;
     const password = document.getElementById("newUserPass").value;
     const role = document.getElementById("newUserRole").value;
-
-    if (!name || !email || !password) {
-        return alert("Por favor, completa todos los campos (Nombre, Email y Password)");
-    }
-
-    const res = await fetchAPI(`${BACKEND_URL}/users`, { 
-        method: 'POST', 
-        body: JSON.stringify({ 
-            name, 
-            email, 
-            password, 
-            role, 
-            agencyId: session.agencyId 
-        }) 
-    });
-
-    if (res) {
-        alert("Usuario creado con éxito");
-        // Limpiamos los campos
-        document.getElementById("newUserName").value = "";
-        document.getElementById("newUserEmail").value = "";
-        document.getElementById("newUserPass").value = "";
-        // Recargamos la tabla
-        loadUsers();
-    } else {
-        alert("Error al crear el usuario. Revisa si el correo ya existe.");
-    }
+    if (!name || !email || !password) return alert("Completa todos los campos");
+    const res = await fetchAPI(`${BACKEND_URL}/users`, { method: 'POST', body: JSON.stringify({ name, email, password, role, agencyId: session.agencyId }) });
+    if (res) { alert("Usuario creado"); loadUsers(); }
 }
 
-
-// --- NUEVA LÓGICA DE ASIGNACIÓN (DETALLE USUARIO) ---
 function viewUserDetail(userId) {
     const u = allUsersCached.find(x => x._id === userId);
     if(!u) return;
-    
     const currentStoresIds = (u.stores || []).map(st => typeof st === 'object' ? st._id : st);
-
     openDrawer(`
         <div class="drawer-header"><h3>Editar Perfil: ${u.name}</h3></div>
-        
         <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-            <label>Nombre Completo</label>
-            <input type="text" id="editUserName" value="${u.name}">
-
-            <label>Correo Electrónico</label>
-            <input type="email" id="editUserEmail" value="${u.email}">
-
-            <label>Rol del Usuario</label>
-            <select id="editUserRole">
-                <option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option>
-                <option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option>
-                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
-                <option value="cliente" ${u.role === 'cliente' ? 'selected' : ''}>Cliente</option>
-            </select>
-            
-            <label>Proyecto Principal</label>
-            <select id="userProj">
-                <option value="">-- Sin Proyecto --</option>
-                ${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('')}
-            </select>
+            <label>Nombre Completo</label><input type="text" id="editUserName" value="${u.name}">
+            <label>Correo</label><input type="email" id="editUserEmail" value="${u.email}">
+            <label>Rol</label><select id="editUserRole"><option value="promotor" ${u.role === 'promotor' ? 'selected' : ''}>Promotor</option><option value="demostradora" ${u.role === 'demostradora' ? 'selected' : ''}>Demostradora</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option><option value="cliente" ${u.role === 'cliente' ? 'selected' : ''}>Cliente</option></select>
+            <label>Proyecto</label><select id="userProj"><option value="">-- Sin Proyecto --</option>${allProjects.map(p => `<option value="${p._id}" ${u.projectId === p._id ? 'selected' : ''}>${p.name}</option>`).join('')}</select>
         </div>
-
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-
-        <label>Asignar Tiendas</label>
-        <div class="tag-search-container">
-            <input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)">
-            <div id="tagSearchResults" class="search-results-dropdown"></div>
-        </div>
-
-        <div class="assigned-chips-box" id="userStoresContainer" style="margin-top:10px;">
-            ${currentStoresIds.map(sid => {
-                const s = cachedStores.find(x => x._id === sid);
-                return s ? `<div class="chip" data-id="${sid}">${s.name} <span onclick="removeStoreChip(this)" style="cursor:pointer;">&times;</span></div>` : '';
-            }).join('')}
-        </div>
-
-        <button class="btn-action" style="width:100%; margin-top:25px; background:var(--success)" onclick="syncUserStores('${u._id}')">
-            GUARDAR CAMBIOS
-        </button>
+        <hr><label>Tiendas</label>
+        <div class="tag-search-container"><input type="text" placeholder="Buscar tienda..." onkeyup="filterTagSearch('${userId}', this.value)"><div id="tagSearchResults" class="search-results-dropdown"></div></div>
+        <div class="assigned-chips-box" id="userStoresContainer">${currentStoresIds.map(sid => { const s = cachedStores.find(x => x._id === sid); return s ? `<div class="chip" data-id="${sid}">${s.name} <span onclick="removeStoreChip(this)" style="cursor:pointer;">&times;</span></div>` : ''; }).join('')}</div>
+        <button class="btn-action" style="width:100%; margin-top:25px; background:var(--success)" onclick="syncUserStores('${u._id}')">GUARDAR</button>
     `);
 }
-
 
 function filterTagSearch(userId, val) {
     const res = document.getElementById("tagSearchResults");
     if(!val || val.length < 2) { res.style.display="none"; return; }
-    
     const matches = cachedStores.filter(s => s.name.toLowerCase().includes(val.toLowerCase()));
     res.innerHTML = matches.map(s => `<div class="search-item" onclick="addStoreChip('${s._id}', '${s.name.replace(/'/g, "")}')">${s.name}</div>`).join('');
     res.style.display = "block";
@@ -521,69 +386,19 @@ function filterTagSearch(userId, val) {
 
 function addStoreChip(sId, sName) {
     const container = document.getElementById('userStoresContainer');
-    // Evitar duplicados visuales
-    if (container.querySelector(`[data-id="${sId}"]`)) {
-        document.getElementById("tagSearchResults").style.display = "none";
-        return;
-    }
-
-    const chip = document.createElement('div');
-    chip.className = 'chip';
-    chip.setAttribute('data-id', sId);
-    chip.innerHTML = `${sName} <span onclick="removeStoreChip(this)" style="cursor:pointer; font-weight:bold;">&times;</span>`;
+    if (container.querySelector(`[data-id="${sId}"]`)) return;
+    const chip = document.createElement('div'); chip.className = 'chip'; chip.setAttribute('data-id', sId);
+    chip.innerHTML = `${sName} <span onclick="removeStoreChip(this)" style="cursor:pointer;">&times;</span>`;
     container.appendChild(chip);
-    
-    document.getElementById("tagSearchResults").style.display = "none";
 }
-
-function removeStoreChip(element) {
-    element.parentElement.remove();
-}
+function removeStoreChip(element) { element.parentElement.remove(); }
 
 async function syncUserStores(userId) {
     const currentUser = allUsersCached.find(u => u._id === userId);
-    if (!currentUser) return;
-
-    // 1. Capturamos los valores de los NUEVOS inputs que pusiste en el drawer
-    const updatedName = document.getElementById('editUserName').value;
-    const updatedEmail = document.getElementById('editUserEmail').value;
-    const updatedRole = document.getElementById('editUserRole').value;
-    const selectedProjectId = document.getElementById('userProj').value;
-    
-    // 2. Capturamos las tiendas (los chips)
-    const storesIds = Array.from(document.querySelectorAll('#userStoresContainer .chip'))
-                           .map(chip => chip.getAttribute('data-id'));
-
-    // 3. Empaquetamos todo
-    const updateData = {
-        ...currentUser,
-        name: updatedName,
-        email: updatedEmail,
-        role: updatedRole,
-        projectId: selectedProjectId,
-        stores: storesIds 
-    };
-
-    // 4. Enviamos al servidor
-    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updateData)
-    });
-
-    if (res) {
-        alert("¡Usuario actualizado!");
-        closeDrawer();
-        loadUsers(); // Esto refresca la tabla para ver el nuevo nombre/rol
-    }
+    const updateData = { ...currentUser, name: document.getElementById('editUserName').value, email: document.getElementById('editUserEmail').value, role: document.getElementById('editUserRole').value, projectId: document.getElementById('userProj').value, stores: Array.from(document.querySelectorAll('#userStoresContainer .chip')).map(chip => chip.getAttribute('data-id')) };
+    const res = await fetchAPI(`${BACKEND_URL}/users/${userId}`, { method: 'PUT', body: JSON.stringify(updateData) });
+    if (res) { alert("¡Usuario actualizado!"); closeDrawer(); loadUsers(); }
 }
-
-
-
-
-// Mantener las funciones originales pero simplificadas (ya no se usan directamente pero evitan errores de referencia)
-async function assignStore(uId, sId) { addStoreChip(sId, "Tienda..."); }
-async function unassignStore(uId, sId) { /* Ahora se maneja visualmente */ }
-async function updateUserField(uId, f, v) { /* Ahora se maneja en syncUserStores */ }
 
 // --- TIENDAS ---
 async function loadStores() {
@@ -591,152 +406,64 @@ async function loadStores() {
     cachedStores = Array.isArray(data) ? data : [];
     document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Tienda"><input type="text" id="stAddr" placeholder="Dirección"><select id="stProj"><option value="">Proyecto...</option>${allProjects.map(p=>`<option value="${p._id}">${p.name}</option>`).join('')}</select><button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${cachedStores.map(s => `<tr><td><b>${s.name}</b></td><td>${s.address||'-'}</td><td>${allProjects.find(p=>p._id===s.projectId)?.name||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
 }
-
 async function createStore() {
-    const name = document.getElementById("stName").value;
-    const address = document.getElementById("stAddr").value;
-    const projectId = document.getElementById("stProj").value;
+    const name = document.getElementById("stName").value; const address = document.getElementById("stAddr").value; const projectId = document.getElementById("stProj").value;
     await fetchAPI(`${BACKEND_URL}/stores`, { method:'POST', body:JSON.stringify({name, address, agencyId:session.agencyId, projectId}) });
     loadStores();
 }
 
 // --- PROYECTOS ---
 async function loadProjectsSection() {
-    const [projects, users] = await Promise.all([
-        fetchAPI(`${BACKEND_URL}/projects`), 
-        fetchAPI(`${BACKEND_URL}/users`)
-    ]);
+    const [projects, users] = await Promise.all([fetchAPI(`${BACKEND_URL}/projects`), fetchAPI(`${BACKEND_URL}/users`)]);
     allProjects = Array.isArray(projects) ? projects : [];
     const clientes = users.filter(u => u.role === 'cliente');
-
-    // --- LÓGICA DE AGRUPACIÓN ---
     const grouped = {};
-    allProjects.forEach(p => {
-        const cName = p.clientName || 'Sin Cliente';
-        if (!grouped[cName]) grouped[cName] = [];
-        grouped[cName].push(p);
-    });
+    allProjects.forEach(p => { const cName = p.clientName || 'Sin Cliente'; if (!grouped[cName]) grouped[cName] = []; grouped[cName].push(p); });
 
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>🏷️ Proyectos por Cliente</h2>
             <div class="grid-filters">
-                <select id="projClient">
-                    <option value="">Asignar a Cliente...</option>
-                    ${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}
-                </select>
+                <select id="projClient"><option value="">Asignar a Cliente...</option>${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}</select>
                 <input type="text" id="projName" placeholder="Nueva Marca/Proyecto">
+                <input type="text" id="projDesc" placeholder="Descripción (opcional)">
                 <button class="btn-action" style="background:var(--success)" onclick="saveProject()">CREAR</button>
             </div>
         </div>
-
-        <div class="card" style="padding:0;">
-            <table class="report-table">
-                <thead>
-                    <tr>
-                        <th>Cliente / Agencia</th>
-                        <th>Cant. Proyectos</th>
-                        <th style="text-align:right">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${Object.keys(grouped).map(client => `
-                        <tr style="background:#f9f9f9; font-weight:bold;">
-                            <td>👥 ${client.toUpperCase()}</td>
-                            <td>${grouped[client].length} Proyectos</td>
-                            <td style="text-align:right">
-                                <button class="btn-action" style="padding:4px 10px; font-size:12px;" 
-                                    onclick="toggleProjectGroup('${client.replace(/\s/g, '_')}')">
-                                    VER DETALLES
-                                </button>
-                            </td>
-                        </tr>
-                        <tr id="group-${client.replace(/\s/g, '_')}" style="display:none;">
-                            <td colspan="3" style="padding:15px; background:#fff;">
-                                <div style="border-left: 3px solid var(--primary); padding-left:15px;">
-                                    ${grouped[client].map(p => `
-                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                                            <span><strong>${p.name}</strong> <small style="color:#666">(${p.description || 'Sin desc.'})</small></span>
-                                            <div>
-                                                <button class="btn-icon btn-edit-tool" onclick="editProjectPrompt('${p._id}')">✏️</button>
-                                                <button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>`;
+        <div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Cliente</th><th>Proyectos</th><th style="text-align:right">Acciones</th></tr></thead><tbody>
+        ${Object.keys(grouped).map(client => `
+            <tr style="background:#f9f9f9; font-weight:bold;"><td>👥 ${client.toUpperCase()}</td><td>${grouped[client].length}</td><td style="text-align:right"><button class="btn-action" style="padding:4px 10px; font-size:12px;" onclick="toggleProjectGroup('${client.replace(/\s/g, '_')}')">DETALLES</button></td></tr>
+            <tr id="group-${client.replace(/\s/g, '_')}" style="display:none;"><td colspan="3" style="padding:15px; background:#fff;"><div style="border-left: 3px solid var(--primary); padding-left:15px;">
+                ${grouped[client].map(p => `<div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding:5px 0;"><span><strong>${p.name}</strong> <small>(${p.description || ''})</small></span><div><button class="btn-icon btn-edit-tool" onclick="editProjectPrompt('${p._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button></div></div>`).join('')}
+            </div></td></tr>`).join('')}</tbody></table></div>`;
 }
 
-
-function toggleProjectGroup(groupId) {
-    const row = document.getElementById(`group-${groupId}`);
-    if (row.style.display === "none") {
-        row.style.display = "table-row";
-    } else {
-        row.style.display = "none";
-    }
-}
-
-
-
-function editProjectPrompt(projectId) {
-    const p = allProjects.find(x => x._id === projectId);
-    if (!p) return;
-    
-    // Obtenemos de nuevo la lista de clientes para el selector
-    const clientes = allUsersCached.filter(u => u.role === 'cliente');
-
-    openDrawer(`
-        <div class="drawer-header"><h3>Editar Proyecto</h3></div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-            <label>Nombre del Proyecto</label>
-            <input type="text" id="editProjName" value="${p.name}">
-            
-            <label>Descripción</label>
-            <input type="text" id="editProjDesc" value="${p.description || ''}">
-
-            <label>Cambiar Dueño (Cliente)</label>
-            <select id="editProjClient">
-                <option value="">-- Seleccionar --</option>
-                ${clientes.map(c => `<option value="${c._id}" ${p.clientId === c._id ? 'selected' : ''}>${c.name}</option>`).join('')}
-            </select>
-
-            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateProject('${p._id}')">
-                GUARDAR CAMBIOS
-            </button>
-        </div>
-    `);
-}
-
-async function updateProject(projectId) {
-    const name = document.getElementById('editProjName').value;
-    const description = document.getElementById('editProjDesc').value;
-    const clientId = document.getElementById('editProjClient').value;
-
-    const res = await fetchAPI(`${BACKEND_URL}/projects/${projectId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name, description, clientId })
-    });
-
-    if (res) {
-        alert("Proyecto actualizado");
-        closeDrawer();
-        loadProjectsSection(); // Recarga la tabla
-    }
-}
-
+function toggleProjectGroup(groupId) { const row = document.getElementById(`group-${groupId}`); row.style.display = (row.style.display === "none") ? "table-row" : "none"; }
 
 async function saveProject() {
     const name = document.getElementById("projName").value;
     const clientId = document.getElementById("projClient").value;
-    const description = document.getElementById("projDesc").value;
+    const description = document.getElementById("projDesc")?.value || "";
+    if(!name) return alert("Nombre obligatorio");
     await fetchAPI(`${BACKEND_URL}/projects`, { method:'POST', body:JSON.stringify({name, clientId, description}) });
     loadGlobalProjects(); loadProjectsSection();
+}
+
+function editProjectPrompt(projectId) {
+    const p = allProjects.find(x => x._id === projectId); if (!p) return;
+    openDrawer(`
+        <div class="drawer-header"><h3>Editar Proyecto</h3></div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <label>Nombre</label><input type="text" id="editProjName" value="${p.name}">
+            <label>Descripción</label><input type="text" id="editProjDesc" value="${p.description || ''}">
+            <label>Cliente</label><select id="editProjClient"><option value="">-- Seleccionar --</option>${allUsersCached.filter(u=>u.role==='cliente').map(c => `<option value="${c._id}" ${p.clientId === c._id ? 'selected' : ''}>${c.name}</option>`).join('')}</select>
+            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateProject('${p._id}')">GUARDAR</button>
+        </div>
+    `);
+}
+async function updateProject(projectId) {
+    const res = await fetchAPI(`${BACKEND_URL}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify({ name: document.getElementById('editProjName').value, description: document.getElementById('editProjDesc').value, clientId: document.getElementById('editProjClient').value }) });
+    if (res) { alert("Proyecto actualizado"); closeDrawer(); loadProjectsSection(); }
 }
 
 // --- UTILIDADES ---
@@ -744,13 +471,7 @@ async function deleteUser(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BAC
 async function deleteStore(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:'DELETE'}); loadStores(); } }
 async function deleteProject(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/projects/${id}`, {method:'DELETE'}); loadProjectsSection(); } }
 async function deleteReport(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/reports/${id}`, {method:'DELETE'}); filterReports(); } }
-
-function exportExcel() {
-    const table = document.querySelector(".report-table");
-    if (!table) return alert("Sin datos");
-    XLSX.writeFile(XLSX.utils.table_to_book(table), `Reporte_${new Date().toLocaleDateString()}.xlsx`);
-}
-
+function exportExcel() { const table = document.querySelector(".report-table"); if (!table) return alert("Sin datos"); XLSX.writeFile(XLSX.utils.table_to_book(table), `Reporte_${new Date().toLocaleDateString()}.xlsx`); }
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 </script>
 </body>

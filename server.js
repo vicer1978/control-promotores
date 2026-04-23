@@ -302,15 +302,17 @@ app.post("/checkout", auth, async (req, res) => {
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
         const { agencyId } = req.params;
-        const projectId = req.headers.projectid;
+        const pid = req.headers.projectid;
 
-        // Construimos el filtro
-        let query = { agencyId: agencyId }; // Buscamos por el ID que viene en la URL
+        // Construimos el filtro base
+        let query = { agencyId: agencyId };
 
-        // Si el filtro de proyecto es válido, lo agregamos
-        if (projectId && projectId !== "null" && mongoose.Types.ObjectId.isValid(projectId)) {
-            query.projectId = projectId;
+        // Si el projectId viene como "null" o undefined, lo ignoramos por completo
+        if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
+            query.projectId = pid;
         }
+
+        console.log("🔍 Ejecutando búsqueda:", JSON.stringify(query));
 
         const reports = await Report.find(query)
             .populate('userId', 'name role')
@@ -318,21 +320,23 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // Mapeo de compatibilidad para el Frontend
-        const formattedReports = reports.map(r => ({
+        // Si no hay reportes, enviamos un log para revisar en Render
+        if (reports.length === 0) {
+            console.log(`⚠️ No se encontraron reportes para agencyId: ${agencyId}`);
+        }
+
+        const formatted = reports.map(r => ({
             ...r,
-            // Aseguramos que el front encuentre 'reporte' aunque en DB sea 'reportType'
-            reporte: r.reportType || r.reporte || "otro"
+            reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`✅ Se encontraron ${formattedReports.length} reportes para la agencia ${agencyId}`);
-        res.json(formattedReports);
-
+        res.json(formatted);
     } catch (err) {
-        console.error("❌ ERROR AL CARGAR REPORTES:", err);
-        res.status(500).json({ error: "Error interno al obtener datos" });
+        console.error("❌ Error fatal en reportes:", err);
+        res.status(500).json([]);
     }
 });
+
 
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {

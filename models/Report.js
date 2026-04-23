@@ -1,16 +1,16 @@
-// models/Report.js
 const mongoose = require('mongoose');
 
 const ReportSchema = new mongoose.Schema({
-    // Relaciones principales
+    // --- FLEXIBILIDAD DE IDS ---
+    // Usamos String para evitar errores de validación entre ObjectId y Texto
+    agencyId: { type: String, required: true, index: true },
+    projectId: { type: String, index: true }, 
+    
+    // Estos se quedan como ObjectId para poder usar .populate()
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
-    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', index: true },
-    
-    // agencyId: Lo ideal es String para evitar errores de validación si solo manejas el ID plano
-    agencyId: { type: String, required: true },
 
-    // Tipo de reporte (Ventas, Degustación, etc.)
+    // --- DATOS DEL REPORTE ---
     reportType: { 
         type: String, 
         required: true, 
@@ -21,8 +21,8 @@ const ReportSchema = new mongoose.Schema({
     articulo:      { type: String, default: "N/A" },
     inv_inicial:   { type: Number, default: 0 },
     resurtido:     { type: Number, default: 0 }, 
-    ventas:        { type: Number, default: 0 }, 
-    cantidad:      { type: String, default: "0" }, // String para soportar "5 piezas" o "N/A"
+    ventas:         { type: Number, default: 0 }, 
+    cantidad:      { type: String, default: "0" }, 
     inv_final:     { type: Number, default: 0 },
     
     // Campos de Precios
@@ -33,17 +33,16 @@ const ReportSchema = new mongoose.Schema({
     // Otros datos estándar
     personas:      { type: Number, default: 0 }, 
     observaciones: { type: String, default: "" }, 
-    photo:         { type: String, default: null }, // URL de la imagen en /uploads
-    foto_url:      { type: String, default: null }, // Duplicado por compatibilidad con tu App vieja
+    photo:         { type: String, default: null }, 
+    foto_url:      { type: String, default: null }, 
 
     // Ubicación
     lat: { type: Number, default: 0 },
     lng: { type: Number, default: 0 },
 
-    // --- EL CAMPO MÁGICO ---
-    // Aquí puedes meter CUALQUIER cosa que pida una agencia nueva
+    // --- EXTENSIBILIDAD ---
     datosExtra: { type: mongoose.Schema.Types.Mixed, default: {} }
 
-}, { timestamps: true }); // timestamps crea 'createdAt' y 'updatedAt' automáticamente
+}, { timestamps: true });
 
 module.exports = mongoose.model('Report', ReportSchema);

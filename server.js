@@ -312,97 +312,76 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 });
 
 // Usamos .any() para que acepte reportes con foto, sin foto o con varios campos
-// --- RUTA DE REPORTES CORREGIDA ---
+// --- RUTA DE REPORTES CORREGIDA Y ESTRUCTURADA ---
 app.post("/reports", auth, upload.any(), async (req, res) => {
     try {
         console.log("Datos recibidos en body:", req.body);
 
         // 1. Limpieza de variables
-const obs = req.body.observaciones || req.body.comentarios || "";
-let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
+        const obs = req.body.observaciones || req.body.comentarios || "";
+        let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
 
-// 2. Normalización de nombres para el Admin (IMPORTANTE)
-const tipoMin = tipoReporte.toLowerCase();
+        // 2. Normalización de nombres para el Admin
+        const tipoMin = tipoReporte.toLowerCase();
 
-if (tipoMin.includes("ventas")) {
-    tipoReporte = "Ventas";
-} else if (tipoMin.includes("precios")) {
-    tipoReporte = "Precios";
-} else if (tipoMin.includes("degustacion") || tipoMin.includes("degustación")) {
-    tipoReporte = "Degustación"; // Esto asegura que el Admin lo encuentre
-} else if (tipoMin.includes("exhibicion")) {
-    tipoReporte = "Exhibicion";
-}
+        if (tipoMin.includes("ventas")) {
+            tipoReporte = "Ventas";
+        } else if (tipoMin.includes("precios")) {
+            tipoReporte = "Precios";
+        } else if (tipoMin.includes("degustacion") || tipoMin.includes("degustación")) {
+            tipoReporte = "Degustación"; 
+            req.body.reporte = "Degustación";
+            req.body.tipo = "Degustación";
+        } else if (tipoMin.includes("exhibicion")) {
+            tipoReporte = "Exhibicion";
+        }
 
-// ... dentro del if de tipoMin ...
-} else if (tipoMin.includes("degustacion") || tipoMin.includes("degustación")) {
-    tipoReporte = "Degustación"; 
-    req.body.reporte = "Degustación"; // <--- AÑADE ESTA LÍNEA EXTRA
-    req.body.tipo = "Degustación";    // <--- Y ESTA TAMBIÉN
-}
-
-
-// -------------------------------
-
-if (tipoReporte.toLowerCase().includes("exhibicion")) {
-    tipoReporte = "Exhibicion";
-}
-
-        // 2. Manejo de la foto
+        // 3. Manejo de la foto
         let fotoUrl = null;
         if (req.files && req.files.length > 0) {
             fotoUrl = `/uploads/${req.files[0].filename}`;
         }
 
-        // 3. Creación del objeto con DOBLE COMPATIBILIDAD
+        // 4. Creación del objeto de datos
         const reportData = {
-            // IDs obligatorias (sacadas del auth y del body)
             userId: req.user._id,
             agencyId: req.user.agencyId,
             projectId: req.body.projectId || req.user.projectId,
             storeId: req.body.storeId,
-
-            // Nombres nuevos Y viejos para que el Admin no se pierda
-            reportType: tipoReporte, // Estándar nuevo
-            reporte: tipoReporte,    // Estándar viejo 1
-            tipo: tipoReporte,       // Estándar viejo 2 (común en tablas)    
-            
+            reportType: tipoReporte,
+            reporte: tipoReporte,    
+            tipo: tipoReporte,       
             photo: fotoUrl,          
             foto_url: fotoUrl,       
-
-            // Campos de inventario y precios
             articulo: req.body.articulo || "N/A",
-inv_inicial: Number(req.body.inv_inicial) || 0,
-resurtido: Number(req.body.resurtido) || 0,
-ventas: Number(req.body.ventas) || 0, 
+            inv_inicial: Number(req.body.inv_inicial) || 0,
+            resurtido: Number(req.body.resurtido) || 0,
+            ventas: Number(req.body.ventas) || 0, 
 
-// Si el tipo de reporte es Degustación, guardamos como texto tal cual viene.
-// Para los demás, intentamos convertir a número.
-cantidad: tipoReporte === "Degustación" 
-    ? (req.body.cantidad || "N/A") 
-    : (Number(req.body.cantidad) || 0),
+            // Cantidad flexible (Texto para Degustación, Número para otros)
+            cantidad: tipoReporte === "Degustación" 
+                ? (req.body.cantidad || "N/A") 
+                : (Number(req.body.cantidad) || 0),
+
             inv_final: Number(req.body.inv_final) || 0,
             precio: Number(req.body.precio) || 0,
             precio_normal: Number(req.body.precio_normal) || 0,
             precio_oferta: Number(req.body.precio_oferta) || 0,
             personas: Number(req.body.personas) || 0,
             observaciones: obs,
-            
-            // Ubicación (Plana para el modelo nuevo, Objeto para el Admin viejo)
             lat: Number(req.body.lat) || 0,
             lng: Number(req.body.lng) || 0,
             location: { 
                 lat: Number(req.body.lat) || 0, 
                 lng: Number(req.body.lng) || 0 
             },
-            timestamp: new Date(), // Campo extra por si el admin lo usa
-            fecha: new Date().toISOString().split('T')[0] // Formato YYYY-MM-DD
+            timestamp: new Date(),
+            fecha: new Date().toISOString().split('T')[0]
         };
 
         const report = new Report(reportData);
         await report.save();
         
-        console.log("✅ Reporte guardado con éxito y compatible con Admin");
         res.json({ message: "Reporte guardado con éxito", id: report._id });
 
     } catch (err) { 
@@ -410,6 +389,7 @@ cantidad: tipoReporte === "Degustación"
         res.status(500).json({ error: "Error al guardar reporte", detalles: err.message }); 
     }
 });
+
 
 
 

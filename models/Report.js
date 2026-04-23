@@ -19,7 +19,7 @@ const ReportSchema = new mongoose.Schema({
     inv_inicial: { type: Number, default: 0 },
     resurtido:   { type: Number, default: 0 }, 
     ventas:      { type: Number, default: 0 }, 
-    cantidad:    { type: Number, default: 0 }, 
+    cantidad:    { type: String, default: "0" }, 
     inv_final:   { type: Number, default: 0 },
     
     precio:        { type: Number, default: 0 }, 

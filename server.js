@@ -301,31 +301,40 @@ app.post("/checkout", auth, async (req, res) => {
 // --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
-        console.log("🔍 ESCÁNER TOTAL: Buscando todos los reportes de la DB sin filtros...");
+        const { agencyId } = req.params;
+        const pid = req.headers.projectid;
 
-        // Traemos TODO (limitado a 50 para no saturar)
-        const reports = await Report.find({}) 
+        // Filtro base: Buscamos por agencyId como String (que es como vimos que están)
+        let query = { agencyId: String(agencyId) };
+
+        // Si hay un proyecto seleccionado, lo añadimos al filtro
+        if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
+            query.projectId = String(pid);
+        }
+
+        console.log("🎯 Buscando reportes para agencia:", agencyId);
+
+        const reports = await Report.find(query)
             .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
-            .limit(50)
             .lean();
 
-        console.log(`📊 ESCÁNER: Se encontraron ${reports.length} reportes en total.`);
-
+        // Formateamos para el frontend
         const formatted = reports.map(r => ({
             ...r,
-            // Agregamos el agencyId al campo observaciones para verlo en la tabla
-            observaciones: `(Agencia en DB: ${r.agencyId || 'VACÍO'}) - ${r.observaciones || ''}`,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
+        console.log(`✅ ÉXITO: Se enviaron ${formatted.length} reportes al Admin.`);
         res.json(formatted);
+
     } catch (err) {
-        console.error("❌ Error en escáner:", err);
+        console.error("❌ Error en ruta de reportes:", err);
         res.status(500).json([]);
     }
 });
+
 
 
 

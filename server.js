@@ -304,37 +304,59 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // 1. Preparamos los IDs en ambos formatos (Texto y Objeto)
+        // 1. Preparamos IDs (Texto y Objeto)
         let idsParaBuscar = [String(agencyId)];
-        try { 
-            idsParaBuscar.push(new mongoose.Types.ObjectId(agencyId)); 
-        } catch(e) {}
+        try { idsParaBuscar.push(new mongoose.Types.ObjectId(agencyId)); } catch(e) {}
 
-        // 2. Construimos la query usando $in (trae cualquiera que coincida)
         let query = { agencyId: { $in: idsParaBuscar } };
 
-        // 3. LOG DE CONTROL: Esto nos dirá qué estamos enviando exactamente
-        console.log("📡 CONSULTA RADICAL:", JSON.stringify(query));
+        // 2. Filtro de Proyecto si existe
+        if (pid && pid !== "null" && pid !== "undefined" && String(pid).trim() !== "") {
+            let pIds = [String(pid)];
+            try { pIds.push(new mongoose.Types.ObjectId(pid)); } catch(e) {}
+            query.projectId = { $in: pIds };
+        }
 
-        // 4. USAMOS .collection.find(): Esto salta el Schema de Mongoose y va directo a la DB
+        // 3. Consulta Nativa (La que funcionó)
         const reportsRaw = await Report.collection.find(query)
             .sort({ createdAt: -1 })
-            .limit(100)
+            .limit(200) // Subimos el límite para que veas más datos
             .toArray();
 
-        // 5. Como saltamos Mongoose, el populate hay que hacerlo manual o traer los nombres después
-        // Por ahora, vamos a ver si llegan los datos:
-        const formatted = reportsRaw.map(r => ({
-            ...r,
-            _id: r._id.toString(),
-            reporte: r.reportType || r.reporte || "Reporte"
-        }));
+        // 4. RECUPERAR NOMBRES (Manual Populate)
+        // Traemos todos los usuarios y tiendas de una vez para no saturar la DB
+        const [users, stores] = await Promise.all([
+            User.find({ agencyId: agencyId }, "name").lean(),
+            Store.find({}, "name").lean()
+        ]);
 
-        console.log(`📊 RESULTADO MOTOR NATIVO: ${formatted.length} reportes.`);
+        // Creamos "diccionarios" para buscar rápido
+        const userMap = Object.fromEntries(users.map(u => [u._id.toString(), u.name]));
+        const storeMap = Object.fromEntries(stores.map(s => [s._id.toString(), s.name]));
+
+        // 5. Formateamos para el Admin
+        const formatted = reportsRaw.map(r => {
+            const uId = r.userId ? r.userId.toString() : "";
+            const sId = r.storeId ? r.storeId.toString() : "";
+            
+            return {
+                ...r,
+                _id: r._id.toString(),
+                // Si el nombre no existe, ponemos el ID o "N/A"
+                userName: userMap[uId] || "Usuario Desconocido",
+                storeName: storeMap[sId] || "Tienda no registrada",
+                // Mapeamos para que tu frontend lea 'userId.name' si es necesario
+                userId: { _id: uId, name: userMap[uId] || "N/A" },
+                storeId: { _id: sId, name: storeMap[sId] || "N/A" },
+                reporte: r.reportType || r.reporte || "Reporte"
+            };
+        });
+
+        console.log(`✅ Tabla lista con ${formatted.length} reportes formateados.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error en motor nativo:", err);
+        console.error("❌ Error en formato final:", err);
         res.status(500).json([]);
     }
 });

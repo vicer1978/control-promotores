@@ -317,17 +317,23 @@ app.post("/reports", auth, upload.any(), async (req, res) => {
     try {
         console.log("Datos recibidos en body:", req.body);
 
-        // 1. Limpieza de variables y lógica de tipo
+        // 1. Limpieza de variables
 const obs = req.body.observaciones || req.body.comentarios || "";
 let tipoReporte = req.body.reportType || req.body.reporte || req.body.type || "otro";
 
-// --- ESTE ES EL CAMBIO CLAVE ---
-// Si es ventas o precios, asegúrate de que la primera letra sea Mayúscula
-if (tipoReporte.toLowerCase() === "ventas") {
+// 2. Normalización de nombres para el Admin (IMPORTANTE)
+const tipoMin = tipoReporte.toLowerCase();
+
+if (tipoMin.includes("ventas")) {
     tipoReporte = "Ventas";
-} else if (tipoReporte.toLowerCase() === "precios") {
+} else if (tipoMin.includes("precios")) {
     tipoReporte = "Precios";
+} else if (tipoMin.includes("degustacion") || tipoMin.includes("degustación")) {
+    tipoReporte = "Degustación"; // Esto asegura que el Admin lo encuentre
+} else if (tipoMin.includes("exhibicion")) {
+    tipoReporte = "Exhibicion";
 }
+
 // -------------------------------
 
 if (tipoReporte.toLowerCase().includes("exhibicion")) {

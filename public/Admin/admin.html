@@ -279,44 +279,51 @@ function updateReportOptions() {
 }
 
 function filterReports() {
-    const typeSel = document.getElementById("fType")?.value.toLowerCase();
+    const typeSel = document.getElementById("fType")?.value; // Quitamos el toLowerCase aquí
     if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
     
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value.toLowerCase();
     const userSel = document.getElementById("fUser")?.value;
-    const citySel = document.getElementById("fCity")?.value; // Recuperamos Ciudad
-    const storeSel = document.getElementById("fStore")?.value; // Recuperamos Tienda
+    const citySel = document.getElementById("fCity")?.value; 
+    const storeSel = document.getElementById("fStore")?.value; 
 
     const filtered = allReportsRaw.filter(r => {
-        // 1. Normalización de IDs y Objetos
+        // 1. Normalización de IDs
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const userObj = allUsersCached.find(u => u._id === rUid);
         
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
         
-        // 2. Normalización de Tipo de Reporte (La clave del problema)
-        const rType = (r.reporte || r.reportType || "").toLowerCase().trim();
+        // 2. Normalización de Tipo de Reporte (La clave corregida)
+        // Buscamos en todos los campos posibles donde el servidor guarda el nombre
+        const rType = (r.reportType || r.reporte || r.tipo || "").toLowerCase().trim();
+        
+        // Ignorar asistencia en esta tabla
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
         // 3. Fecha y Ciudad
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
         
-        // 4. Lógica de "Match" (Filtros)
+        // 4. Lógica de "Match"
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
         
-        // Ahora 'inventario' aceptará reportes que digan 'ventas'
         let matchType = false;
+        
+        // Lógica especial por categoría
         if (typeSel === 'inventario') {
-            matchType = (rType.includes('ventas') || rType.includes('inventario') || rType.includes('diario'));
+            matchType = (rType.includes('ventas') || rType.includes('inventario'));
+        } else if (typeSel === 'ranking') {
+            // Si eliges Degustación en el Admin (val: ranking), buscamos "degust" en el reporte
+            matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
         } else {
-            matchType = rType.includes(typeSel.substring(0, 4));
+            // Para los demás (precios, exhibicion, etc)
+            matchType = rType.includes(typeSel.toLowerCase().substring(0, 4));
         }
 
-        // 5. Retorno de todas las condiciones
         return (!start || rDate >= start) && 
                (!end || rDate <= end) && 
                matchRole && 
@@ -404,6 +411,8 @@ async function loadUsers() {
 </td>
 </tr>`).join('')}</tbody></table></div>`;
 }
+
+
 
 async function saveUser() {
     const name = document.getElementById("newUserName").value;

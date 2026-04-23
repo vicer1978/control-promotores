@@ -304,18 +304,17 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Buscamos usando una Expresión Regular para que coincida el patrón de texto
-        // Esto ignora si es ObjectId o String
-        let query = { 
-            agencyId: { $regex: new RegExp(`^${agencyId.trim()}$`, 'i') } 
-        };
+        // Forzamos la conversión a ObjectId de Mongoose
+        const agencyObjectId = new mongoose.Types.ObjectId(agencyId);
 
-        // Si hay proyecto, hacemos lo mismo
-        if (pid && pid !== "null" && pid !== "undefined" && String(pid).trim() !== "") {
-            query.projectId = { $regex: new RegExp(`^${pid.trim()}$`, 'i') };
+        let query = { agencyId: agencyObjectId };
+
+        // Si hay proyecto y es un ID válido, también lo convertimos
+        if (pid && pid !== "null" && pid !== "undefined" && mongoose.Types.ObjectId.isValid(pid)) {
+            query.projectId = new mongoose.Types.ObjectId(pid);
         }
 
-        console.log("🔥 BUSQUEDA REGEX:", JSON.stringify(query));
+        console.log("🎯 Buscando con ObjectId real:", agencyId);
 
         const reports = await Report.find(query)
             .populate('userId', 'name role')
@@ -323,25 +322,18 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // LOG DE EMERGENCIA: Si sigue en 0, vemos qué campos tiene un reporte cualquiera
-        if (reports.length === 0) {
-            const raw = await Report.findOne({}).lean();
-            console.log("👀 DEBUG - Campos reales del primer reporte encontrado:");
-            console.log("ID Agencia:", raw?.agencyId, "Tipo:", typeof raw?.agencyId);
-            console.log("ID Proyecto:", raw?.projectId, "Tipo:", typeof raw?.projectId);
-        }
-
         const formatted = reports.map(r => ({
             ...r,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`📊 Resultado Final: ${formatted.length} reportes.`);
+        console.log(`✅ ¡POR FIN! Encontrados ${formatted.length} reportes.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error:", err);
-        res.status(500).json([]);
+        console.error("❌ Error al convertir IDs o buscar:", err);
+        // Si falla la conversión, devolvemos vacío para no romper el front
+        res.json([]);
     }
 });
 

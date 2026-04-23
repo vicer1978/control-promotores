@@ -141,18 +141,37 @@ function applyRoleRestrictions() {
 }
 
 async function fetchAPI(url, options = {}) {
-    const headers = { "userid": session.userId, "Content-Type": "application/json" };
-    if (session.selectedProjectId) headers["projectid"] = session.selectedProjectId;
+    // 1. Añadir un timestamp para evitar el error 304 (fuerza al servidor a dar datos frescos)
+    const separator = url.includes('?') ? '&' : '?';
+    const finalUrl = `${url}${separator}t=${new Date().getTime()}`;
+
+    // 2. Configurar headers (UserId y ProjectId para los filtros del backend)
+    const headers = { 
+        "userid": session.userId, 
+        "Content-Type": "application/json" 
+    };
+    
+    if (session.selectedProjectId) {
+        headers["projectid"] = session.selectedProjectId;
+    }
+
     options.headers = { ...(options.headers || {}), ...headers };
+
     try {
-        const res = await fetch(url, options);
-        if(!res.ok) throw new Error("Error en servidor");
+        const res = await fetch(finalUrl, options); // Usamos finalUrl con el timestamp
+        
+        if (!res.ok) {
+            // Si el error es 401 o 403, podrías redirigir a login, pero por ahora solo lanzamos error
+            throw new Error(`Error en servidor: ${res.status}`);
+        }
+
         return await res.json();
     } catch (err) {
-        console.error("Fetch Error:", err);
+        console.error("❌ Fetch Error:", err);
         return null;
     }
 }
+
 
 async function loadGlobalProjects() {
     const roleLower = session.role ? session.role.toLowerCase() : "";
@@ -241,6 +260,7 @@ function updateReportOptions() {
 function filterReports() {
     const typeSel = document.getElementById("fType")?.value;
     if(!typeSel) return alert("Selecciona un Tipo de Reporte.");
+
     const start = document.getElementById("fStart")?.value;
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value.toLowerCase();
@@ -249,24 +269,48 @@ function filterReports() {
     const storeSel = document.getElementById("fStore")?.value; 
 
     const filtered = allReportsRaw.filter(r => {
+        // 1. Normalización de IDs (por si vienen populados o no)
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const userObj = allUsersCached.find(u => u._id === rUid);
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
+        
+        // 2. Normalización del Tipo (Soporta el cambio a reportType)
         const rType = (r.reportType || r.reporte || r.tipo || "").toLowerCase().trim();
+        
+        // Excluir asistencia de la tabla de reportes operativos
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
+
+        // 3. Manejo de Fechas
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
-        let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
-        let matchType = false;
-        if (typeSel === 'inventario') matchType = (rType.includes('ventas') || rType.includes('inventario'));
-        else if (typeSel === 'ranking') matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
-        else matchType = rType.includes(typeSel.toLowerCase().substring(0, 4));
 
-        return (!start || rDate >= start) && (!end || rDate <= end) && matchRole && (userSel === "all" || rUid === userSel) && matchType && (citySel === "all" || rCity === citySel) && (storeSel === "all" || rSid === storeSel);
+        // 4. Lógica de Filtros
+        let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
+        
+        // 5. Lógica de Matching de Categoría (Mejorada)
+        let matchType = false;
+        if (typeSel === 'inventario') {
+            matchType = (rType.includes('ventas') || rType.includes('inventario'));
+        } else if (typeSel === 'ranking') {
+            matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
+        } else {
+            // Comparamos el string completo para evitar errores con los primeros 4 caracteres
+            matchType = rType.includes(typeSel.toLowerCase());
+        }
+
+        return (!start || rDate >= start) && 
+               (!end || rDate <= end) && 
+               matchRole && 
+               (userSel === "all" || rUid === userSel) && 
+               matchType && 
+               (citySel === "all" || rCity === citySel) && 
+               (storeSel === "all" || rSid === storeSel);
     });
+
     renderTableReport(filtered, typeSel);
 }
+
 
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");

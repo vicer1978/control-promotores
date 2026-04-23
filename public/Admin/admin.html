@@ -566,36 +566,61 @@ async function loadProjectsSection() {
     allProjects = Array.isArray(projects) ? projects : [];
     const clientes = users.filter(u => u.role === 'cliente');
 
+    // --- LÓGICA DE AGRUPACIÓN ---
+    const grouped = {};
+    allProjects.forEach(p => {
+        const cName = p.clientName || 'Sin Cliente';
+        if (!grouped[cName]) grouped[cName] = [];
+        grouped[cName].push(p);
+    });
+
     document.getElementById("content").innerHTML = `
         <div class="card">
-            <h2>🏷️ Proyectos</h2>
+            <h2>🏷️ Proyectos por Cliente</h2>
             <div class="grid-filters">
                 <select id="projClient">
-                    <option value="">Dueño (Cliente)...</option>
+                    <option value="">Asignar a Cliente...</option>
                     ${clientes.map(c => `<option value="${c._id}">${c.name}</option>`).join('')}
                 </select>
-                <input type="text" id="projName" placeholder="Marca">
-                <input type="text" id="projDesc" placeholder="Descripción">
+                <input type="text" id="projName" placeholder="Nueva Marca/Proyecto">
                 <button class="btn-action" style="background:var(--success)" onclick="saveProject()">CREAR</button>
             </div>
         </div>
+
         <div class="card" style="padding:0;">
             <table class="report-table">
                 <thead>
                     <tr>
-                        <th>Cliente</th>
-                        <th>Proyecto</th>
-                        <th>Acción</th>
+                        <th>Cliente / Agencia</th>
+                        <th>Cant. Proyectos</th>
+                        <th style="text-align:right">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${allProjects.map(p => `
-                        <tr>
-                            <td>${p.clientName || '--'}</td>
-                            <td><b>${p.name}</b></td>
-                            <td style="white-space: nowrap;">
-                                <button class="btn-icon btn-edit-tool" onclick="editProjectPrompt('${p._id}')">✏️</button>
-                                <button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button>
+                    ${Object.keys(grouped).map(client => `
+                        <tr style="background:#f9f9f9; font-weight:bold;">
+                            <td>👥 ${client.toUpperCase()}</td>
+                            <td>${grouped[client].length} Proyectos</td>
+                            <td style="text-align:right">
+                                <button class="btn-action" style="padding:4px 10px; font-size:12px;" 
+                                    onclick="toggleProjectGroup('${client.replace(/\s/g, '_')}')">
+                                    VER DETALLES
+                                </button>
+                            </td>
+                        </tr>
+                        <tr id="group-${client.replace(/\s/g, '_')}" style="display:none;">
+                            <td colspan="3" style="padding:15px; background:#fff;">
+                                <div style="border-left: 3px solid var(--primary); padding-left:15px;">
+                                    ${grouped[client].map(p => `
+                                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                                            <span><strong>${p.name}</strong> <small style="color:#666">(${p.description || 'Sin desc.'})</small></span>
+                                            <div>
+                                                <button class="btn-icon btn-edit-tool" onclick="editProjectPrompt('${p._id}')">✏️</button>
+                                                <button class="btn-icon btn-delete-tool" onclick="deleteProject('${p._id}')">🗑</button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
                             </td>
                         </tr>
                     `).join('')}
@@ -603,6 +628,17 @@ async function loadProjectsSection() {
             </table>
         </div>`;
 }
+
+
+function toggleProjectGroup(groupId) {
+    const row = document.getElementById(`group-${groupId}`);
+    if (row.style.display === "none") {
+        row.style.display = "table-row";
+    } else {
+        row.style.display = "none";
+    }
+}
+
 
 
 function editProjectPrompt(projectId) {

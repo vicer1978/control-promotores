@@ -301,13 +301,15 @@ app.post("/checkout", auth, async (req, res) => {
 // --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
-        const query = { agencyId: req.params.agencyId };
-        const filterProject = req.headers.projectid;
-        
-        if (req.user.role.toLowerCase() === 'cliente') {
-            query.projectId = filterProject;
-        } else if (filterProject && mongoose.Types.ObjectId.isValid(filterProject)) {
-            query.projectId = filterProject;
+        const { agencyId } = req.params;
+        const projectId = req.headers.projectid;
+
+        // Construimos el filtro
+        let query = { agencyId: agencyId }; // Buscamos por el ID que viene en la URL
+
+        // Si el filtro de proyecto es válido, lo agregamos
+        if (projectId && projectId !== "null" && mongoose.Types.ObjectId.isValid(projectId)) {
+            query.projectId = projectId;
         }
 
         const reports = await Report.find(query)
@@ -315,9 +317,23 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
             .lean();
-        res.json(reports);
-    } catch (err) { res.status(500).json({ error: "Error al cargar reportes" }); }
+
+        // Mapeo de compatibilidad para el Frontend
+        const formattedReports = reports.map(r => ({
+            ...r,
+            // Aseguramos que el front encuentre 'reporte' aunque en DB sea 'reportType'
+            reporte: r.reportType || r.reporte || "otro"
+        }));
+
+        console.log(`✅ Se encontraron ${formattedReports.length} reportes para la agencia ${agencyId}`);
+        res.json(formattedReports);
+
+    } catch (err) {
+        console.error("❌ ERROR AL CARGAR REPORTES:", err);
+        res.status(500).json({ error: "Error interno al obtener datos" });
+    }
 });
+
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {

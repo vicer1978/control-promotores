@@ -304,17 +304,25 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // .trim() elimina espacios o saltos de línea invisibles que vienen de la URL
-        const cleanAgencyId = String(agencyId).trim();
+        // Intentamos convertir a ObjectId por si en la DB están como objetos
+        let agencyObj, projectObj;
+        try { agencyObj = new mongoose.Types.ObjectId(agencyId); } catch(e) { agencyObj = null; }
 
-        let query = { agencyId: cleanAgencyId };
+        // Construimos un filtro que busque de ambas formas: como texto O como objeto
+        let agencyQuery = { $in: [String(agencyId)] };
+        if (agencyObj) agencyQuery.$in.push(agencyObj);
 
-        // Solo filtramos por proyecto si el ID es un texto real y no "null"/"undefined"
+        let query = { agencyId: agencyQuery };
+
+        // Aplicamos la misma lógica para el proyecto si existe
         if (pid && pid !== "null" && pid !== "undefined" && String(pid).trim() !== "") {
-            query.projectId = String(pid).trim();
+            try { projectObj = new mongoose.Types.ObjectId(pid); } catch(e) { projectObj = null; }
+            let projectQuery = { $in: [String(pid)] };
+            if (projectObj) projectQuery.$in.push(projectObj);
+            query.projectId = projectQuery;
         }
 
-        console.log("🎯 CONSULTA FINAL:", JSON.stringify(query));
+        console.log("🔍 QUERY HÍBRIDA:", JSON.stringify(query));
 
         const reports = await Report.find(query)
             .populate('userId', 'name role')
@@ -322,25 +330,16 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
-        // Si la consulta con filtro falla pero sabemos que hay datos, 
-        // imprimimos uno de la DB para comparar el ID manualmente
-        if (reports.length === 0) {
-            const muestra = await Report.findOne({}).lean();
-            console.log("⚠️ 0 resultados. Comparación manual:");
-            console.log(`Buscando AgencyId: "${cleanAgencyId}"`);
-            console.log(`Muestra en DB tiene: "${muestra?.agencyId}"`);
-        }
-
         const formatted = reports.map(r => ({
             ...r,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`✅ Enviando ${formatted.length} reportes.`);
+        console.log(`📊 Éxito Híbrido: Encontrados ${formatted.length} reportes.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error fatal:", err);
+        console.error("❌ Error en búsqueda híbrida:", err);
         res.status(500).json([]);
     }
 });

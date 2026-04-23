@@ -426,6 +426,20 @@ app.put("/reports/:id", auth, async (req, res) => {
 });
 
 
+app.get("/repair-database", async (req, res) => {
+    try {
+        const miAgencia = "69c5cb04f89a8be3b199a295"; // Tu ID de admin
+        const result = await Report.updateMany(
+            { $or: [{ agencyId: null }, { agencyId: "" }, { agencyId: "SIN_AGENCIA" }] },
+            { $set: { agencyId: miAgencia } }
+        );
+        res.send(`🔧 Base de datos reparada: ${result.modifiedCount} reportes actualizados.`);
+    } catch (e) {
+        res.status(500).send("Error: " + e.message);
+    }
+});
+
+
 // --- GESTIÓN DE USUARIOS ---
 app.get("/users", auth, async (req, res) => {
     try {

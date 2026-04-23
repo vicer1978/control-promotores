@@ -71,8 +71,11 @@
 
             <div class="form-group hidden" id="group-cantidad">
     <label id="label-cantidad">Cantidad / Piezas</label>
-    <textarea id="cantidad" rows="3" placeholder="Detalla aquí la cantidad..."></textarea>
+    <div id="container-cantidad-dinamico">
+        <input type="number" id="cantidad" value="0">
+    </div>
 </div>
+
 
 
             <div class="form-group hidden" id="group-foto">
@@ -103,9 +106,13 @@
     const agencyId = localStorage.getItem("agencyId");
 
     // CONFIGURACIÓN DE FORMULARIOS: Aquí ajustamos etiquetas y campos
-    const config = {
+        const config = {
         'ventas': { title: 'Ventas', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
-        'degustacion': { title: 'Degustación', fields: ['group-articulo', 'group-cantidad', labelCant: 'Detalla la cantidad de degustación proporcionada' },
+        'degustacion': { 
+            title: 'Degustación', 
+            fields: ['group-articulo', 'group-cantidad'], // Cerramos corchete aquí
+            labelCant: 'Detalla la cantidad de degustación proporcionada' 
+        },
         'precios': { title: 'Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
         'agotados': { title: 'Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
         'preagotados': { title: 'Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
@@ -115,22 +122,38 @@
         'fotos': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
     };
 
+
     window.onload = () => {
-        if (!userId) window.location.href = "login.html";
-        const s = config[typeFromUrl] || config['ventas'];
-        
-        document.getElementById("formTitle").innerText = s.title;
-        document.getElementById("headerTitle").innerText = s.title;
+    if (!userId) {
+        window.location.href = "login.html";
+        return;
+    }
 
-        s.fields.forEach(id => {
-            const el = document.getElementById(id);
-            if(el) el.classList.remove("hidden");
-        });
+    const s = config[typeFromUrl] || config['ventas'];
+    
+    document.getElementById("formTitle").innerText = s.title;
+    document.getElementById("headerTitle").innerText = s.title;
 
-        if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
-        if(s.labelCant) document.getElementById("label-cantidad").innerText = s.labelCant;
-        if(s.labelCom) document.getElementById("label-comentarios").innerText = s.labelCom;
-    };
+    // 1. Mostrar campos configurados
+    s.fields.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.classList.remove("hidden");
+    });
+
+    // 2. Ajuste dinámico para Degustación (Texto Libre)
+    const contenedorCant = document.getElementById("container-cantidad-dinamico");
+    if (typeFromUrl === 'degustacion') {
+        contenedorCant.innerHTML = `<textarea id="cantidad" rows="3" placeholder="Detalla aquí la cantidad..."></textarea>`;
+    } else {
+        contenedorCant.innerHTML = `<input type="number" id="cantidad" value="0">`;
+    }
+
+    // 3. Aplicar etiquetas personalizadas
+    if(s.labelArt) document.getElementById("label-articulo").innerText = s.labelArt;
+    if(s.labelCant) document.getElementById("label-cantidad").innerText = s.labelCant;
+    if(s.labelCom) document.getElementById("label-comentarios").innerText = s.labelCom;
+};
+
 
     function calcularFinal() {
         const inicial = parseInt(document.getElementById("inv_inicial").value) || 0;
@@ -195,9 +218,15 @@
         }
 
         if(!document.getElementById("group-cantidad").classList.contains("hidden")) {
-    // Lo enviamos como texto libre (string)
-    formData.append("cantidad", document.getElementById("cantidad").value || "N/A");
+    const valorCant = document.getElementById("cantidad").value;
+    // Si es degustación enviamos el texto, si es otro reporte intentamos enviar número
+    if (typeFromUrl === 'degustacion') {
+        formData.append("cantidad", valorCant || "N/A");
+    } else {
+        formData.append("cantidad", Number(valorCant) || 0);
+    }
 }
+
 
 
         formData.append("observaciones", document.getElementById("comentarios").value || "");

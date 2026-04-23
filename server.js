@@ -304,25 +304,18 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Intentamos convertir a ObjectId por si en la DB están como objetos
-        let agencyObj, projectObj;
-        try { agencyObj = new mongoose.Types.ObjectId(agencyId); } catch(e) { agencyObj = null; }
+        // Buscamos usando una Expresión Regular para que coincida el patrón de texto
+        // Esto ignora si es ObjectId o String
+        let query = { 
+            agencyId: { $regex: new RegExp(`^${agencyId.trim()}$`, 'i') } 
+        };
 
-        // Construimos un filtro que busque de ambas formas: como texto O como objeto
-        let agencyQuery = { $in: [String(agencyId)] };
-        if (agencyObj) agencyQuery.$in.push(agencyObj);
-
-        let query = { agencyId: agencyQuery };
-
-        // Aplicamos la misma lógica para el proyecto si existe
+        // Si hay proyecto, hacemos lo mismo
         if (pid && pid !== "null" && pid !== "undefined" && String(pid).trim() !== "") {
-            try { projectObj = new mongoose.Types.ObjectId(pid); } catch(e) { projectObj = null; }
-            let projectQuery = { $in: [String(pid)] };
-            if (projectObj) projectQuery.$in.push(projectObj);
-            query.projectId = projectQuery;
+            query.projectId = { $regex: new RegExp(`^${pid.trim()}$`, 'i') };
         }
 
-        console.log("🔍 QUERY HÍBRIDA:", JSON.stringify(query));
+        console.log("🔥 BUSQUEDA REGEX:", JSON.stringify(query));
 
         const reports = await Report.find(query)
             .populate('userId', 'name role')
@@ -330,16 +323,24 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             .sort({ createdAt: -1 })
             .lean();
 
+        // LOG DE EMERGENCIA: Si sigue en 0, vemos qué campos tiene un reporte cualquiera
+        if (reports.length === 0) {
+            const raw = await Report.findOne({}).lean();
+            console.log("👀 DEBUG - Campos reales del primer reporte encontrado:");
+            console.log("ID Agencia:", raw?.agencyId, "Tipo:", typeof raw?.agencyId);
+            console.log("ID Proyecto:", raw?.projectId, "Tipo:", typeof raw?.projectId);
+        }
+
         const formatted = reports.map(r => ({
             ...r,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`📊 Éxito Híbrido: Encontrados ${formatted.length} reportes.`);
+        console.log(`📊 Resultado Final: ${formatted.length} reportes.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error en búsqueda híbrida:", err);
+        console.error("❌ Error:", err);
         res.status(500).json([]);
     }
 });

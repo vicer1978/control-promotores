@@ -304,38 +304,38 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Filtro base: Buscamos por agencyId como String (que es como vimos que están)
-        let query = { agencyId: String(agencyId) };
+        // Construimos la consulta de forma que MongoDB la reciba como texto puro
+        let query = { 
+            agencyId: { $eq: String(agencyId) } 
+        };
 
-        // Si hay un proyecto seleccionado, lo añadimos al filtro
+        // Si hay proyecto, lo añadimos de la misma forma
         if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
-            query.projectId = String(pid);
+            query.projectId = { $eq: String(pid) };
         }
 
-        console.log("🎯 Buscando reportes para agencia:", agencyId);
+        console.log("🔍 Buscando con Filtro Estricto de Texto:", JSON.stringify(query));
 
+        // .lean() es vital aquí para que no intente transformar los resultados en modelos pesados
         const reports = await Report.find(query)
             .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
             .lean();
 
-        // Formateamos para el frontend
         const formatted = reports.map(r => ({
             ...r,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`✅ ÉXITO: Se enviaron ${formatted.length} reportes al Admin.`);
+        console.log(`📊 Respuesta enviada: ${formatted.length} reportes encontrados.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error en ruta de reportes:", err);
+        console.error("❌ Error fatal en reportes:", err);
         res.status(500).json([]);
     }
 });
-
-
 
 
 

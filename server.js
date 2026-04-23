@@ -304,26 +304,25 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Construimos el filtro base
-        let query = { agencyId: agencyId };
-
-        // Si el projectId viene como "null" o undefined, lo ignoramos por completo
+        // --- BÚSQUEDA ULTRA FLEXIBLE ---
+        // Buscamos reportes que tengan esta agencia O este proyecto
+        let orConditions = [{ agencyId: agencyId }];
+        
         if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
-            query.projectId = pid;
+            orConditions.push({ projectId: pid });
         }
 
-        console.log("🔍 Ejecutando búsqueda:", JSON.stringify(query));
+        const query = { $or: orConditions };
+
+        console.log("📡 INVESTIGACIÓN DE DATOS - Query enviada:", JSON.stringify(query));
 
         const reports = await Report.find(query)
-            .populate('userId', 'name role')
+            .populate('userId', 'name')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
             .lean();
 
-        // Si no hay reportes, enviamos un log para revisar en Render
-        if (reports.length === 0) {
-            console.log(`⚠️ No se encontraron reportes para agencyId: ${agencyId}`);
-        }
+        console.log(`📊 RESULTADO REAL: Se encontraron ${reports.length} reportes.`);
 
         const formatted = reports.map(r => ({
             ...r,
@@ -331,11 +330,13 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         }));
 
         res.json(formatted);
+
     } catch (err) {
-        console.error("❌ Error fatal en reportes:", err);
+        console.error("❌ ERROR CRÍTICO:", err);
         res.status(500).json([]);
     }
 });
+
 
 
 

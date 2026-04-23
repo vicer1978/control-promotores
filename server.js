@@ -157,10 +157,42 @@ app.post("/projects", auth, async (req, res) => {
 
 app.put("/projects/:id", auth, async (req, res) => {
     try {
-        const project = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate("clientId", "name");
-        res.json({ message: "Proyecto actualizado", project });
-    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+        const projectId = req.params.id;
+        const updateData = { ...req.body };
+
+        // --- LIMPIEZA DE CLIENTE ---
+        // Evita que IDs malformados o vacíos rompan el servidor
+        if (!updateData.clientId || updateData.clientId === "null" || updateData.clientId === "") {
+            updateData.clientId = null;
+        } else if (!mongoose.Types.ObjectId.isValid(updateData.clientId)) {
+            return res.status(400).json({ error: "ID de cliente inválido" });
+        }
+
+        // Actualizamos usando $set para seguridad
+        const project = await Project.findByIdAndUpdate(
+            projectId, 
+            { $set: updateData }, 
+            { new: true }
+        ).populate("clientId", "name");
+
+        if (!project) {
+            return res.status(404).json({ error: "Proyecto no encontrado" });
+        }
+
+        res.json({ 
+            message: "Proyecto actualizado con éxito", 
+            project 
+        });
+
+    } catch (err) { 
+        console.error("❌ ERROR CRÍTICO EN PUT /PROJECTS:", err);
+        res.status(500).json({ 
+            error: "Error al actualizar proyecto", 
+            detalle: err.message 
+        }); 
+    }
 });
+
 
 app.delete("/projects/:id", auth, async (req, res) => {
     try {
@@ -377,16 +409,34 @@ app.post("/users", auth, async (req, res) => {
 
 app.put("/users/:id", auth, async (req, res) => {
     try {
-        const { email, projectId } = req.body;
+        const userId = req.params.id;
         const updateData = { ...req.body };
-        
-        if (email) updateData.email = email.toLowerCase().trim();
-        if (!projectId || projectId === "null") updateData.projectId = null;
 
-        const user = await User.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true }).populate('stores');
-        res.json({ message: "Usuario actualizado", user });
-    } catch (err) { res.status(500).json({ error: "Error interno" }); }
+        // Limpieza de Email
+        if (updateData.email) updateData.email = updateData.email.toLowerCase().trim();
+
+        // Limpieza de projectId (Igual que en proyectos)
+        if (!updateData.projectId || updateData.projectId === "null" || updateData.projectId === "") {
+            updateData.projectId = null;
+        } else if (!mongoose.Types.ObjectId.isValid(updateData.projectId)) {
+            return res.status(400).json({ error: "ID de proyecto inválido" });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId, 
+            { $set: updateData }, 
+            { new: true }
+        ).populate('stores');
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        res.json({ message: "Usuario actualizado con éxito", user });
+    } catch (err) {
+        console.error("❌ ERROR AL ACTUALIZAR USUARIO:", err);
+        res.status(500).json({ error: "Error interno al guardar cambios", detalle: err.message });
+    }
 });
+
 
 app.delete("/users/:id", auth, async (req, res) => {
     try {

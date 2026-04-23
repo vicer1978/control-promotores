@@ -304,38 +304,47 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
         const { agencyId } = req.params;
         const pid = req.headers.projectid;
 
-        // Construimos la consulta de forma que MongoDB la reciba como texto puro
-        let query = { 
-            agencyId: { $eq: String(agencyId) } 
-        };
+        // .trim() elimina espacios o saltos de línea invisibles que vienen de la URL
+        const cleanAgencyId = String(agencyId).trim();
 
-        // Si hay proyecto, lo añadimos de la misma forma
-        if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
-            query.projectId = { $eq: String(pid) };
+        let query = { agencyId: cleanAgencyId };
+
+        // Solo filtramos por proyecto si el ID es un texto real y no "null"/"undefined"
+        if (pid && pid !== "null" && pid !== "undefined" && String(pid).trim() !== "") {
+            query.projectId = String(pid).trim();
         }
 
-        console.log("🔍 Buscando con Filtro Estricto de Texto:", JSON.stringify(query));
+        console.log("🎯 CONSULTA FINAL:", JSON.stringify(query));
 
-        // .lean() es vital aquí para que no intente transformar los resultados en modelos pesados
         const reports = await Report.find(query)
             .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
             .lean();
 
+        // Si la consulta con filtro falla pero sabemos que hay datos, 
+        // imprimimos uno de la DB para comparar el ID manualmente
+        if (reports.length === 0) {
+            const muestra = await Report.findOne({}).lean();
+            console.log("⚠️ 0 resultados. Comparación manual:");
+            console.log(`Buscando AgencyId: "${cleanAgencyId}"`);
+            console.log(`Muestra en DB tiene: "${muestra?.agencyId}"`);
+        }
+
         const formatted = reports.map(r => ({
             ...r,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        console.log(`📊 Respuesta enviada: ${formatted.length} reportes encontrados.`);
+        console.log(`✅ Enviando ${formatted.length} reportes.`);
         res.json(formatted);
 
     } catch (err) {
-        console.error("❌ Error fatal en reportes:", err);
+        console.error("❌ Error fatal:", err);
         res.status(500).json([]);
     }
 });
+
 
 
 

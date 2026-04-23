@@ -301,41 +301,32 @@ app.post("/checkout", auth, async (req, res) => {
 // --- REPORTES ---
 app.get("/reports/agency/:agencyId", auth, async (req, res) => {
     try {
-        const { agencyId } = req.params;
-        const pid = req.headers.projectid;
+        console.log("🔍 ESCÁNER TOTAL: Buscando todos los reportes de la DB sin filtros...");
 
-        // --- BÚSQUEDA ULTRA FLEXIBLE ---
-        // Buscamos reportes que tengan esta agencia O este proyecto
-        let orConditions = [{ agencyId: agencyId }];
-        
-        if (pid && pid !== "null" && pid !== "undefined" && pid !== "") {
-            orConditions.push({ projectId: pid });
-        }
-
-        const query = { $or: orConditions };
-
-        console.log("📡 INVESTIGACIÓN DE DATOS - Query enviada:", JSON.stringify(query));
-
-        const reports = await Report.find(query)
-            .populate('userId', 'name')
+        // Traemos TODO (limitado a 50 para no saturar)
+        const reports = await Report.find({}) 
+            .populate('userId', 'name role')
             .populate('storeId', 'name')
             .sort({ createdAt: -1 })
+            .limit(50)
             .lean();
 
-        console.log(`📊 RESULTADO REAL: Se encontraron ${reports.length} reportes.`);
+        console.log(`📊 ESCÁNER: Se encontraron ${reports.length} reportes en total.`);
 
         const formatted = reports.map(r => ({
             ...r,
+            // Agregamos el agencyId al campo observaciones para verlo en la tabla
+            observaciones: `(Agencia en DB: ${r.agencyId || 'VACÍO'}) - ${r.observaciones || ''}`,
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
         res.json(formatted);
-
     } catch (err) {
-        console.error("❌ ERROR CRÍTICO:", err);
+        console.error("❌ Error en escáner:", err);
         res.status(500).json([]);
     }
 });
+
 
 
 

@@ -142,7 +142,7 @@ async function updateStats() {
 // --- GESTIÓN DE AGENCIAS ---
 // ==========================================
 async function loadAgenciesPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando agencias...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando ecosistema de agencias...</h3>";
     await updateStats();
 
     let html = `
@@ -155,33 +155,77 @@ async function loadAgenciesPage() {
             <button class="btn-action" onclick="createAgency()">REGISTRAR AGENCIA</button>
         </div>
         <div class="card">
-            <h3>Lista de Agencias Registradas</h3>
-            <table>
-                <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody>
+            <h3>Estatus del Marketplace (Agencias)</h3>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agencia</th>
+                            <th class="text-center">Adm</th>
+                            <th class="text-center">Pro</th>
+                            <th class="text-center">Dem</th>
+                            <th class="text-center">Cli</th>
+                            <th class="text-center">Total</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
 
     agenciesList.forEach(a => {
+        // --- CÁLCULO DE CONTADORES ---
+        // Filtramos los usuarios que pertenecen a esta agencia
+        const agencyUsers = usersList.filter(u => {
+            const uId = (u.agencyId?._id || u.agencyId);
+            return uId === a._id;
+        });
+
+        const count = {
+            admin: agencyUsers.filter(u => u.role === 'admin').length,
+            promotor: agencyUsers.filter(u => u.role === 'promotor').length,
+            demostradora: agencyUsers.filter(u => u.role === 'demostradora').length,
+            cliente: agencyUsers.filter(u => u.role === 'cliente').length // Por si manejas este rol
+        };
+        const total = agencyUsers.length;
+
         html += `
             <tr>
-                <td><b>${a.name}</b></td>
-                <td>${a.email || 'N/A'}</td>
-                <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'INACTIVA'}</span></td>
+                <td>
+                    <div style="display:flex; flex-direction:column;">
+                        <b style="color:var(--primary); font-size:1rem;">${a.name}</b>
+                        <small style="color:gray;">${a.email || 'Sin correo'}</small>
+                    </div>
+                </td>
+                <td align="center"><span class="badge badge-role" style="background:#64748b">${count.admin}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#0284c7">${count.promotor}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#f59e0b">${count.demostradora}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#10b981">${count.cliente}</span></td>
+                <td align="center"><b>${total}</b></td>
+                <td>
+                    <span class="badge badge-${a.isActive ? 'active' : 'inactive'}">
+                        ${a.isActive ? 'ACTIVA' : 'INACTIVA'}
+                    </span>
+                </td>
                 <td>
                     <div style="display:flex; gap:5px;">
-                        <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" style="padding: 5px 10px; font-size:0.8rem;"
+                        <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" 
+                                style="padding: 6px 12px; font-size:0.75rem;"
                                 onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">
-                            ${a.isActive ? 'Desactivar' : 'Activar'}
+                            ${a.isActive ? 'Pausar' : 'Activar'}
                         </button>
-                        <button class="btn-action btn-danger" style="padding: 5px 10px; font-size:0.8rem;" onclick="deleteAgency('${a._id}')">Borrar</button>
+                        <button class="btn-action btn-danger" 
+                                style="padding: 6px 12px; font-size:0.75rem; background:#475569 !important;" 
+                                onclick="deleteAgency('${a._id}')">Borrar</button>
                     </div>
                 </td>
             </tr>`;
     });
 
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div></div>`;
     document.getElementById("content").innerHTML = html;
 }
+
 
 async function createAgency() {
     const data = { name: document.getElementById("new_age_name").value.trim(), email: document.getElementById("new_age_email").value.trim() };

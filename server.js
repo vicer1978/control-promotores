@@ -367,24 +367,33 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 app.post("/reports", auth, upload.single("photo"), async (req, res) => {
     try {
-        // --- LOG DE SEGURIDAD ---
-        console.log(`📝 Recibiendo reporte de: ${req.user.name} | Agencia del usuario: ${req.user.agencyId}`);
+        // --- 1. IDENTIFICACIÓN Y PREPARACIÓN ---
+        console.log(`📝 Recibiendo reporte de: ${req.user.name} | Agencia: ${req.user.agencyId}`);
+        
+        // DECLARACIÓN INICIAL: Evita el ReferenceError
+        let datosExtra = {}; 
 
+        // --- 2. PROCESAMIENTO DINÁMICO (SaaS Ready) ---
+        if (req.body.datosExtra) {
+            try {
+                datosExtra = typeof req.body.datosExtra === 'string' 
+                    ? JSON.parse(req.body.datosExtra) 
+                    : req.body.datosExtra;
+            } catch (e) {
+                // Si no es JSON válido, lo guardamos como texto para no perder la info
+                datosExtra = { contenido_crudo: req.body.datosExtra };
+            }
+        }
+
+        // --- 3. NORMALIZACIÓN DE CAMPOS ---
         const obs = req.body.observaciones || req.body.comentarios || "";
         let tipoReporte = req.body.reportType || req.body.reporte || "otro";
-
-        // ... (tu lógica de normalización de tipoReporte se queda igual)
-
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-        // ... (tu lógica de datosExtra se queda igual)
-
+        // --- 4. ENSAMBLAJE DEL REPORTE ---
         const reportData = {
             userId: req.user._id,
-            // ASEGURAMOS EL AGENCY ID: 
-            // Si el usuario no lo tiene, intentamos tomarlo del body o le ponemos "SIN_AGENCIA" para identificarlo
             agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
-            
             projectId: req.body.projectId || req.user.projectId,
             storeId: req.body.storeId,
             reportType: tipoReporte,
@@ -393,19 +402,20 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             articulo: req.body.articulo || "N/A",
             inv_inicial: Number(req.body.inv_inicial) || 0,
             ventas: Number(req.body.ventas) || 0, 
+            // VALIDACIÓN HÍBRIDA: Texto para degustación, Número para el resto
             cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : (Number(req.body.cantidad) || 0),
             precio: Number(req.body.precio) || 0,
             observaciones: obs,
             lat: Number(req.body.lat) || 0,
             lng: Number(req.body.lng) || 0,
-            datosExtra: datosExtra, 
+            datosExtra: datosExtra, // <--- YA NO FALLARÁ AQUÍ
             timestamp: new Date()
         };
 
         const report = new Report(reportData);
         await report.save();
         
-        console.log(`✅ Reporte guardado con éxito. ID: ${report._id} | Agencia asignada: ${report.agencyId}`);
+        console.log(`✅ ÉXITO: Reporte ${report._id} guardado para Agencia: ${report.agencyId}`);
         res.json({ message: "Reporte guardado con éxito", id: report._id });
 
     } catch (err) { 
@@ -413,6 +423,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         res.status(500).json({ error: "Error al guardar reporte", detalle: err.message }); 
     }
 });
+
 
 
 

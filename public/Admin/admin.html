@@ -299,14 +299,21 @@ function filterReports() {
         
         // 5. Lógica de Matching de Categoría (Mejorada)
         let matchType = false;
-        if (typeSel === 'inventario') {
-            matchType = (rType.includes('ventas') || rType.includes('inventario'));
-        } else if (typeSel === 'ranking') {
-            matchType = (rType.includes('degustacion') || rType.includes('degustación') || rType.includes('ranking'));
-        } else {
-            // Comparamos el string completo para evitar errores con los primeros 4 caracteres
-            matchType = rType.includes(typeSel.toLowerCase());
-        }
+const rTypeLower = rType.toLowerCase();
+
+if (typeSel === 'precios') {
+    // Solo incluye si es exactamente precios y NO es competencia
+    matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
+} else if (typeSel === 'competencia') {
+    // Solo incluye si el reporte es de competencia
+    matchType = rTypeLower.includes('competencia');
+} else if (typeSel === 'inventario') {
+    matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
+} else if (typeSel === 'ranking') {
+    matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
+} else {
+    matchType = rTypeLower.includes(typeSel.toLowerCase());
+}
 
         return (!start || rDate >= start) && 
                (!end || rDate <= end) && 
@@ -337,6 +344,7 @@ function renderTableReport(data, type) {
     
     let dynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;
+        if (type === 'precios' && key.toLowerCase() === 'cantidad') return false;
         if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') return false;
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });

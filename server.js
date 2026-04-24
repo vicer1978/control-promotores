@@ -391,7 +391,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
                 // --- 4. ENSAMBLAJE DEL REPORTE (VERSION CORREGIDA) ---
-        const reportData = {
+                const reportData = {
             userId: req.user._id,
             agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
             projectId: req.body.projectId || req.user.projectId,
@@ -400,26 +400,30 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             photo: fotoUrl,
             foto_url: fotoUrl,
             
-            // Campos de Inventario y Ventas
+            // --- INVENTARIO Y VENTAS ---
             articulo: req.body.articulo || "N/A",
             inv_inicial: Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0,
             resurtido: Number(req.body.resurtido) || 0,
             ventas: Number(req.body.ventas) || 0, 
-            
-            // Cálculo automático del Inventario Final
             inv_final: Number(req.body.inv_final) || 
                        ((Number(req.body.inv_inicial) || 0) + (Number(req.body.resurtido) || 0) - (Number(req.body.ventas) || 0)),
-            
-            // Validación para Degustación (Cantidad como texto o número)
+
+            // --- CANTIDAD (Soporte para Degustación y Ventas) ---
             cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : (Number(req.body.cantidad) || 0),
+
+            // --- SECCIÓN DE PRECIOS (CORREGIDA) ---
+            // Esto asegura que si la App manda 'precio_normal', no se guarde un 0
+            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
+            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
+            precio_oferta: Number(req.body.precio_oferta) || 0,
             
-            precio: Number(req.body.precio) || 0,
             observaciones: obs,
             lat: Number(req.body.lat) || 0,
             lng: Number(req.body.lng) || 0,
             datosExtra: datosExtra, 
             timestamp: new Date()
         };
+
 
 
         const report = new Report(reportData);

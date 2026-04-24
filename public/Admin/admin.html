@@ -368,6 +368,62 @@ function renderTableReport(data, type) {
 }
 
 
+// --- FUNCIONES DE EDICIÓN DE REPORTES (AGREGAR ESTO) ---
+
+function editReportPrompt(reportId) {
+    // Buscamos el reporte en el array local comparando como strings
+    const r = allReportsRaw.find(x => x._id.toString() === reportId.toString());
+    
+    if (!r) {
+        console.error("No se encontró el reporte:", reportId);
+        return alert("Error: No se pudo cargar la información del reporte.");
+    }
+
+    openDrawer(`
+        <div class="drawer-header"><h3>Corregir Reporte</h3></div>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <p style="font-size: 12px; color: #64748b;">ID: ${reportId}</p>
+            <label>Artículo / Producto</label>
+            <input type="text" id="editRepArticulo" value="${r.articulo || ''}">
+            <label>Cantidad (Texto o Número)</label>
+            <input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
+            <label>Observaciones</label>
+            <textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
+            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateReport('${reportId}')">GUARDAR CAMBIOS</button>
+        </div>
+    `);
+}
+
+async function updateReport(reportId) {
+    const articulo = document.getElementById('editRepArticulo').value;
+    const cantidad = document.getElementById('editRepCantidad').value;
+    const observaciones = document.getElementById('editRepObs').value;
+
+    const res = await fetchAPI(`${BACKEND_URL}/reports/${reportId}`, { 
+        method: 'PUT', 
+        body: JSON.stringify({ articulo, cantidad, observaciones }) 
+    });
+
+    if (res) {
+        alert("Reporte actualizado correctamente"); 
+        closeDrawer();
+
+        // Actualizamos los datos en el caché local
+        const index = allReportsRaw.findIndex(x => x._id.toString() === reportId.toString());
+        if (index !== -1) { 
+            allReportsRaw[index].articulo = articulo; 
+            allReportsRaw[index].cantidad = cantidad; 
+            allReportsRaw[index].observaciones = observaciones; 
+        }
+        
+        // Refrescamos la tabla visualmente
+        filterReports();
+    }
+}
+
+
+
+
 // --- ASISTENCIA ---
 async function loadAttendance() {
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);

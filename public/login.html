@@ -81,16 +81,21 @@
     msg.innerText = "";
 
     try {
-        const response = await fetch(`${BACKEND_URL}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
+    const response = await fetch(`${BACKEND_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+    });
 
-        // DEFINICIÓN CORRECTA: Primero creamos 'data'
+    // 1. Verificamos qué tipo de respuesta nos dio el servidor
+    const contentType = response.headers.get("content-type");
+
+    if (contentType && contentType.includes("application/json")) {
+        // SI ES JSON: Lo procesamos normalmente
         const data = await response.json();
 
         if (response.ok) {
+            console.log("Sesión exitosa:", data);
             localStorage.clear();
 
             const userObj = data.user || data; 
@@ -105,27 +110,34 @@
                 localStorage.setItem('agencyId', data.agencyId || userObj.agencyId);
             }
 
-            // REDIRECCIÓN COMPLETA
+            // Redirecciones
             if (role === 'super-admin') {
                 window.location.href = 'Admin/super-admin.html';
             } else if (role === 'admin') {
                 window.location.href = 'Admin/admin.html';
             } else if (role === 'cliente') {
-                window.location.href = 'mis-proyectos.html'; // <--- No olvides esta
+                window.location.href = 'mis-proyectos.html';
             } else {
                 window.location.href = 'dashboard.html';
             }
         } else {
             msg.innerText = data.message || "Credenciales incorrectas";
         }
-    } catch (err) {
-        console.error("Error detectado:", err);
-        msg.innerText = "Error de comunicación con el servidor";
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "ENTRAR";
+    } else {
+        // SI NO ES JSON: Probablemente sea un error 404 o 500 en HTML
+        const errorTexto = await response.text();
+        console.error("El servidor respondió con algo que no es JSON:", errorTexto);
+        msg.innerText = "Error: El servidor no encontró la ruta de acceso (404).";
     }
+
+} catch (err) {
+    console.error("Error de red o conexión:", err);
+    msg.innerText = "No se pudo conectar con el servidor.";
+} finally {
+    btn.disabled = false;
+    btn.innerText = "ENTRAR";
 }
+
 
 
 

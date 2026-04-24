@@ -362,14 +362,14 @@ function renderTableReport(data, type) {
     const keyLower = key.toLowerCase();
 
     // 2. REGLA MAESTRA: Quitar 'cantidad' en Precios y Ventas
-    // Esto limpia visualmente los reportes operativos del Promotor y Demostradora
     if ((type === 'precios' || type === 'ventas') && keyLower === 'cantidad') {
         return false;
     }
 
-    // 3. NUEVA REGLA: Limpieza de Exhibiciones Adicionales
-    // Quitamos artículo, cantidad y photo (ya que usamos la columna 'Evidencia' para la imagen)
-    if (type === 'exhibicion' && (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) {
+    // 3. REGLA PARA REPORTES FOTOGRÁFICOS (Exhibiciones y Fotos Anaquel)
+    // Quitamos artículo, cantidad y photo para maximizar el espacio de la evidencia
+    if ((type === 'exhibicion' || type === 'foto') && 
+        (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) {
         return false;
     }
 
@@ -381,6 +381,7 @@ function renderTableReport(data, type) {
     // 5. Mostrar columna solo si tiene datos reales
     return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
 });
+
 
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);

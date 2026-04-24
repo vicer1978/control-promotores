@@ -3,8 +3,9 @@ const mongoose = require("mongoose");
 
 const agencySchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, lowercase: true, trim: true }, // Para contacto
-  isActive: { type: Boolean, default: true }           // Para el control de estatus
+  email: { type: String, required: true, lowercase: true, trim: true },
+  password: { type: String, required: true }, // <-- Nueva casilla de contraseña
+  isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Agency", agencySchema);

@@ -54,6 +54,22 @@
         .badge-inactive { background: var(--danger); }
         .badge-role { background: #64748b; }
         .badge-role.super { background: var(--primary); }
+
+/* Estilos específicos para la tabla de estadísticas de Agencias */
+        .text-center { text-align: center !important; }
+        
+        table th { text-align: center; } 
+        table th:first-child { text-align: left; } 
+        
+        /* Mejora visual para los contadores */
+        .badge-role { 
+            min-width: 30px; 
+            display: inline-block; 
+            text-align: center; 
+        }
+        
+        /* Asegura que el nombre de la agencia no se rompa en varias líneas */
+        td:first-child { white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -105,19 +121,28 @@ let usersList = [];
 
 // --- HELPER FETCH (Con Auth Header) ---
 async function fetchAPI(url, options = {}) {
+    const token = localStorage.getItem("token");
+    
+    // Si no hay token, lo mandamos al login de una vez
+    if (!token) {
+        window.location.href = "../login.html";
+        return;
+    }
+    
     options.headers = { 
         ...(options.headers || {}), 
-        "userId": userId,
+        "Authorization": `Bearer ${token}`, // Esto es lo que pide el servidor
         "Content-Type": "application/json"
     };
     
     const res = await fetch(url, options);
     if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Error desconocido del servidor" }));
+        const err = await res.json().catch(() => ({ message: "Error desconocido" }));
         throw new Error(err.error || err.message || "Error en la petición");
     }
     return res.json();
 }
+
 
 // --- MANEJO DE TABS ---
 function changeTab(btn, callback) {
@@ -149,11 +174,22 @@ async function loadAgenciesPage() {
         <div class="card">
             <h3>🏢 Registrar Nueva Agencia</h3>
             <div class="form-grid">
-                <div><label>Nombre de la Agencia</label><input id="new_age_name" placeholder="Ej. Corporativo RCA"></div>
-                <div><label>Correo de Contacto</label><input id="new_age_email" type="email" placeholder="age@empresa.com"></div>
+                <div>
+                    <label>Nombre de la Agencia</label>
+                    <input id="new_age_name" placeholder="Ej. Corporativo RCA">
+                </div>
+                <div>
+                    <label>Correo de Contacto</label>
+                    <input id="new_age_email" type="email" placeholder="age@empresa.com">
+                </div>
+                <div>
+                    <label>Contraseña de Acceso</label>
+                    <input id="new_age_pass" type="password" placeholder="********">
+                </div>
             </div>
             <button class="btn-action" onclick="createAgency()">REGISTRAR AGENCIA</button>
         </div>
+
         <div class="card">
             <h3>Estatus del Marketplace (Agencias)</h3>
             <div style="overflow-x:auto;">
@@ -174,18 +210,17 @@ async function loadAgenciesPage() {
     `;
 
     agenciesList.forEach(a => {
-        // --- CÁLCULO DE CONTADORES ---
-        // Filtramos los usuarios que pertenecen a esta agencia
+        // ... (Tu lógica de filtrado de usuarios que ya tienes está perfecta)
         const agencyUsers = usersList.filter(u => {
             const uId = (u.agencyId?._id || u.agencyId);
             return uId === a._id;
         });
 
         const count = {
-            admin: agencyUsers.filter(u => u.role === 'admin').length,
-            promotor: agencyUsers.filter(u => u.role === 'promotor').length,
-            demostradora: agencyUsers.filter(u => u.role === 'demostradora').length,
-            cliente: agencyUsers.filter(u => u.role === 'cliente').length // Por si manejas este rol
+            admin: agencyUsers.filter(u => u.role.toLowerCase() === 'admin').length,
+            promotor: agencyUsers.filter(u => u.role.toLowerCase() === 'promotor').length,
+            demostradora: agencyUsers.filter(u => u.role.toLowerCase() === 'demostradora').length,
+            cliente: agencyUsers.filter(u => u.role.toLowerCase() === 'cliente').length
         };
         const total = agencyUsers.length;
 
@@ -227,14 +262,43 @@ async function loadAgenciesPage() {
 }
 
 
+
 async function createAgency() {
-    const data = { name: document.getElementById("new_age_name").value.trim(), email: document.getElementById("new_age_email").value.trim() };
-    if (!data.name) return alert("Nombre requerido");
+    // Capturamos los datos de los IDs del HTML arriba
+    const name = document.getElementById("new_age_name").value.trim();
+    const email = document.getElementById("new_age_email").value.trim();
+    const password = document.getElementById("new_age_pass").value.trim();
+
+    // Validación básica
+    if (!name || !email || !password) {
+        return alert("Todos los campos (Nombre, Correo y Contraseña) son obligatorios");
+    }
+
+    const data = { name, email, password };
+
     try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies`, { method: "POST", body: JSON.stringify(data) });
-        loadAgenciesPage();
-    } catch(e) { alert("Error: " + e.message); }
+        // Usamos fetchAPI que ya tienes configurada para manejar el Token y el JSON
+        await fetchAPI(`${BACKEND_URL}/super/agencies`, { 
+            method: "POST", 
+            body: JSON.stringify(data) 
+        });
+
+        alert("Agencia registrada con éxito");
+        
+        // Limpiamos los campos
+        document.getElementById("new_age_name").value = "";
+        document.getElementById("new_age_email").value = "";
+        document.getElementById("new_age_pass").value = "";
+
+        // Recargamos la página de agencias para ver la nueva en la tabla
+        await loadAgenciesPage();
+        
+    } catch(e) { 
+        console.error(e);
+        alert("Error al registrar: " + e.message); 
+    }
 }
+
 
 async function toggleAgencyStatus(id, newStatus) {
     try {
@@ -250,6 +314,8 @@ async function deleteAgency(id) {
         loadAgenciesPage();
     } catch(e) { alert("Error al borrar"); }
 }
+
+
 
 // ==========================================
 // --- USUARIOS GLOBALES ---

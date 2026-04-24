@@ -69,7 +69,6 @@
         const BACKEND_URL = "https://storepulse.onrender.com";
 
         async function login(event) {
-    // Evita que la página se recargue (vital si usas un <form>)
     if (event) event.preventDefault();
 
     const email = document.getElementById('email').value.trim();
@@ -77,13 +76,8 @@
     const msg = document.getElementById('msg');
     const btn = document.getElementById('btnEntrar') || document.getElementById('btn-login');
 
-    if (!email || !password) {
-        msg.innerText = "Por favor, completa todos los campos";
-        return;
-    }
-
     btn.disabled = true;
-    btn.innerText = "VERIFICANDO...";
+    btn.innerText = "Verificando...";
     msg.innerText = "";
 
     try {
@@ -93,57 +87,46 @@
             body: JSON.stringify({ email, password })
         });
 
-        // Definimos 'data' inmediatamente después de la respuesta
+        // DEFINICIÓN CORRECTA: Primero creamos 'data'
         const data = await response.json();
 
         if (response.ok) {
-            console.log("Sesión exitosa. Datos:", data);
-
-            // 1. Limpiamos basura de sesiones anteriores
             localStorage.clear();
 
-            // 2. Normalizamos el objeto de usuario
             const userObj = data.user || data; 
             const role = (userObj.role || "").toLowerCase().trim();
 
-            // 3. Guardamos los datos clave en el LocalStorage
             localStorage.setItem("token", data.token);
             localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
             localStorage.setItem("userRole", role);
             localStorage.setItem("userName", userObj.name || data.name || "Usuario");
 
-            // Guardamos IDs de agencia si existen (necesario para StorePulse)
             if (data.agencyId || userObj.agencyId) {
-                const aId = data.agencyId || userObj.agencyId;
-                localStorage.setItem('agencyId', aId);
-                localStorage.setItem('activeAgencyId', aId);
+                localStorage.setItem('agencyId', data.agencyId || userObj.agencyId);
             }
 
-            // 4. Redirección lógica (ajustada a tus carpetas)
-            setTimeout(() => {
-                if (role === 'super-admin') {
-                    window.location.href = 'Admin/super-admin.html';
-                } else if (role === 'admin') {
-                    window.location.href = 'Admin/admin.html';
-                } else if (role === 'cliente') {
-                    window.location.href = 'mis-proyectos.html';
-                } else {
-                    // Promotores y Demostradoras
-                    window.location.href = 'dashboard.html';
-                }
-            }, 100);
-
+            // REDIRECCIÓN COMPLETA
+            if (role === 'super-admin') {
+                window.location.href = 'Admin/super-admin.html';
+            } else if (role === 'admin') {
+                window.location.href = 'Admin/admin.html';
+            } else if (role === 'cliente') {
+                window.location.href = 'mis-proyectos.html'; // <--- No olvides esta
+            } else {
+                window.location.href = 'dashboard.html';
+            }
         } else {
             msg.innerText = data.message || "Credenciales incorrectas";
         }
     } catch (err) {
-        console.error("Error crítico en login:", err);
-        msg.innerText = "Error de conexión con el servidor";
+        console.error("Error detectado:", err);
+        msg.innerText = "Error de comunicación con el servidor";
     } finally {
         btn.disabled = false;
         btn.innerText = "ENTRAR";
     }
 }
+
 
 
         // Limpiar mensajes al escribir de nuevo

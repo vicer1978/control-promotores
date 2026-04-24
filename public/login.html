@@ -101,9 +101,14 @@
                     localStorage.setItem('name', data.name);
                     
                     // --- NORMALIZACIÓN DE ROL ---
-                    const normalizedRole = (data.role || 'promotor').toLowerCase().trim();
-                    localStorage.setItem('userRole', normalizedRole); 
-                    localStorage.setItem('role', normalizedRole); 
+                    // Si tu servidor responde con { token, user: { _id, role, name ... } }
+const data = await response.json();
+
+localStorage.setItem("token", data.token);
+localStorage.setItem("userId", data.user._id);
+localStorage.setItem("userRole", data.user.role.toLowerCase().trim()); // Guardamos limpio
+localStorage.setItem("userName", data.user.name);
+
 
                     // --- CORRECCIÓN PARA REPORTES Y AGENCIAS ---
                     if (data.agencyId) {

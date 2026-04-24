@@ -390,7 +390,7 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
         let tipoReporte = req.body.reportType || req.body.reporte || "otro";
         const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-        // --- 4. ENSAMBLAJE DEL REPORTE ---
+                // --- 4. ENSAMBLAJE DEL REPORTE (VERSION CORREGIDA) ---
         const reportData = {
             userId: req.user._id,
             agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
@@ -399,18 +399,28 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             reportType: tipoReporte,
             photo: fotoUrl,
             foto_url: fotoUrl,
+            
+            // Campos de Inventario y Ventas
             articulo: req.body.articulo || "N/A",
-            inv_inicial: Number(req.body.inv_inicial) || 0,
+            inv_inicial: Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0,
+            resurtido: Number(req.body.resurtido) || 0,
             ventas: Number(req.body.ventas) || 0, 
-            // VALIDACIÓN HÍBRIDA: Texto para degustación, Número para el resto
+            
+            // Cálculo automático del Inventario Final
+            inv_final: Number(req.body.inv_final) || 
+                       ((Number(req.body.inv_inicial) || 0) + (Number(req.body.resurtido) || 0) - (Number(req.body.ventas) || 0)),
+            
+            // Validación para Degustación (Cantidad como texto o número)
             cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : (Number(req.body.cantidad) || 0),
+            
             precio: Number(req.body.precio) || 0,
             observaciones: obs,
             lat: Number(req.body.lat) || 0,
             lng: Number(req.body.lng) || 0,
-            datosExtra: datosExtra, // <--- YA NO FALLARÁ AQUÍ
+            datosExtra: datosExtra, 
             timestamp: new Date()
         };
+
 
         const report = new Report(reportData);
         await report.save();

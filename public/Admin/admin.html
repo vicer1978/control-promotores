@@ -51,7 +51,10 @@
 <body>
 
 <div class="sidebar">
-    <h2>⚡ StorePulse</h2>
+<h2 style="display: flex; justify-content: center; align-items: center;">
+    <img src="file_00000000048871f5ab5d5a595605ea27.png" alt="StorePulse" style="max-width: 85%; max-height: 50px; height: auto;">
+</h2>
+
     <div class="project-selector-container" id="projectSelectorWrapper">
         <label id="selectorLabel">PROYECTO ACTIVO:</label>
         <select id="globalProjectSelector" onchange="changeGlobalProject(this.value)">
@@ -194,7 +197,14 @@ function changeGlobalProject(val) {
 }
 
 function showWelcomeMessage() {
-    document.getElementById("content").innerHTML = `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;"><h1 style="font-size: 4.5rem; color: var(--primary);">StorePulse</h1><div style="width: 80px; height: 6px; background: var(--gold);"></div></div>`;
+    document.getElementById("content").innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 75vh; text-align: center;">
+            <h1 style="font-size: 4.5rem; color: var(--primary); margin-bottom: 5px;">StorePulse</h1>
+            
+            <p style="font-size: 1.5rem; color: #64748b; margin-top: 0; margin-bottom: 15px;">Control de operación en tiempo real.</p>
+            
+            <div style="width: 80px; height: 6px; background: var(--gold);"></div>
+        </div>`;
 }
 
 function loadSection(section) {

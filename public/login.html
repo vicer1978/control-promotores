@@ -79,76 +79,62 @@
             btn.innerText = "Verificando...";
 
             try {
-                const res = await fetch(`${BACKEND_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
+    const response = await fetch(`${BACKEND_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+    });
 
-                const data = await res.json();
+    const data = await response.json();
 
-                if (res.ok) {
-                    // --- VALIDACIÓN DE INTEGRIDAD DE DATOS ---
-                    if (!data.userId || data.userId.length !== 24) {
-                        throw new Error("El servidor devolvió un ID de usuario no válido.");
-                    }
+    if (response.ok) {
+        console.log("Datos recibidos:", data);
 
-                    // 1. Limpiar sesión previa
-                    localStorage.clear();
+        // 1. Limpiar sesión previa para evitar conflictos de roles antiguos
+        localStorage.clear();
 
-                    // 2. Guardar nuevos datos
-                    localStorage.setItem('userId', data.userId);
-                    localStorage.setItem('name', data.name);
-                    
-                    // --- NORMALIZACIÓN DE ROL ---
-                    // Si tu servidor responde con { token, user: { _id, role, name ... } }
-const data = await response.json();
+        // 2. Extraer el objeto de usuario (maneja si viene dentro de .user o directo en la raíz)
+        const userObj = data.user || data; 
+        const role = (userObj.role || "").toLowerCase().trim();
 
-localStorage.setItem("token", data.token);
-localStorage.setItem("userId", data.user._id);
-localStorage.setItem("userRole", data.user.role.toLowerCase().trim()); // Guardamos limpio
-localStorage.setItem("userName", data.user.name);
+        // 3. Guardar datos esenciales
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
+        localStorage.setItem("userRole", role);
+        localStorage.setItem("userName", userObj.name || data.name || "Usuario");
 
-
-                    // --- CORRECCIÓN PARA REPORTES Y AGENCIAS ---
-                    if (data.agencyId) {
-                        localStorage.setItem('agencyId', data.agencyId); 
-                        localStorage.setItem('activeAgencyId', data.agencyId); 
-                    }
-
-                    // Guardar ProjectId si viene desde el login (opcional para clientes directos)
-                    if (data.projectId) {
-                        localStorage.setItem('projectId', data.projectId);
-                    }
-
-                    console.log("Sesión guardada:", { id: data.userId, role: normalizedRole });
-
-                    // 3. Redirección
-                    setTimeout(() => {
-                        if (normalizedRole === 'super-admin') {
-                            window.location.href = 'Admin/super-admin.html';
-                        } else if (normalizedRole === 'admin') {
-                            window.location.href = 'Admin/admin.html';
-                        } else if (normalizedRole === 'cliente') {
-                            // NUEVA RUTA: El cliente primero elige su proyecto
-                            window.location.href = 'mis-proyectos.html';
-                        } else {
-                            // Promotores y Demostradoras van al dashboard operativo
-                            window.location.href = 'dashboard.html';
-                        }
-                    }, 100);
-
-                } else {
-                    msg.innerText = data.message || "Credenciales incorrectas";
-                }
-            } catch (err) {
-                msg.innerText = err.message || "Error de conexión con el servidor";
-                console.error("Error en login:", err);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "ENTRAR";
-            }
+        // Guardar IDs opcionales si existen (Agencia o Proyecto)
+        if (data.agencyId || userObj.agencyId) {
+            const aId = data.agencyId || userObj.agencyId;
+            localStorage.setItem('agencyId', aId);
+            localStorage.setItem('activeAgencyId', aId);
         }
+
+        // 4. Redirección lógica basada en tu estructura de carpetas
+        setTimeout(() => {
+            if (role === 'super-admin') {
+                window.location.href = 'Admin/super-admin.html';
+            } else if (role === 'admin') {
+                window.location.href = 'Admin/admin.html';
+            } else if (role === 'cliente') {
+                window.location.href = 'mis-proyectos.html';
+            } else {
+                // Promotores y Demostradoras
+                window.location.href = 'dashboard.html';
+            }
+        }, 100);
+
+    } else {
+        msg.innerText = data.message || "Credenciales incorrectas";
+    }
+} catch (error) {
+    console.error("Error crítico en login:", error);
+    msg.innerText = "Error de conexión con el servidor";
+} finally {
+    btn.disabled = false;
+    btn.innerText = "ENTRAR";
+}
+
 
         // Limpiar mensajes al escribir de nuevo
         document.querySelectorAll('input').forEach(input => {

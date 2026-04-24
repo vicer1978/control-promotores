@@ -314,12 +314,17 @@ if (typeSel === 'precios') {
     // Solo incluye si dice 'pre' y 'agotado'
     matchType = rTypeLower.includes('pre') && rTypeLower.includes('agotado');
 } else if (typeSel === 'inventario') {
-    matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
+    // IMPORTANTE: Buscamos inventario pero EXCLUIMOS ventas para que no se mezclen
+    matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
+} else if (typeSel === 'ventas') {
+    // Filtro puro para el botón de Ventas
+    matchType = rTypeLower.includes('ventas');
 } else if (typeSel === 'ranking') {
     matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
 } else {
     matchType = rTypeLower.includes(typeSel.toLowerCase());
 }
+
 
 
         return (!start || rDate >= start) && 

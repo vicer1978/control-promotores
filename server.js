@@ -568,6 +568,32 @@ app.delete("/super/agencies/:id", auth, async (req, res) => {
 
 
 // --- GESTIÓN DE USUARIOS ---
+
+// Crear usuario desde el panel de Super Admin
+app.post("/super/users", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const { name, email, password, role, agencyId } = req.body;
+        
+        const newUser = new User({
+            name,
+            email: email.toLowerCase().trim(),
+            password,
+            role: role || "promotor",
+            agencyId: agencyId || null // Puede crearse sin agencia y asignarse luego
+        });
+
+        await newUser.save();
+        res.json({ message: "Usuario global creado con éxito", user: newUser });
+    } catch (err) {
+        console.error("Error en super/users POST:", err);
+        res.status(500).json({ error: "Error al crear usuario", detalle: err.message });
+    }
+});
+
+
+
 app.get("/users", auth, async (req, res) => {
     try {
         const filter = { agencyId: req.user.agencyId };

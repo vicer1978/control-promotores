@@ -109,8 +109,7 @@ const REPORT_TYPES_BY_ROLE = {
         { val: "inventario", text: "Ventas" },
         { val: "ranking", text: "Degustación" },
         { val: "precios", text: "Precios" },
-        { val: "exhibicion", text: "Exhibiciones" },
-        { val: "competencia", text: "Competencia" }
+        
     ],
     promotor: [
         { val: "precios", text: "Precios" },
@@ -321,7 +320,7 @@ function renderTableReport(data, type) {
     const exclude = [
         '_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 
         'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 
-        'coordenadas', 'lat', 'lng', 'userName', 'storeName' 
+        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio' 
     ];
 
     const roleSel = document.getElementById("fRole")?.value;

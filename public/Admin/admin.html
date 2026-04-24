@@ -361,8 +361,8 @@ function renderTableReport(data, type) {
 
     const keyLower = key.toLowerCase();
 
-    // 2. REGLA MAESTRA: Quitar 'cantidad' en Precios y Ventas
-    if ((type === 'precios' || type === 'ventas') && keyLower === 'cantidad') {
+    // 2. REGLA MAESTRA: Quitar 'cantidad' en Precios, Competencia y Ventas
+    if ((type === 'precios' || type === 'competencia')|| type === 'ventas') && keyLower === 'cantidad') {
         return false;
     }
 

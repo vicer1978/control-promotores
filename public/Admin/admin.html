@@ -356,11 +356,25 @@ function renderTableReport(data, type) {
     const roleSel = document.getElementById("fRole")?.value;
     
     let dynamicKeys = Object.keys(data[0]).filter(key => {
-        if (exclude.includes(key)) return false;
-        if (type === 'precios' && key.toLowerCase() === 'cantidad') return false;
-        if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') return false;
-        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
-    });
+    // 1. Excluir campos técnicos (IDs, fechas internas, etc.)
+    if (exclude.includes(key)) return false;
+
+    const keyLower = key.toLowerCase();
+
+    // 2. REGLA MAESTRA: Quitar 'cantidad' en Precios, Inventarios y Ventas
+    // Esto limpia visualmente los reportes operativos del Promotor y Demostradora
+    if ((type === 'precios' || type === 'inventario' || type === 'ventas') && keyLower === 'cantidad') {
+        return false;
+    }
+
+    // 3. Regla para DEMOSTRADORA: Solo permitir 'cantidad' en Degustación (ranking)
+    if (roleSel === 'demostradora' && keyLower === 'cantidad' && type !== 'ranking') {
+        return false;
+    }
+
+    // 4. Mostrar columna solo si tiene datos reales
+    return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+});
 
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);

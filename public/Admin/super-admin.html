@@ -96,6 +96,30 @@
     <div id="content"></div>
 </div>
 
+
+<div id="editAgencyModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+    <div class="card" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:400px; margin:0;">
+        <h3>✏️ Editar Agencia</h3>
+        <div style="margin-bottom:15px;">
+            <label>Nombre de la Agencia</label>
+            <input id="edit_agency_name">
+        </div>
+        <div style="margin-bottom:15px;">
+            <label>Correo de Contacto</label>
+            <input id="edit_agency_email" type="email">
+        </div>
+        <div style="margin-bottom:20px;">
+            <label>Nueva Contraseña (opcional)</label>
+            <input id="edit_agency_pass" type="password" placeholder="Dejar vacío para no cambiar">
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="flex:1" onclick="saveAgencyChanges()">GUARDAR CAMBIOS</button>
+            <button class="btn-action btn-danger" style="flex:1; background:#64748b !important;" onclick="document.getElementById('editAgencyModal').style.display='none'">CANCELAR</button>
+        </div>
+    </div>
+</div>
+
+
 <script>
 // --- CONFIGURACIÓN ---
 const BACKEND_URL = "https://storepulse.onrender.com";
@@ -251,23 +275,59 @@ async function loadAgenciesPage() {
                         ${a.isActive ? 'ACTIVA' : 'INACTIVA'}
                     </span>
                 </td>
-                <td>
+                                <td>
                     <div style="display:flex; gap:5px;">
                         <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" 
                                 style="padding: 6px 12px; font-size:0.75rem;"
                                 onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">
                             ${a.isActive ? 'Pausar' : 'Activar'}
                         </button>
+
+                        <button class="btn-action" 
+                                style="padding: 6px 12px; font-size:0.75rem; background:#3498db !important;" 
+                                onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">
+                            Editar
+                        </button>
+
                         <button class="btn-action btn-danger" 
                                 style="padding: 6px 12px; font-size:0.75rem; background:#475569 !important;" 
                                 onclick="deleteAgency('${a._id}')">Borrar</button>
                     </div>
                 </td>
+
             </tr>`;
     });
 
     html += `</tbody></table></div></div>`;
     document.getElementById("content").innerHTML = html;
+}
+
+
+let currentEditingAgencyId = null;
+
+function openEditAgencyModal(id, name, email) {
+    currentEditingAgencyId = id;
+    document.getElementById("edit_agency_name").value = name;
+    document.getElementById("edit_agency_email").value = email;
+    document.getElementById("editAgencyModal").style.display = "block";
+}
+
+async function saveAgencyChanges() {
+    const name = document.getElementById("edit_agency_name").value;
+    const email = document.getElementById("edit_agency_email").value;
+    const password = document.getElementById("edit_agency_pass").value;
+
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${currentEditingAgencyId}`, {
+            method: "PUT",
+            body: { name, email, password }
+        });
+        
+        alert("Agencia actualizada");
+        location.reload();
+    } catch (e) {
+        alert("Error al actualizar: " + e.message);
+    }
 }
 
 

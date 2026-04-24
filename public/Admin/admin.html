@@ -315,61 +315,58 @@ function filterReports() {
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
     if (data.length === 0) { container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`; return; }
-    const exclude = ['_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 'coordenadas', 'lat', 'lng'];
+
+    // --- CORRECCIÓN AQUÍ ---
+    // Añadimos 'userName' y 'storeName' a la lista de excluidos para que no se creen columnas extra
+    const exclude = [
+        '_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 
+        'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 
+        'coordenadas', 'lat', 'lng', 'userName', 'storeName' 
+    ];
+
     const roleSel = document.getElementById("fRole")?.value;
+    
     let dynamicKeys = Object.keys(data[0]).filter(key => {
         if (exclude.includes(key)) return false;
         if (roleSel === 'demostradora' && key.toLowerCase() === 'cantidad' && type !== 'ranking') return false;
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });
+
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
+    
     if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
+    
     const hasAction = (session.role?.toLowerCase() !== 'cliente');
+    
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
+    
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
-        const usuario = r.userId?.name || 'S/N';
-        const tienda = r.storeId?.name || 'S/T';
+        
+        // --- CORRECCIÓN AQUÍ ---
+        // Usamos la propiedad que venga: o el objeto populado o el string manual que enviamos
+        const usuario = (r.userId && r.userId.name) ? r.userId.name : (r.userName || 'S/N');
+        const tienda = (r.storeId && r.storeId.name) ? r.storeId.name : (r.storeName || 'S/T');
+
         let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
+        
         dynamicKeys.forEach(k => {
             let val = r[k];
             if(k.toLowerCase().includes('precio') && !isNaN(val)) val = `$${val}`;
             rowData += `<td>${val || '-'}</td>`;
         });
-        if (r.foto_url || data.some(x => x.foto_url)) rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+
+        if (r.foto_url || data.some(x => x.foto_url)) {
+            rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+        }
+
         return `<tr>${rowData}${hasAction ? `<td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="editReportPrompt('${r._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>` : ''}</tr>`;
     }).join('');
+    
     container.innerHTML = html + `</tbody></table></div>`;
 }
 
-function editReportPrompt(reportId) {
-    const r = allReportsRaw.find(x => x._id === reportId);
-    if (!r) return;
-    openDrawer(`
-        <div class="drawer-header"><h3>Corregir Reporte</h3></div>
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <p style="font-size: 12px; color: #64748b;">ID: ${reportId}</p>
-            <label>Artículo / Producto</label><input type="text" id="editRepArticulo" value="${r.articulo || ''}">
-            <label>Cantidad (Texto o Número)</label><input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
-            <label>Observaciones</label><textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
-            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateReport('${r._id}')">GUARDAR CAMBIOS</button>
-        </div>
-    `);
-}
-
-async function updateReport(reportId) {
-    const articulo = document.getElementById('editRepArticulo').value;
-    const cantidad = document.getElementById('editRepCantidad').value;
-    const observaciones = document.getElementById('editRepObs').value;
-    const res = await fetchAPI(`${BACKEND_URL}/reports/${reportId}`, { method: 'PUT', body: JSON.stringify({ articulo, cantidad, observaciones }) });
-    if (res) {
-        alert("Reporte actualizado correctamente"); closeDrawer();
-        const index = allReportsRaw.findIndex(x => x._id === reportId);
-        if (index !== -1) { allReportsRaw[index].articulo = articulo; allReportsRaw[index].cantidad = cantidad; allReportsRaw[index].observaciones = observaciones; }
-        filterReports();
-    }
-}
 
 // --- ASISTENCIA ---
 async function loadAttendance() {

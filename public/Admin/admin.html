@@ -298,7 +298,7 @@ function filterReports() {
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
         
         // 5. Lógica de Matching de Categoría (Mejorada)
-        let matchType = false;
+let matchType = false;
 const rTypeLower = rType.toLowerCase();
 
 if (typeSel === 'precios') {
@@ -307,6 +307,12 @@ if (typeSel === 'precios') {
 } else if (typeSel === 'competencia') {
     // Solo incluye si el reporte es de competencia
     matchType = rTypeLower.includes('competencia');
+} else if (typeSel === 'agotado') {
+    // Solo incluye si dice 'agotado' pero NO dice 'pre'
+    matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
+} else if (typeSel === 'pre-agotado' || typeSel === 'preagotado') {
+    // Solo incluye si dice 'pre' y 'agotado'
+    matchType = rTypeLower.includes('pre') && rTypeLower.includes('agotado');
 } else if (typeSel === 'inventario') {
     matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
 } else if (typeSel === 'ranking') {
@@ -314,6 +320,7 @@ if (typeSel === 'precios') {
 } else {
     matchType = rTypeLower.includes(typeSel.toLowerCase());
 }
+
 
         return (!start || rDate >= start) && 
                (!end || rDate <= end) && 

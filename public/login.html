@@ -66,77 +66,86 @@
     </div>
 
     <script>
-        const BACKEND_URL = "https://storepulse.onrender.com";
+    // Configuración base
+    const BACKEND_URL = "https://storepulse.onrender.com";
 
-        async function login(event) {
-    if (event) event.preventDefault();
+    async function login(event) {
+        // Detener la recarga de la página
+        if (event) event.preventDefault();
+        
+        console.log("Iniciando proceso de login...");
+        
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const msg = document.getElementById('msg');
+        // Soporte para ambos nombres de botón que hemos usado
+        const btn = document.getElementById('btnEntrar') || document.getElementById('btn-login');
 
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const msg = document.getElementById('msg');
-    const btn = document.getElementById('btnEntrar') || document.getElementById('btn-login');
+        btn.disabled = true;
+        btn.innerText = "VERIFICANDO...";
+        msg.innerText = "";
 
-    btn.disabled = true;
-    btn.innerText = "Verificando...";
-    msg.innerText = "";
+        try {
+            const response = await fetch(`${BACKEND_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
 
-    try {
-    const response = await fetch(`${BACKEND_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-    });
+            const contentType = response.headers.get("content-type");
+            
+            if (contentType && contentType.includes("application/json")) {
+                const data = await response.json();
 
-    // 1. Verificamos qué tipo de respuesta nos dio el servidor
-    const contentType = response.headers.get("content-type");
+                if (response.ok) {
+                    console.log("Respuesta exitosa del servidor.");
+                    // Limpieza total para evitar conflictos de roles viejos
+                    localStorage.clear();
 
-    if (contentType && contentType.includes("application/json")) {
-        // SI ES JSON: Lo procesamos normalmente
-        const data = await response.json();
+                    const userObj = data.user || data;
+                    const role = (userObj.role || "").toLowerCase().trim();
 
-        if (response.ok) {
-            console.log("Sesión exitosa:", data);
-            localStorage.clear();
+                    // Guardado de sesión
+                    localStorage.setItem("token", data.token);
+                    localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
+                    localStorage.setItem("userRole", role);
+                    localStorage.setItem("userName", userObj.name || data.name || "Usuario");
 
-            const userObj = data.user || data; 
-            const role = (userObj.role || "").toLowerCase().trim();
+                    // Datos específicos de StorePulse
+                    if (data.agencyId || userObj.agencyId) {
+                        localStorage.setItem('agencyId', data.agencyId || userObj.agencyId);
+                    }
 
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
-            localStorage.setItem("userRole", role);
-            localStorage.setItem("userName", userObj.name || data.name || "Usuario");
-
-            if (data.agencyId || userObj.agencyId) {
-                localStorage.setItem('agencyId', data.agencyId || userObj.agencyId);
-            }
-
-            // Redirecciones
-            if (role === 'super-admin') {
-                window.location.href = 'Admin/super-admin.html';
-            } else if (role === 'admin') {
-                window.location.href = 'Admin/admin.html';
-            } else if (role === 'cliente') {
-                window.location.href = 'mis-proyectos.html';
+                    // Redirecciones según tu estructura de carpetas
+                    if (role === 'super-admin') {
+                        window.location.href = 'Admin/super-admin.html';
+                    } else if (role === 'admin') {
+                        window.location.href = 'Admin/admin.html';
+                    } else if (role === 'cliente') {
+                        window.location.href = 'mis-proyectos.html';
+                    } else {
+                        window.location.href = 'dashboard.html';
+                    }
+                } else {
+                    msg.innerText = data.message || "Credenciales incorrectas";
+                }
             } else {
-                window.location.href = 'dashboard.html';
+                console.error("El servidor devolvió HTML (posible 404 o 500)");
+                msg.innerText = "Error: El servidor no encontró la ruta de acceso (404).";
             }
-        } else {
-            msg.innerText = data.message || "Credenciales incorrectas";
+        } catch (err) {
+            console.error("Error crítico de conexión:", err);
+            msg.innerText = "Error de conexión con el servidor.";
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "ENTRAR";
         }
-    } else {
-        // SI NO ES JSON: Probablemente sea un error 404 o 500 en HTML
-        const errorTexto = await response.text();
-        console.error("El servidor respondió con algo que no es JSON:", errorTexto);
-        msg.innerText = "Error: El servidor no encontró la ruta de acceso (404).";
     }
 
-} catch (err) {
-    console.error("Error de red o conexión:", err);
-    msg.innerText = "No se pudo conectar con el servidor.";
-} finally {
-    btn.disabled = false;
-    btn.innerText = "ENTRAR";
-}
+    // VITAL: Esto expone la función al HTML y quita el error de "not defined"
+    window.login = login;
+</script>
+
 
 
 

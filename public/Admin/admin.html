@@ -367,12 +367,18 @@ function renderTableReport(data, type) {
         return false;
     }
 
-    // 3. Regla para DEMOSTRADORA: Solo permitir 'cantidad' en Degustación (ranking)
+    // 3. NUEVA REGLA: Limpieza de Exhibiciones Adicionales
+    // Quitamos artículo, cantidad y photo (ya que usamos la columna 'Evidencia' para la imagen)
+    if (type === 'exhibicion' && (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) {
+        return false;
+    }
+
+    // 4. Regla para DEMOSTRADORA: Solo permitir 'cantidad' en Degustación (ranking)
     if (roleSel === 'demostradora' && keyLower === 'cantidad' && type !== 'ranking') {
         return false;
     }
 
-    // 4. Mostrar columna solo si tiene datos reales
+    // 5. Mostrar columna solo si tiene datos reales
     return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
 });
 

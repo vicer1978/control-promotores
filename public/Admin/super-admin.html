@@ -128,7 +128,7 @@ async function fetchAPI(url, options = {}) {
         window.location.href = "../login.html";
         return;
     }
-    
+
     options.headers = { 
         ...(options.headers || {}), 
         "Authorization": `Bearer ${token}`, // Esto es lo que pide el servidor
@@ -264,40 +264,40 @@ async function loadAgenciesPage() {
 
 
 async function createAgency() {
-    // Capturamos los datos de los IDs del HTML arriba
     const name = document.getElementById("new_age_name").value.trim();
     const email = document.getElementById("new_age_email").value.trim();
     const password = document.getElementById("new_age_pass").value.trim();
 
-    // Validación básica
     if (!name || !email || !password) {
         return alert("Todos los campos (Nombre, Correo y Contraseña) son obligatorios");
     }
 
+    // Enviamos el objeto limpio
     const data = { name, email, password };
 
     try {
-        // Usamos fetchAPI que ya tienes configurada para manejar el Token y el JSON
+        // fetchAPI se encarga del JSON.stringify internamente
         await fetchAPI(`${BACKEND_URL}/super/agencies`, { 
             method: "POST", 
-            body: JSON.stringify(data) 
+            body: data 
         });
 
-        alert("Agencia registrada con éxito");
+        alert("Agencia registrada con éxito ✅");
         
-        // Limpiamos los campos
+        // Limpiamos los campos del formulario
         document.getElementById("new_age_name").value = "";
         document.getElementById("new_age_email").value = "";
         document.getElementById("new_age_pass").value = "";
 
-        // Recargamos la página de agencias para ver la nueva en la tabla
+        // Refrescamos la lista para ver la nueva agencia
         await loadAgenciesPage();
         
     } catch(e) { 
-        console.error(e);
+        console.error("Error en createAgency:", e);
         alert("Error al registrar: " + e.message); 
     }
 }
+
 
 
 async function toggleAgencyStatus(id, newStatus) {

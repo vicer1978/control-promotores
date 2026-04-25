@@ -530,7 +530,7 @@ app.post("/super/agencies", auth, async (req, res) => {
             name: `${name} Admin`,
             email: email.toLowerCase().trim(),
             password: password.trim(),
-            role: "admin",
+            role: "Admin",
             agencyId: newAgency._id 
         });
         await adminUser.save();

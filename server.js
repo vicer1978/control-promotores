@@ -508,23 +508,45 @@ app.post("/super/agencies", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
         
-        // Extraemos explícitamente para asegurar que no vengan datos basura
         const { name, email, password } = req.body;
+
+        // Validar si el usuario ya existe antes de crear la agencia
+        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return res.status(400).json({ error: "Este email ya está registrado como usuario" });
+        }
         
+        // 1. Crear la Agencia
         const newAgency = new Agency({ 
             name, 
             email: email.toLowerCase().trim(), 
             password,
             isActive: true 
         });
-        
         await newAgency.save();
-        res.json(newAgency);
+
+        // 2. Crear el Usuario Admin vinculado
+        const adminUser = new User({
+            name: `${name} Admin`,
+            email: email.toLowerCase().trim(),
+            password: password.trim(),
+            role: "admin",
+            agencyId: newAgency._id 
+        });
+        await adminUser.save();
+
+        res.json({ 
+            message: "Agencia y Usuario Admin creados con éxito", 
+            agency: newAgency,
+            user: adminUser 
+        });
+
     } catch (err) { 
-        console.error("Error al crear agencia:", err);
-        res.status(500).json({ error: "Error al crear agencia en la base de datos" }); 
+        console.error("❌ Error en registro de agencia:", err);
+        res.status(500).json({ error: "Error interno", detalle: err.message }); 
     }
 });
+
 
 
 // 3. Cambiar estatus de agencia (Activar/Desactivar)

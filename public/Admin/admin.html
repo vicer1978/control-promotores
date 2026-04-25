@@ -299,32 +299,29 @@ function filterReports() {
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
         
         // 5. Lógica de Matching de Categoría (Mejorada)
-let matchType = false;
-const rTypeLower = rType.toLowerCase();
+        let matchType = false;
+        const rTypeLower = rType.toLowerCase();
 
-if (typeSel === 'precios') {
-    // Solo incluye si es exactamente precios y NO es competencia
-    matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
-} else if (typeSel === 'competencia') {
-    // Solo incluye si el reporte es de competencia
-    matchType = rTypeLower.includes('competencia');
-} else if (typeSel === 'agotado') {
-    // Solo incluye si dice 'agotado' pero NO dice 'pre'
-    matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
-} else if (typeSel === 'pre-agotado' || typeSel === 'preagotado') {
-    // Solo incluye si dice 'pre' y 'agotado'
-    matchType = rTypeLower.includes('pre') && rTypeLower.includes('agotado');
-} else if (typeSel === 'inventario') {
-    // IMPORTANTE: Buscamos inventario pero EXCLUIMOS ventas para que no se mezclen
-    matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
-} else if (typeSel === 'ventas') {
-    // Filtro puro para el botón de Ventas
-    matchType = rTypeLower.includes('ventas');
-} else if (typeSel === 'ranking') {
-    matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
-} else {
-    matchType = rTypeLower.includes(typeSel.toLowerCase());
-}
+        if (typeSel === 'precios') {
+            matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
+        } else if (typeSel === 'competencia') {
+            matchType = rTypeLower.includes('competencia');
+        } else if (typeSel === 'agotado') {
+            matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
+        } else if (typeSel === 'pre-agotado' || typeSel === 'preagotado') {
+            matchType = rTypeLower.includes('pre') && rTypeLower.includes('agotado');
+        } else if (typeSel === 'ventas') {
+            // CORRECCIÓN: Ahora incluye lo que las demostradoras mandan como inventario
+            matchType = rTypeLower.includes('ventas') || rTypeLower.includes('inventario');
+        } else if (typeSel === 'inventario') {
+            // Filtro para cuando quieres ver inventarios de promotor (excluyendo ventas)
+            matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
+        } else if (typeSel === 'ranking') {
+            matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
+        } else {
+            matchType = rTypeLower.includes(typeSel.toLowerCase());
+        }
+
 
 
 

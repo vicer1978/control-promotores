@@ -24,23 +24,28 @@
         .stat-card big { display: block; font-size: 2rem; font-weight: 800; color: var(--primary); }
         .stat-card small { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
 
-        /* Estilos Generales */
+        /* Cards y Tablas */
         .card { background:white; padding:25px; border-radius:16px; margin-bottom:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
-        .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        th { text-align: left; padding: 15px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
-        td { padding: 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        input, select { padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; width: 100%; background: #f8fafc; }
-        label { display: block; font-weight: 700; color: #4a5568; margin-bottom: 6px; font-size: 0.8rem; }
+        .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px; font-size: 1.2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
+        th { text-align: left; padding: 15px; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #f1f5f9; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
+        tr:hover td { background-color: #f8fafc; }
 
-        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; }
+        /* Form / Inputs */
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        input, select { padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; width: 100%; box-sizing: border-box; background: #f8fafc; font-size: 0.95rem; }
+        label { display: block; font-weight: 700; color: #4a5568; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; }
+
+        /* Botones y Badges */
+        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; font-size: 0.85rem; }
         .btn-danger { background: var(--danger) !important; }
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: white; }
-        .badge-role { background: #64748b; }
-        .badge-role.super { background: var(--primary); }
+        .btn-success { background: var(--success) !important; }
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: white; display: inline-block; min-width: 25px; text-align: center; }
         .badge-active { background: var(--success); }
         .badge-inactive { background: var(--danger); }
+        .badge-role { background: #64748b; }
+        .badge-role.super { background: var(--primary); }
         .text-center { text-align: center !important; }
     </style>
 </head>
@@ -71,10 +76,10 @@
 <div id="editAgencyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
     <div class="card" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:400px; margin:0;">
         <h3>✏️ Editar Agencia</h3>
-        <label>Nombre</label><input id="edit_agency_name">
-        <label>Correo</label><input id="edit_agency_email" type="email">
+        <label>Nombre de la Agencia</label><input id="edit_agency_name">
+        <label>Correo de Contacto</label><input id="edit_agency_email" type="email">
         <label>Nueva Contraseña (opcional)</label><input id="edit_agency_pass" type="password">
-        <div style="display:flex; gap:10px; margin-top:20px;">
+        <div style="display:flex; gap:10px; margin-top: 20px;">
             <button class="btn-action" style="flex:1" onclick="saveAgencyChanges()">GUARDAR</button>
             <button class="btn-action btn-danger" style="flex:1; background:#64748b !important;" onclick="document.getElementById('editAgencyModal').style.display='none'">CANCELAR</button>
         </div>
@@ -86,7 +91,7 @@
         <h3>✏️ Editar Usuario Global</h3>
         <label>Nombre Completo</label><input id="edit_usr_name">
         <label>Email (Login)</label><input id="edit_usr_email" type="email">
-        <label>Rol</label>
+        <label>Rol del Sistema</label>
         <select id="edit_usr_role">
             <option value="promotor">Promotor</option>
             <option value="demostradora">Demostradora</option>
@@ -94,7 +99,7 @@
             <option value="super-admin">Super Admin</option>
         </select>
         <label>Nueva Contraseña (opcional)</label><input id="edit_usr_pass" type="password">
-        <div style="display:flex; gap:10px; margin-top:20px;">
+        <div style="display:flex; gap:10px; margin-top: 20px;">
             <button class="btn-action" style="flex:1" onclick="saveUserChanges()">GUARDAR</button>
             <button class="btn-action btn-danger" style="flex:1; background:#64748b !important;" onclick="document.getElementById('editUserModal').style.display='none'">CANCELAR</button>
         </div>
@@ -141,59 +146,79 @@ async function updateStats() {
     } catch (e) { console.error(e); }
 }
 
-// --- GESTIÓN AGENCIAS ---
 async function loadAgenciesPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando Marketplace...</h3>";
     await updateStats();
     let html = `
         <div class="card">
-            <h3>🏢 Nueva Agencia</h3>
+            <h3>🏢 Registrar Nueva Agencia</h3>
             <div class="form-grid">
-                <div><label>Nombre</label><input id="new_age_name"></div>
-                <div><label>Email</label><input id="new_age_email" type="email"></div>
-                <div><label>Contraseña</label><input id="new_age_pass" type="password"></div>
+                <div><label>Nombre</label><input id="new_age_name" placeholder="Ej. Corporativo RCA"></div>
+                <div><label>Correo</label><input id="new_age_email" type="email" placeholder="age@empresa.com"></div>
+                <div><label>Contraseña</label><input id="new_age_pass" type="password" placeholder="********"></div>
             </div>
-            <button class="btn-action" onclick="createAgency()">REGISTRAR</button>
+            <button class="btn-action" onclick="createAgency()">REGISTRAR AGENCIA</button>
         </div>
         <div class="card">
-            <table>
-                <thead><tr><th>Agencia</th><th class="text-center">Total</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody>`;
+            <h3>Estatus del Marketplace (Agencias)</h3>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agencia</th>
+                            <th class="text-center">Adm</th><th class="text-center">Pro</th><th class="text-center">Dem</th><th class="text-center">Cli</th>
+                            <th class="text-center">Total</th>
+                            <th>Estado</th><th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
     agenciesList.forEach(a => {
-        const total = usersList.filter(u => (u.agencyId?._id || u.agencyId) === a._id).length;
+        const agencyUsers = usersList.filter(u => (u.agencyId?._id || u.agencyId) === a._id);
+        const count = {
+            admin: agencyUsers.filter(u => u.role.toLowerCase() === 'admin').length,
+            promotor: agencyUsers.filter(u => u.role.toLowerCase() === 'promotor').length,
+            demostradora: agencyUsers.filter(u => u.role.toLowerCase() === 'demostradora').length,
+            cliente: agencyUsers.filter(u => u.role.toLowerCase() === 'cliente').length
+        };
         html += `
             <tr>
                 <td><b>${a.name}</b><br><small>${a.email || 'S/C'}</small></td>
-                <td align="center"><b>${total}</b></td>
+                <td align="center"><span class="badge badge-role" style="background:#64748b">${count.admin}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#0284c7">${count.promotor}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#f59e0b">${count.demostradora}</span></td>
+                <td align="center"><span class="badge badge-role" style="background:#10b981">${count.cliente}</span></td>
+                <td align="center"><b>${agencyUsers.length}</b></td>
                 <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'INACTIVA'}</span></td>
                 <td>
-                    <button class="btn-action" style="padding:6px 10px; font-size:0.7rem; background:#3498db !important;" onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">Editar</button>
-                    <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" style="padding:6px 10px; font-size:0.7rem;" onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">${a.isActive ? 'Pausar' : 'Activar'}</button>
+                    <button class="btn-action" style="background:#3498db !important;" onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">Edit</button>
+                    <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">${a.isActive ? 'Pausar' : 'Activar'}</button>
                 </td>
             </tr>`;
     });
-    document.getElementById("content").innerHTML = html + "</tbody></table></div>";
+    document.getElementById("content").innerHTML = html + "</tbody></table></div></div>";
 }
 
-// --- GESTIÓN USUARIOS ---
 async function loadUsersPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando Usuarios...</h3>";
     await updateStats();
     let html = `
         <div class="card">
-            <h3>👥 Nuevo Usuario Global</h3>
+            <h3>👥 Registrar Usuario Global</h3>
             <div class="form-grid">
                 <div><label>Nombre</label><input id="new_usr_name"></div>
                 <div><label>Email</label><input id="new_usr_email" type="email"></div>
                 <div><label>Contraseña</label><input id="new_usr_pass" type="password"></div>
-                <div><label>Rol</label><select id="new_usr_role"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="super-admin">Super Admin</option></select></div>
+                <div><label>Rol</label><select id="new_usr_role"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin Agencia</option><option value="super-admin">Super Admin</option></select></div>
             </div>
-            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR</button>
+            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR USUARIO</button>
         </div>
         <div class="card">
+            <h3>Usuarios del Sistema</h3>
             <table>
                 <thead><tr><th>Nombre / Email</th><th>Rol</th><th>Agencia</th><th>Acciones</th></tr></thead>
                 <tbody>`;
+
     usersList.forEach(u => {
         const isSuper = u.role.toLowerCase() === 'super-admin';
         let agencySelect = `<select onchange="assignUserToAgency('${u._id}', this.value)" style="padding:5px; font-size:0.8rem;">
@@ -210,15 +235,15 @@ async function loadUsersPage() {
                 <td><span class="badge badge-role ${isSuper ? 'super' : ''}">${u.role.toUpperCase()}</span></td>
                 <td>${isSuper ? 'GLOBAL' : agencySelect}</td>
                 <td>
-                    <button class="btn-action" style="padding:6px 10px; font-size:0.7rem; background:#3498db !important;" onclick="openEditUserModal('${u._id}', '${u.name}', '${u.email}', '${u.role}')">Editar</button>
-                    ${u._id === userId ? '' : `<button class="btn-action btn-danger" style="padding:6px 10px; font-size:0.7rem;" onclick="deleteGlobalUser('${u._id}')">Borrar</button>`}
+                    <button class="btn-action" style="background:#3498db !important;" onclick="openEditUserModal('${u._id}', '${u.name}', '${u.email}', '${u.role}')">Editar</button>
+                    ${u._id === userId ? '' : `<button class="btn-action btn-danger" onclick="deleteGlobalUser('${u._id}')">Borrar</button>`}
                 </td>
             </tr>`;
     });
     document.getElementById("content").innerHTML = html + "</tbody></table></div>";
 }
 
-// --- LÓGICA DE EDICIÓN ---
+// --- LÓGICA DE MODALES Y ACCIONES ---
 let currentEditingAgencyId = null;
 function openEditAgencyModal(id, name, email) {
     currentEditingAgencyId = id;
@@ -228,17 +253,8 @@ function openEditAgencyModal(id, name, email) {
     document.getElementById("editAgencyModal").style.display = "block";
 }
 async function saveAgencyChanges() {
-    const body = { 
-        name: document.getElementById("edit_agency_name").value, 
-        email: document.getElementById("edit_agency_email").value,
-        password: document.getElementById("edit_agency_pass").value 
-    };
-    try { 
-        await fetchAPI(`${BACKEND_URL}/super/agencies/${currentEditingAgencyId}`, { method: "PUT", body }); 
-        alert("Agencia actualizada ✅");
-        document.getElementById("editAgencyModal").style.display = "none";
-        loadAgenciesPage();
-    } catch (e) { alert(e.message); }
+    const body = { name: document.getElementById("edit_agency_name").value, email: document.getElementById("edit_agency_email").value, password: document.getElementById("edit_agency_pass").value };
+    try { await fetchAPI(`${BACKEND_URL}/super/agencies/${currentEditingAgencyId}`, { method: "PUT", body }); alert("Agencia actualizada ✅"); location.reload(); } catch (e) { alert(e.message); }
 }
 
 let currentEditingUserId = null;
@@ -251,21 +267,10 @@ function openEditUserModal(id, name, email, role) {
     document.getElementById("editUserModal").style.display = "block";
 }
 async function saveUserChanges() {
-    const body = { 
-        name: document.getElementById("edit_usr_name").value, 
-        email: document.getElementById("edit_usr_email").value, 
-        role: document.getElementById("edit_usr_role").value,
-        password: document.getElementById("edit_usr_pass").value 
-    };
-    try { 
-        await fetchAPI(`${BACKEND_URL}/super/users/${currentEditingUserId}`, { method: "PUT", body }); 
-        alert("Usuario actualizado ✅");
-        document.getElementById("editUserModal").style.display = "none";
-        loadUsersPage();
-    } catch (e) { alert(e.message); }
+    const body = { name: document.getElementById("edit_usr_name").value, email: document.getElementById("edit_usr_email").value, role: document.getElementById("edit_usr_role").value, password: document.getElementById("edit_usr_pass").value };
+    try { await fetchAPI(`${BACKEND_URL}/super/users/${currentEditingUserId}`, { method: "PUT", body }); alert("Usuario actualizado ✅"); location.reload(); } catch (e) { alert(e.message); }
 }
 
-// --- OTRAS ACCIONES ---
 async function createAgency() {
     const body = { name: document.getElementById("new_age_name").value, email: document.getElementById("new_age_email").value, password: document.getElementById("new_age_pass").value };
     try { await fetchAPI(`${BACKEND_URL}/super/agencies`, { method: "POST", body }); loadAgenciesPage(); } catch (e) { alert(e.message); }

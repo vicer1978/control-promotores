@@ -627,6 +627,113 @@ app.delete("/super/users/:id", auth, async (req, res) => {
 });
 
 
+// ==========================================
+// --- GESTIÓN DE USUARIOS DE AGENCIA ---
+// ==========================================
+
+app.get("/users", auth, async (req, res) => {
+    try {
+        // Solo usuarios de la agencia del admin logueado
+        const filter = { agencyId: req.user.agencyId };
+        
+        // Filtro por proyecto si viene en el header
+        const pid = req.headers.projectid;
+        if (pid && mongoose.Types.ObjectId.isValid(pid)) {
+            filter.projectId = pid;
+        }
+
+        const users = await User.find(filter).populate('stores').sort({ name: 1 }).lean();
+        res.json(users);
+    } catch (err) { 
+        console.error("Error al cargar usuarios de agencia:", err);
+        res.status(500).json({ error: "Error al cargar usuarios" }); 
+    }
+});
+
+app.post("/users", auth, async (req, res) => {
+    try {
+        const { name, email, password, role } = req.body;
+        if (!name || !email || !password) return res.status(400).json({ error: "Faltan campos obligatorios" });
+
+        const newUser = new User({
+            ...req.body,
+            email: email.toLowerCase().trim(),
+            agencyId: req.user.agencyId // Se vincula automáticamente a la agencia del Admin
+        });
+        await newUser.save();
+        res.json({ message: "Usuario creado con éxito", user: newUser });
+    } catch (err) { 
+        console.error("Error al crear usuario de agencia:", err);
+        res.status(500).json({ error: "Error al guardar usuario" }); 
+    }
+});
+
+app.put("/users/:id", auth, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const updateData = { ...req.body };
+
+        if (updateData.email) updateData.email = updateData.email.toLowerCase().trim();
+
+        // Validar que el admin solo edite usuarios de SU agencia
+        const user = await User.findOneAndUpdate(
+            { _id: userId, agencyId: req.user.agencyId },
+            { $set: updateData },
+            { new: true }
+        ).populate('stores');
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado o no pertenece a tu agencia" });
+
+        res.json({ message: "Usuario actualizado", user });
+    } catch (err) {
+        res.status(500).json({ error: "Error al actualizar usuario" });
+    }
+});
+
+// --- RUTA DE ASISTENCIA PARA AGENCIA ---
+app.get("/attendance", auth, async (req, res) => {
+    try {
+        const filter = { agencyId: req.user.agencyId };
+        const pid = req.headers.projectid;
+        if (pid && mongoose.Types.ObjectId.isValid(pid)) filter.projectId = pid;
+
+        const attendance = await Checkin.find(filter)
+            .populate("userId", "name")
+            .populate("storeId", "name")
+            .sort({ timestamp: -1 })
+            .limit(200)
+            .lean();
+        res.json(attendance);
+    } catch (err) { 
+        res.status(500).json({ error: "Error al cargar asistencia" }); 
+    }
+});
+
+app.delete("/users/:id", auth, async (req, res) => {
+    try {
+        // Solo puede borrar si es de su agencia
+        const result = await User.deleteOne({ _id: req.params.id, agencyId: req.user.agencyId });
+        if (result.deletedCount === 0) return res.status(404).json({ error: "No encontrado" });
+        res.json({ message: "Usuario eliminado" });
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
+});
+
+
+app.get("/reports", auth, async (req, res) => {
+    try {
+        // Redirige internamente a la lógica de la agencia del usuario logueado
+        const agencyId = req.user.agencyId;
+        if (!agencyId) return res.status(400).json({ error: "El usuario no tiene agencia vinculada" });
+        
+        // Aquí puedes copiar la lógica que ya tienes en /reports/agency/:agencyId 
+        // o simplemente hacer un redirect o llamar a la misma función.
+        res.redirect(`/reports/agency/${agencyId}`);
+    } catch (err) {
+        res.status(500).json({ error: "Error al redirigir reportes" });
+    }
+});
+
+
 
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {

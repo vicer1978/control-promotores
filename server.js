@@ -721,17 +721,16 @@ app.delete("/users/:id", auth, async (req, res) => {
 
 app.get("/reports", auth, async (req, res) => {
     try {
-        // Redirige internamente a la lógica de la agencia del usuario logueado
         const agencyId = req.user.agencyId;
-        if (!agencyId) return res.status(400).json({ error: "El usuario no tiene agencia vinculada" });
+        if (!agencyId) return res.status(400).json({ error: "Sin agencia vinculada" });
         
-        // Aquí puedes copiar la lógica que ya tienes en /reports/agency/:agencyId 
-        // o simplemente hacer un redirect o llamar a la misma función.
-        res.redirect(`/reports/agency/${agencyId}`);
-    } catch (err) {
-        res.status(500).json({ error: "Error al redirigir reportes" });
-    }
+        // En lugar de redirect, llamamos a la lógica directamente
+        // Reutilizamos req.params para que sea compatible con tu otra ruta
+        req.params.agencyId = agencyId; 
+        return app._router.handle_request(req, res, next); // O simplemente copia la lógica de la ruta agency/:agencyId aquí
+    } catch (err) { res.status(500).json({ error: "Error" }); }
 });
+
 
 
 

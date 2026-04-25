@@ -701,7 +701,7 @@ app.get("/attendance", auth, async (req, res) => {
             .populate("userId", "name")
             .populate("storeId", "name")
             .sort({ timestamp: -1 })
-            .limit(200)
+            .limit(1000)
             .lean();
         res.json(attendance);
     } catch (err) { 

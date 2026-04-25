@@ -494,7 +494,7 @@ app.get("/repair-database", async (req, res) => {
 // --- RUTAS EXCLUSIVAS SUPER ADMIN ---
 // ==========================================
 
-// 1. Obtener todas las agencias (Ecosistema)
+// 1. Obtener todas las agencias
 app.get("/super/agencies", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
@@ -503,29 +503,17 @@ app.get("/super/agencies", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al obtener agencias" }); }
 });
 
-// 2. Crear nueva agencia
+// 2. Crear nueva agencia y su Admin
 app.post("/super/agencies", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        
         const { name, email, password } = req.body;
-
-        // Validar si el usuario ya existe antes de crear la agencia
         const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existingUser) {
-            return res.status(400).json({ error: "Este email ya está registrado como usuario" });
-        }
+        if (existingUser) return res.status(400).json({ error: "Email ya registrado" });
         
-        // 1. Crear la Agencia
-        const newAgency = new Agency({ 
-            name, 
-            email: email.toLowerCase().trim(), 
-            password,
-            isActive: true 
-        });
+        const newAgency = new Agency({ name, email: email.toLowerCase().trim(), password, isActive: true });
         await newAgency.save();
 
-        // 2. Crear el Usuario Admin vinculado
         const adminUser = new User({
             name: `${name} Admin`,
             email: email.toLowerCase().trim(),
@@ -534,22 +522,26 @@ app.post("/super/agencies", auth, async (req, res) => {
             agencyId: newAgency._id 
         });
         await adminUser.save();
-
-        res.json({ 
-            message: "Agencia y Usuario Admin creados con éxito", 
-            agency: newAgency,
-            user: adminUser 
-        });
-
-    } catch (err) { 
-        console.error("❌ Error en registro de agencia:", err);
-        res.status(500).json({ error: "Error interno", detalle: err.message }); 
-    }
+        res.json({ message: "Agencia y Admin creados", agency: newAgency });
+    } catch (err) { res.status(500).json({ error: "Error al crear agencia" }); }
 });
 
+// 3. Editar datos básicos de Agencia
+app.put("/super/agencies/:id", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        const { name, email, password } = req.body;
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email.toLowerCase().trim();
+        if (password) updateData.password = password.trim();
 
+        const agency = await Agency.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true });
+        res.json({ message: "Agencia actualizada", agency });
+    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+});
 
-// 3. Cambiar estatus de agencia (Activar/Desactivar)
+// 4. Cambiar estatus Activa/Pausada
 app.put("/super/agencies/:id/status", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
@@ -558,193 +550,80 @@ app.put("/super/agencies/:id/status", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-// 4. Obtener TODOS los usuarios del sistema (Para contadores y gestión global)
-app.get("/super/users", auth, async (req, res) => {
-    try {
-        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        // Traemos usuarios con su agencia vinculada
-        const users = await User.find({}).populate("agencyId", "name").lean();
-        res.json(users);
-    } catch (err) { res.status(500).json({ error: "Error al obtener usuarios globales" }); }
-});
-
-// 5. Asignar usuario a agencia (Marketplace laboral)
-app.put("/super/users/:id/assign", auth, async (req, res) => {
-    try {
-        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        const { agencyId } = req.body;
-        await User.findByIdAndUpdate(req.params.id, { agencyId: agencyId || null });
-        res.json({ message: "Usuario asignado a agencia" });
-    } catch (err) { res.status(500).json({ error: "Error en asignación" }); }
-});
-
-// 6. Eliminar agencia
+// 5. Eliminar agencia
 app.delete("/super/agencies/:id", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
         await Agency.findByIdAndDelete(req.params.id);
         res.json({ message: "Agencia eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar agencia" }); }
+    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
+// ==========================================
+// --- GESTIÓN DE USUARIOS GLOBALES (MARKETPLACE) ---
+// ==========================================
 
-// Editar datos de una agencia (Nombre, Email o Password)
-app.put("/super/agencies/:id", auth, async (req, res) => {
+// 1. Obtener todos los usuarios del sistema
+app.get("/super/users", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        
-        const { name, email, password } = req.body;
-        const updateData = {};
-        
-        if (name) updateData.name = name;
-        if (email) updateData.email = email.toLowerCase().trim();
-        if (password) updateData.password = password.trim();
-
-        const agency = await Agency.findByIdAndUpdate(
-            req.params.id, 
-            { $set: updateData }, 
-            { new: true }
-        );
-
-        if (!agency) return res.status(404).json({ error: "Agencia no encontrada" });
-        
-        res.json({ message: "Agencia actualizada con éxito", agency });
-    } catch (err) {
-        res.status(500).json({ error: "Error al actualizar la agencia" });
-    }
+        const users = await User.find({}).populate("agencyId", "name").lean();
+        res.json(users);
+    } catch (err) { res.status(500).json({ error: "Error al obtener usuarios" }); }
 });
 
-
-
-// --- GESTIÓN DE USUARIOS ---
-
-// Crear usuario desde el panel de Super Admin
+// 2. Crear usuario desde cero
 app.post("/super/users", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        
         const { name, email, password, role, agencyId } = req.body;
-        
         const newUser = new User({
             name,
             email: email.toLowerCase().trim(),
             password,
             role: role || "promotor",
-            agencyId: agencyId || null // Puede crearse sin agencia y asignarse luego
-        });
-
-        await newUser.save();
-        res.json({ message: "Usuario global creado con éxito", user: newUser });
-    } catch (err) {
-        console.error("Error en super/users POST:", err);
-        res.status(500).json({ error: "Error al crear usuario", detalle: err.message });
-    }
-});
-
-
-
-app.get("/users", auth, async (req, res) => {
-    try {
-        const filter = { agencyId: req.user.agencyId };
-        const pid = req.headers.projectid;
-        if (pid && mongoose.Types.ObjectId.isValid(pid)) filter.projectId = pid;
-
-        const users = await User.find(filter).populate('stores').sort({ name: 1 }).lean();
-        res.json(users);
-    } catch (err) { res.status(500).json({ error: "Error al cargar usuarios" }); }
-});
-
-app.post("/users", auth, async (req, res) => {
-    try {
-        const { name, email, password, role } = req.body;
-        if (!name || !email || !password) return res.status(400).json({ error: "Faltan campos" });
-
-        const newUser = new User({
-            ...req.body,
-            email: email.toLowerCase().trim(),
-            agencyId: req.user.agencyId
+            agencyId: agencyId || null
         });
         await newUser.save();
-        res.json({ message: "Usuario creado", user: newUser });
-    } catch (err) { res.status(500).json({ error: "Error al guardar usuario" }); }
+        res.json({ message: "Usuario creado con éxito", user: newUser });
+    } catch (err) { res.status(500).json({ error: "Error al crear" }); }
 });
 
-app.put("/users/:id", auth, async (req, res) => {
-    try {
-        const userId = req.params.id;
-        const updateData = { ...req.body };
-
-        // Limpieza de Email
-        if (updateData.email) updateData.email = updateData.email.toLowerCase().trim();
-
-        // Limpieza de projectId (Igual que en proyectos)
-        if (!updateData.projectId || updateData.projectId === "null" || updateData.projectId === "") {
-            updateData.projectId = null;
-        } else if (!mongoose.Types.ObjectId.isValid(updateData.projectId)) {
-            return res.status(400).json({ error: "ID de proyecto inválido" });
-        }
-
-        const user = await User.findByIdAndUpdate(
-            userId, 
-            { $set: updateData }, 
-            { new: true }
-        ).populate('stores');
-
-        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-        res.json({ message: "Usuario actualizado con éxito", user });
-    } catch (err) {
-        console.error("❌ ERROR AL ACTUALIZAR USUARIO:", err);
-        res.status(500).json({ error: "Error interno al guardar cambios", detalle: err.message });
-    }
-});
-
-
-// AGREGAR ESTA RUTA A TU SERVER.JS
+// 3. Editar datos personales (Modal Editar)
 app.put("/super/users/:id", auth, async (req, res) => {
     try {
-        // 1. Validar que sea Super Admin
-        if (req.user.role !== "super-admin") {
-            return res.status(403).json({ error: "No autorizado" });
-        }
-        
-        const userIdToEdit = req.params.id;
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
         const { name, email, role, password } = req.body;
-        
         const updateData = {};
         if (name) updateData.name = name;
         if (email) updateData.email = email.toLowerCase().trim();
         if (role) updateData.role = role;
-        
-        // Si el password no viene vacío, lo actualizamos directamente
-        // (Nota: Si usas bcrypt para encriptar, aquí deberías hashearla antes)
-        if (password && password.trim() !== "") {
-            updateData.password = password.trim();
-        }
+        if (password && password.trim() !== "") updateData.password = password.trim();
 
-        const user = await User.findByIdAndUpdate(
-            userIdToEdit, 
-            { $set: updateData }, 
-            { new: true }
-        );
-
-        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-        res.json({ message: "Usuario actualizado con éxito por Super Admin", user });
-    } catch (err) {
-        console.error("❌ ERROR EN /SUPER/USERS PUT:", err);
-        res.status(500).json({ error: "Error interno al guardar cambios" });
-    }
+        const user = await User.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true });
+        res.json({ message: "Usuario actualizado", user });
+    } catch (err) { res.status(500).json({ error: "Error al editar" }); }
 });
 
-
-
-
-app.delete("/users/:id", auth, async (req, res) => {
+// 4. Asignar/Mover a otra Agencia (Selector Tabla)
+app.put("/super/users/:id/assign", auth, async (req, res) => {
     try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        let { agencyId } = req.body;
+        if (!agencyId || agencyId === "" || agencyId === "null") agencyId = null;
+
+        const user = await User.findByIdAndUpdate(req.params.id, { $set: { agencyId } }, { new: true });
+        res.json({ message: "Agencia asignada", user });
+    } catch (err) { res.status(500).json({ error: "Error en asignación" }); }
+});
+
+// 5. Eliminar usuario global
+app.delete("/super/users/:id", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
         await User.findByIdAndDelete(req.params.id);
-        res.json({ message: "Usuario eliminado" });
-    } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
+        res.json({ message: "Usuario eliminado del sistema" });
+    } catch (err) { res.status(500).json({ error: "Error al borrar" }); }
 });
 
 

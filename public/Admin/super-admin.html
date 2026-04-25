@@ -193,11 +193,25 @@ async function loadAgenciesPage() {
                 <td>
                     <button class="btn-action" style="background:#3498db !important;" onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">Edit</button>
                     <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">${a.isActive ? 'Pausar' : 'Activar'}</button>
+                    <button class="btn-action" style="background:#e11d48 !important;" onclick="deleteAgency('${a._id}')">Borrar</button>
                 </td>
             </tr>`;
     });
     document.getElementById("content").innerHTML = html + "</tbody></table></div></div>";
 }
+
+// Y NO OLVIDES AGREGAR ESTA FUNCIÓN AL FINAL DE TU <SCRIPT>
+async function deleteAgency(id) {
+    if (!confirm("¿Estás seguro de eliminar esta agencia? Esto también podría afectar a los usuarios vinculados.")) return;
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, { method: "DELETE" });
+        alert("Agencia eliminada correctamente ✅");
+        loadAgenciesPage(); // Recarga la lista
+    } catch (e) {
+        alert("Error al eliminar: " + e.message);
+    }
+}
+
 
 async function loadUsersPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Usuarios...</h3>";
@@ -283,8 +297,19 @@ async function toggleAgencyStatus(id, newStatus) {
     try { await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, { method: "PUT", body: { isActive: newStatus } }); loadAgenciesPage(); } catch(e) { alert("Error"); }
 }
 async function assignUserToAgency(usrId, ageId) {
-    try { await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: { agencyId: ageId } }); } catch(e) { alert("Error al asignar"); loadUsersPage(); }
+    try { 
+        await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { 
+            method: "PUT", 
+            body: { agencyId: ageId } 
+        }); 
+        alert("Usuario asignado correctamente ✅");
+        loadUsersPage(); // <--- Agrega esto para ver el cambio reflejado en la tabla
+    } catch(e) { 
+        alert("Error al asignar: " + e.message); 
+        loadUsersPage(); 
+    }
 }
+
 async function deleteGlobalUser(id) {
     if(!confirm("¿Eliminar usuario?")) return;
     try { await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" }); loadUsersPage(); } catch(e) { alert("Error"); }

@@ -566,6 +566,33 @@ app.delete("/super/agencies/:id", auth, async (req, res) => {
 });
 
 
+// Editar datos de una agencia (Nombre, Email o Password)
+app.put("/super/agencies/:id", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const { name, email, password } = req.body;
+        const updateData = {};
+        
+        if (name) updateData.name = name;
+        if (email) updateData.email = email.toLowerCase().trim();
+        if (password) updateData.password = password.trim();
+
+        const agency = await Agency.findByIdAndUpdate(
+            req.params.id, 
+            { $set: updateData }, 
+            { new: true }
+        );
+
+        if (!agency) return res.status(404).json({ error: "Agencia no encontrada" });
+        
+        res.json({ message: "Agencia actualizada con éxito", agency });
+    } catch (err) {
+        res.status(500).json({ error: "Error al actualizar la agencia" });
+    }
+});
+
+
 
 // --- GESTIÓN DE USUARIOS ---
 
@@ -649,6 +676,46 @@ app.put("/users/:id", auth, async (req, res) => {
         res.status(500).json({ error: "Error interno al guardar cambios", detalle: err.message });
     }
 });
+
+
+// AGREGAR ESTA RUTA A TU SERVER.JS
+app.put("/super/users/:id", auth, async (req, res) => {
+    try {
+        // 1. Validar que sea Super Admin
+        if (req.user.role !== "super-admin") {
+            return res.status(403).json({ error: "No autorizado" });
+        }
+        
+        const userIdToEdit = req.params.id;
+        const { name, email, role, password } = req.body;
+        
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email.toLowerCase().trim();
+        if (role) updateData.role = role;
+        
+        // Si el password no viene vacío, lo actualizamos directamente
+        // (Nota: Si usas bcrypt para encriptar, aquí deberías hashearla antes)
+        if (password && password.trim() !== "") {
+            updateData.password = password.trim();
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userIdToEdit, 
+            { $set: updateData }, 
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        res.json({ message: "Usuario actualizado con éxito por Super Admin", user });
+    } catch (err) {
+        console.error("❌ ERROR EN /SUPER/USERS PUT:", err);
+        res.status(500).json({ error: "Error interno al guardar cambios" });
+    }
+});
+
+
 
 
 app.delete("/users/:id", auth, async (req, res) => {

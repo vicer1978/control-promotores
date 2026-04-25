@@ -17,8 +17,6 @@
         
         /* Main Content */
         .main { flex:1; padding:30px; overflow-y: auto; display: flex; flex-direction: column; }
-        
-        /* Encabezado con Stats */
         .header-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px; }
         .welcome-group h1 { margin: 0; color: var(--primary); font-size: 1.8rem; }
         .stats-group { display: flex; gap: 20px; }
@@ -26,50 +24,24 @@
         .stat-card big { display: block; font-size: 2rem; font-weight: 800; color: var(--primary); }
         .stat-card small { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
 
-        /* Card Estilo */
+        /* Estilos Generales */
         .card { background:white; padding:25px; border-radius:16px; margin-bottom:20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
-        .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px; font-size: 1.2rem; }
-        
-        /* Tablas */
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
-        th { text-align: left; padding: 15px; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #f1f5f9; }
-        td { padding: 15px; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
-        tr:hover td { background-color: #f8fafc; }
-
-        /* Formularios */
+        .card h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { text-align: left; padding: 15px; color: #64748b; border-bottom: 2px solid #f1f5f9; }
+        td { padding: 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        input, select { padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; width: 100%; box-sizing: border-box; background: #f8fafc; transition: 0.3s; font-size: 0.95rem; }
-        input:focus, select:focus { outline: none; border-color: var(--gold); background: white; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1); }
-        label { display: block; font-weight: 700; color: #4a5568; margin-bottom: 6px; font-size: 0.85rem; text-transform: uppercase; }
+        input, select { padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0; width: 100%; background: #f8fafc; }
+        label { display: block; font-weight: 700; color: #4a5568; margin-bottom: 6px; font-size: 0.8rem; }
 
-        /* Botones */
-        .btn-action { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; font-size: 0.9rem; }
-        .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-action { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-weight: 700; transition: 0.3s; }
         .btn-danger { background: var(--danger) !important; }
-        .btn-success { background: var(--success) !important; }
-        
-        /* Status Badges */
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: white; }
-        .badge-active { background: var(--success); }
-        .badge-inactive { background: var(--danger); }
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; color: white; }
         .badge-role { background: #64748b; }
         .badge-role.super { background: var(--primary); }
-
-/* Estilos específicos para la tabla de estadísticas de Agencias */
+        .badge-active { background: var(--success); }
+        .badge-inactive { background: var(--danger); }
         .text-center { text-align: center !important; }
-        
-        table th { text-align: center; } 
-        table th:first-child { text-align: left; } 
-        
-        /* Mejora visual para los contadores */
-        .badge-role { 
-            min-width: 30px; 
-            display: inline-block; 
-            text-align: center; 
-        }
-        
-        /* Asegura que el nombre de la agencia no se rompa en varias líneas */
-        td:first-child { white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -79,7 +51,7 @@
     <button onclick="changeTab(this, loadAgenciesPage)" class="active">🏢 Gestión de Agencias</button>
     <button onclick="changeTab(this, loadUsersPage)">👥 Usuarios Globales</button>
     <div style="flex:1"></div>
-    <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión Super</button>
+    <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
 </div>
 
 <div class="main">
@@ -96,391 +68,223 @@
     <div id="content"></div>
 </div>
 
-
-<div id="editAgencyModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+<div id="editAgencyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
     <div class="card" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:400px; margin:0;">
         <h3>✏️ Editar Agencia</h3>
-        <div style="margin-bottom:15px;">
-            <label>Nombre de la Agencia</label>
-            <input id="edit_agency_name">
-        </div>
-        <div style="margin-bottom:15px;">
-            <label>Correo de Contacto</label>
-            <input id="edit_agency_email" type="email">
-        </div>
-        <div style="margin-bottom:20px;">
-            <label>Nueva Contraseña (opcional)</label>
-            <input id="edit_agency_pass" type="password" placeholder="Dejar vacío para no cambiar">
-        </div>
-        <div style="display:flex; gap:10px;">
-            <button class="btn-action" style="flex:1" onclick="saveAgencyChanges()">GUARDAR CAMBIOS</button>
+        <label>Nombre</label><input id="edit_agency_name">
+        <label>Correo</label><input id="edit_agency_email" type="email">
+        <label>Nueva Contraseña (opcional)</label><input id="edit_agency_pass" type="password">
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn-action" style="flex:1" onclick="saveAgencyChanges()">GUARDAR</button>
             <button class="btn-action btn-danger" style="flex:1; background:#64748b !important;" onclick="document.getElementById('editAgencyModal').style.display='none'">CANCELAR</button>
         </div>
     </div>
 </div>
 
+<div id="editUserModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+    <div class="card" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:450px; margin:0;">
+        <h3>✏️ Editar Usuario Global</h3>
+        <label>Nombre Completo</label><input id="edit_usr_name">
+        <label>Email (Login)</label><input id="edit_usr_email" type="email">
+        <label>Rol</label>
+        <select id="edit_usr_role">
+            <option value="promotor">Promotor</option>
+            <option value="demostradora">Demostradora</option>
+            <option value="admin">Admin Agencia</option>
+            <option value="super-admin">Super Admin</option>
+        </select>
+        <label>Nueva Contraseña (opcional)</label><input id="edit_usr_pass" type="password">
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn-action" style="flex:1" onclick="saveUserChanges()">GUARDAR</button>
+            <button class="btn-action btn-danger" style="flex:1; background:#64748b !important;" onclick="document.getElementById('editUserModal').style.display='none'">CANCELAR</button>
+        </div>
+    </div>
+</div>
 
 <script>
-// --- CONFIGURACIÓN ---
 const BACKEND_URL = "https://storepulse.onrender.com";
 const userId = localStorage.getItem("userId");
-const userRoleRaw = localStorage.getItem("userRole");
-
-// --- VALIDACIÓN DE SEGURIDAD MEJORADA ---
-// Normalizamos el rol a minúsculas y eliminamos espacios para evitar errores de comparación
-const userRole = userRoleRaw ? userRoleRaw.toLowerCase().trim() : "";
-
-console.log("Validando sesión...", { userId, role: userRole });
+const userRole = (localStorage.getItem("userRole") || "").toLowerCase().trim();
 
 if (!userId || userRole !== 'super-admin') {
-    console.error("Acceso denegado. Rol detectado:", userRole);
-    alert("Acceso no autorizado. Por favor inicia sesión como Super Admin.");
-    localStorage.clear(); // Limpiamos sesión antigua para evitar bucles de error
+    localStorage.clear();
     window.location.href = "../login.html";
 }
 
-// Listas globales
 let agenciesList = [];
 let usersList = [];
 
-// --- HELPER FETCH (Con Auth Header) ---
 async function fetchAPI(url, options = {}) {
-    const token = localStorage.getItem("token"); // O como guardes tu token
-    const userId = localStorage.getItem("userId");
-
-    const defaultHeaders = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        "userId": userId
-    };
-
-    // CLAVE: Solo hacemos stringify si el body es un OBJETO real
-    if (options.body && typeof options.body === 'object') {
-        options.body = JSON.stringify(options.body);
-    }
-
-    const response = await fetch(url, {
-        ...options,
-        headers: {
-            ...defaultHeaders,
-            ...options.headers
-        }
-    });
-
+    const token = localStorage.getItem("token");
+    const defaultHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "userId": userId };
+    if (options.body && typeof options.body === 'object') options.body = JSON.stringify(options.body);
+    const response = await fetch(url, { ...options, headers: { ...defaultHeaders, ...options.headers } });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || "Error en la petición");
+        throw new Error(errorData.error || "Error en la petición");
     }
-
     return response.json();
 }
 
-
-
-// --- MANEJO DE TABS ---
 function changeTab(btn, callback) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     callback();
 }
 
-// --- ACTUALIZAR ESTADÍSTICAS ---
 async function updateStats() {
     try {
         agenciesList = await fetchAPI(`${BACKEND_URL}/super/agencies`);
         usersList = await fetchAPI(`${BACKEND_URL}/super/users`);
         document.getElementById("stat-agencies").innerText = agenciesList.length;
         document.getElementById("stat-users").innerText = usersList.length;
-    } catch (e) {
-        console.error("Error al cargar estadísticas:", e);
-    }
+    } catch (e) { console.error(e); }
 }
 
-// ==========================================
-// --- GESTIÓN DE AGENCIAS ---
-// ==========================================
+// --- GESTIÓN AGENCIAS ---
 async function loadAgenciesPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando ecosistema de agencias...</h3>";
+    document.getElementById("content").innerHTML = "<h3>Cargando...</h3>";
     await updateStats();
-
     let html = `
         <div class="card">
-            <h3>🏢 Registrar Nueva Agencia</h3>
+            <h3>🏢 Nueva Agencia</h3>
             <div class="form-grid">
-                <div>
-                    <label>Nombre de la Agencia</label>
-                    <input id="new_age_name" placeholder="Ej. Corporativo RCA">
-                </div>
-                <div>
-                    <label>Correo de Contacto</label>
-                    <input id="new_age_email" type="email" placeholder="age@empresa.com">
-                </div>
-                <div>
-                    <label>Contraseña de Acceso</label>
-                    <input id="new_age_pass" type="password" placeholder="********">
-                </div>
+                <div><label>Nombre</label><input id="new_age_name"></div>
+                <div><label>Email</label><input id="new_age_email" type="email"></div>
+                <div><label>Contraseña</label><input id="new_age_pass" type="password"></div>
             </div>
-            <button class="btn-action" onclick="createAgency()">REGISTRAR AGENCIA</button>
+            <button class="btn-action" onclick="createAgency()">REGISTRAR</button>
         </div>
-
         <div class="card">
-            <h3>Estatus del Marketplace (Agencias)</h3>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Agencia</th>
-                            <th class="text-center">Adm</th>
-                            <th class="text-center">Pro</th>
-                            <th class="text-center">Dem</th>
-                            <th class="text-center">Cli</th>
-                            <th class="text-center">Total</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    `;
-
+            <table>
+                <thead><tr><th>Agencia</th><th class="text-center">Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody>`;
     agenciesList.forEach(a => {
-        // ... (Tu lógica de filtrado de usuarios que ya tienes está perfecta)
-        const agencyUsers = usersList.filter(u => {
-            const uId = (u.agencyId?._id || u.agencyId);
-            return uId === a._id;
-        });
+        const total = usersList.filter(u => (u.agencyId?._id || u.agencyId) === a._id).length;
+        html += `
+            <tr>
+                <td><b>${a.name}</b><br><small>${a.email || 'S/C'}</small></td>
+                <td align="center"><b>${total}</b></td>
+                <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'INACTIVA'}</span></td>
+                <td>
+                    <button class="btn-action" style="padding:6px 10px; font-size:0.7rem; background:#3498db !important;" onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">Editar</button>
+                    <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" style="padding:6px 10px; font-size:0.7rem;" onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">${a.isActive ? 'Pausar' : 'Activar'}</button>
+                </td>
+            </tr>`;
+    });
+    document.getElementById("content").innerHTML = html + "</tbody></table></div>";
+}
 
-        const count = {
-            admin: agencyUsers.filter(u => u.role.toLowerCase() === 'admin').length,
-            promotor: agencyUsers.filter(u => u.role.toLowerCase() === 'promotor').length,
-            demostradora: agencyUsers.filter(u => u.role.toLowerCase() === 'demostradora').length,
-            cliente: agencyUsers.filter(u => u.role.toLowerCase() === 'cliente').length
-        };
-        const total = agencyUsers.length;
+// --- GESTIÓN USUARIOS ---
+async function loadUsersPage() {
+    document.getElementById("content").innerHTML = "<h3>Cargando...</h3>";
+    await updateStats();
+    let html = `
+        <div class="card">
+            <h3>👥 Nuevo Usuario Global</h3>
+            <div class="form-grid">
+                <div><label>Nombre</label><input id="new_usr_name"></div>
+                <div><label>Email</label><input id="new_usr_email" type="email"></div>
+                <div><label>Contraseña</label><input id="new_usr_pass" type="password"></div>
+                <div><label>Rol</label><select id="new_usr_role"><option value="promotor">Promotor</option><option value="demostradora">Demostradora</option><option value="admin">Admin</option><option value="super-admin">Super Admin</option></select></div>
+            </div>
+            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR</button>
+        </div>
+        <div class="card">
+            <table>
+                <thead><tr><th>Nombre / Email</th><th>Rol</th><th>Agencia</th><th>Acciones</th></tr></thead>
+                <tbody>`;
+    usersList.forEach(u => {
+        const isSuper = u.role.toLowerCase() === 'super-admin';
+        let agencySelect = `<select onchange="assignUserToAgency('${u._id}', this.value)" style="padding:5px; font-size:0.8rem;">
+            <option value="">-- Sin Agencia --</option>`;
+        agenciesList.forEach(a => {
+            const currentAgeId = (u.agencyId?._id || u.agencyId);
+            agencySelect += `<option value="${a._id}" ${currentAgeId === a._id ? 'selected' : ''}>${a.name}</option>`;
+        });
+        agencySelect += `</select>`;
 
         html += `
             <tr>
+                <td><b>${u.name}</b><br><small>${u.email}</small></td>
+                <td><span class="badge badge-role ${isSuper ? 'super' : ''}">${u.role.toUpperCase()}</span></td>
+                <td>${isSuper ? 'GLOBAL' : agencySelect}</td>
                 <td>
-                    <div style="display:flex; flex-direction:column;">
-                        <b style="color:var(--primary); font-size:1rem;">${a.name}</b>
-                        <small style="color:gray;">${a.email || 'Sin correo'}</small>
-                    </div>
+                    <button class="btn-action" style="padding:6px 10px; font-size:0.7rem; background:#3498db !important;" onclick="openEditUserModal('${u._id}', '${u.name}', '${u.email}', '${u.role}')">Editar</button>
+                    ${u._id === userId ? '' : `<button class="btn-action btn-danger" style="padding:6px 10px; font-size:0.7rem;" onclick="deleteGlobalUser('${u._id}')">Borrar</button>`}
                 </td>
-                <td align="center"><span class="badge badge-role" style="background:#64748b">${count.admin}</span></td>
-                <td align="center"><span class="badge badge-role" style="background:#0284c7">${count.promotor}</span></td>
-                <td align="center"><span class="badge badge-role" style="background:#f59e0b">${count.demostradora}</span></td>
-                <td align="center"><span class="badge badge-role" style="background:#10b981">${count.cliente}</span></td>
-                <td align="center"><b>${total}</b></td>
-                <td>
-                    <span class="badge badge-${a.isActive ? 'active' : 'inactive'}">
-                        ${a.isActive ? 'ACTIVA' : 'INACTIVA'}
-                    </span>
-                </td>
-                                <td>
-                    <div style="display:flex; gap:5px;">
-                        <button class="btn-action ${a.isActive ? 'btn-danger' : 'btn-success'}" 
-                                style="padding: 6px 12px; font-size:0.75rem;"
-                                onclick="toggleAgencyStatus('${a._id}', ${!a.isActive})">
-                            ${a.isActive ? 'Pausar' : 'Activar'}
-                        </button>
-
-                        <button class="btn-action" 
-                                style="padding: 6px 12px; font-size:0.75rem; background:#3498db !important;" 
-                                onclick="openEditAgencyModal('${a._id}', '${a.name}', '${a.email}')">
-                            Editar
-                        </button>
-
-                        <button class="btn-action btn-danger" 
-                                style="padding: 6px 12px; font-size:0.75rem; background:#475569 !important;" 
-                                onclick="deleteAgency('${a._id}')">Borrar</button>
-                    </div>
-                </td>
-
             </tr>`;
     });
-
-    html += `</tbody></table></div></div>`;
-    document.getElementById("content").innerHTML = html;
+    document.getElementById("content").innerHTML = html + "</tbody></table></div>";
 }
 
-
+// --- LÓGICA DE EDICIÓN ---
 let currentEditingAgencyId = null;
-
 function openEditAgencyModal(id, name, email) {
     currentEditingAgencyId = id;
     document.getElementById("edit_agency_name").value = name;
     document.getElementById("edit_agency_email").value = email;
+    document.getElementById("edit_agency_pass").value = "";
     document.getElementById("editAgencyModal").style.display = "block";
 }
-
 async function saveAgencyChanges() {
-    const name = document.getElementById("edit_agency_name").value;
-    const email = document.getElementById("edit_agency_email").value;
-    const password = document.getElementById("edit_agency_pass").value;
-
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies/${currentEditingAgencyId}`, {
-            method: "PUT",
-            body: { name, email, password }
-        });
-        
-        alert("Agencia actualizada");
-        location.reload();
-    } catch (e) {
-        alert("Error al actualizar: " + e.message);
-    }
-}
-
-
-
-async function createAgency() {
-    const name = document.getElementById("new_age_name").value.trim();
-    const email = document.getElementById("new_age_email").value.trim();
-    const password = document.getElementById("new_age_pass").value.trim();
-
-    if (!name || !email || !password) {
-        return alert("Todos los campos (Nombre, Correo y Contraseña) son obligatorios");
-    }
-
-    // Enviamos el objeto limpio
-    const data = { name, email, password };
-
-    try {
-        // fetchAPI se encarga del JSON.stringify internamente
-        await fetchAPI(`${BACKEND_URL}/super/agencies`, { 
-            method: "POST", 
-            body: data 
-        });
-
-        alert("Agencia registrada con éxito ✅");
-        
-        // Limpiamos los campos del formulario
-        document.getElementById("new_age_name").value = "";
-        document.getElementById("new_age_email").value = "";
-        document.getElementById("new_age_pass").value = "";
-
-        // Refrescamos la lista para ver la nueva agencia
-        await loadAgenciesPage();
-        
-    } catch(e) { 
-        console.error("Error en createAgency:", e);
-        alert("Error al registrar: " + e.message); 
-    }
-}
-
-
-
-async function toggleAgencyStatus(id, newStatus) {
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, { method: "PUT", body: JSON.stringify({ isActive: newStatus }) });
-        loadAgenciesPage();
-    } catch(e) { alert("Error al cambiar estado"); }
-}
-
-async function deleteAgency(id) {
-    if(!confirm("¿Eliminar agencia? Los usuarios vinculados perderán su asignación.")) return;
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, { method: "DELETE" });
-        loadAgenciesPage();
-    } catch(e) { alert("Error al borrar"); }
-}
-
-
-
-// ==========================================
-// --- USUARIOS GLOBALES ---
-// ==========================================
-async function loadUsersPage() {
-    document.getElementById("content").innerHTML = "<h3>Cargando usuarios...</h3>";
-    await updateStats();
-
-    let html = `
-        <div class="card">
-            <h3>👥 Registrar Usuario Global</h3>
-            <div class="form-grid">
-                <div><label>Nombre Completo</label><input id="new_usr_name"></div>
-                <div><label>Email</label><input id="new_usr_email" type="email"></div>
-                <div><label>Contraseña</label><input id="new_usr_pass" type="password"></div>
-                <div>
-                    <label>Rol</label>
-                    <select id="new_usr_role">
-                        <option value="promotor">Promotor</option>
-                        <option value="demostradora">Demostradora</option>
-                        <option value="admin">Admin Agencia</option>
-                        <option value="super-admin">SUPER ADMIN GLOBAL</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn-action" onclick="createGlobalUser()">REGISTRAR USUARIO</button>
-        </div>
-        <div class="card">
-            <h3>Usuarios del Sistema</h3>
-            <table>
-                <thead><tr><th>Nombre / Email</th><th>Rol</th><th>Agencia</th><th>Acciones</th></tr></thead>
-                <tbody>
-    `;
-
-    usersList.forEach(u => {
-        let agencySelect = `<select onchange="assignUserToAgency('${u._id}', this.value)" style="padding:5px; font-size:0.8rem; border-color: ${u.agencyId ? '#22c55e' : '#ddd'}">
-                                <option value="">-- Sin Agencia --</option>`;
-        
-        agenciesList.forEach(a => {
-            const currentAgencyId = (u.agencyId?._id || u.agencyId);
-            agencySelect += `<option value="${a._id}" ${currentAgencyId === a._id ? 'selected' : ''}>${a.name}</option>`;
-        });
-        agencySelect += `</select>`;
-
-        const isSuper = u.role.toLowerCase() === 'super-admin';
-
-        html += `
-            <tr>
-                <td><b>${u.name}</b><br><small style="color:gray">${u.email}</small></td>
-                <td><span class="badge badge-role ${isSuper ? 'super' : ''}">${u.role.toUpperCase()}</span></td>
-                <td>${isSuper ? 'N/A (Global)' : agencySelect}</td>
-                <td>
-                    ${u._id === userId ? '<small style="color:gray">Tú</small>' : 
-                    `<button class="btn-action btn-danger" style="padding: 5px 10px; font-size:0.8rem;" onclick="deleteGlobalUser('${u._id}')">Borrar</button>`}
-                </td>
-            </tr>`;
-    });
-
-    html += `</tbody></table></div>`;
-    document.getElementById("content").innerHTML = html;
-}
-
-async function createGlobalUser() {
-    const data = {
-        name: document.getElementById("new_usr_name").value.trim(),
-        email: document.getElementById("new_usr_email").value.trim(),
-        password: document.getElementById("new_usr_pass").value.trim(),
-        role: document.getElementById("new_usr_role").value
+    const body = { 
+        name: document.getElementById("edit_agency_name").value, 
+        email: document.getElementById("edit_agency_email").value,
+        password: document.getElementById("edit_agency_pass").value 
     };
-    if(!data.name || !data.email || !data.password) return alert("Faltan datos");
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/users`, { method: "POST", body: JSON.stringify(data) });
-        loadUsersPage();
-    } catch(e) { alert("Error: " + e.message); }
+    try { 
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${currentEditingAgencyId}`, { method: "PUT", body }); 
+        alert("Agencia actualizada ✅");
+        document.getElementById("editAgencyModal").style.display = "none";
+        loadAgenciesPage();
+    } catch (e) { alert(e.message); }
 }
 
+let currentEditingUserId = null;
+function openEditUserModal(id, name, email, role) {
+    currentEditingUserId = id;
+    document.getElementById("edit_usr_name").value = name;
+    document.getElementById("edit_usr_email").value = email;
+    document.getElementById("edit_usr_role").value = role;
+    document.getElementById("edit_usr_pass").value = "";
+    document.getElementById("editUserModal").style.display = "block";
+}
+async function saveUserChanges() {
+    const body = { 
+        name: document.getElementById("edit_usr_name").value, 
+        email: document.getElementById("edit_usr_email").value, 
+        role: document.getElementById("edit_usr_role").value,
+        password: document.getElementById("edit_usr_pass").value 
+    };
+    try { 
+        await fetchAPI(`${BACKEND_URL}/super/users/${currentEditingUserId}`, { method: "PUT", body }); 
+        alert("Usuario actualizado ✅");
+        document.getElementById("editUserModal").style.display = "none";
+        loadUsersPage();
+    } catch (e) { alert(e.message); }
+}
+
+// --- OTRAS ACCIONES ---
+async function createAgency() {
+    const body = { name: document.getElementById("new_age_name").value, email: document.getElementById("new_age_email").value, password: document.getElementById("new_age_pass").value };
+    try { await fetchAPI(`${BACKEND_URL}/super/agencies`, { method: "POST", body }); loadAgenciesPage(); } catch (e) { alert(e.message); }
+}
+async function createGlobalUser() {
+    const body = { name: document.getElementById("new_usr_name").value, email: document.getElementById("new_usr_email").value, password: document.getElementById("new_usr_pass").value, role: document.getElementById("new_usr_role").value };
+    try { await fetchAPI(`${BACKEND_URL}/super/users`, { method: "POST", body }); loadUsersPage(); } catch (e) { alert(e.message); }
+}
+async function toggleAgencyStatus(id, newStatus) {
+    try { await fetchAPI(`${BACKEND_URL}/super/agencies/${id}/status`, { method: "PUT", body: { isActive: newStatus } }); loadAgenciesPage(); } catch(e) { alert("Error"); }
+}
 async function assignUserToAgency(usrId, ageId) {
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: JSON.stringify({ agencyId: ageId }) });
-        alert("Agencia asignada ✅");
-    } catch(e) { alert("Error al asignar"); loadUsersPage(); }
+    try { await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: { agencyId: ageId } }); } catch(e) { alert("Error al asignar"); loadUsersPage(); }
 }
-
 async function deleteGlobalUser(id) {
-    if(!confirm("¿Eliminar usuario definitivamente?")) return;
-    try {
-        await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" });
-        loadUsersPage();
-    } catch(e) { alert("Error al eliminar"); }
+    if(!confirm("¿Eliminar usuario?")) return;
+    try { await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" }); loadUsersPage(); } catch(e) { alert("Error"); }
 }
-
-function logout() {
-    localStorage.clear();
-    window.location.href = "../login.html";
-}
-
+function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = loadAgenciesPage;
 </script>
 </body>

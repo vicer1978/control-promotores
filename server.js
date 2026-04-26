@@ -362,44 +362,66 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             }
         }
 
-        // --- 3. NORMALIZACIÓN DE CAMPOS ---
-        const obs = req.body.observaciones || req.body.comentarios || "";
-        let tipoReporte = req.body.reportType || req.body.reporte || "otro";
-        const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA ---
+const obs = req.body.observaciones || req.body.comentarios || "";
+let tipoReporte = req.body.reportType || req.body.reporte || "otro";
+const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-                // --- 4. ENSAMBLAJE DEL REPORTE (VERSION CORREGIDA) ---
-                const reportData = {
-            userId: req.user._id,
-            agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
-            projectId: req.body.projectId || req.user.projectId,
-            storeId: req.body.storeId,
-            reportType: tipoReporte,
-            photo: fotoUrl,
-            foto_url: fotoUrl,
-            
-            // --- INVENTARIO Y VENTAS ---
-            articulo: req.body.articulo || "N/A",
-            inv_inicial: Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0,
-            resurtido: Number(req.body.resurtido) || 0,
-            ventas: Number(req.body.ventas) || 0, 
-            inv_final: Number(req.body.inv_final) || 
-                       ((Number(req.body.inv_inicial) || 0) + (Number(req.body.resurtido) || 0) - (Number(req.body.ventas) || 0)),
+// Valores base para evitar cruce de datos
+let vtas = 0;
+let inv_i = 0;
+let resurtido = Number(req.body.resurtido) || 0;
+let inv_f = 0;
 
-            // --- CANTIDAD (Soporte para Degustación y Ventas) ---
-            cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : (Number(req.body.cantidad) || 0),
+const tipoBajo = tipoReporte.toLowerCase();
 
-            // --- SECCIÓN DE PRECIOS (CORREGIDA) ---
-            // Esto asegura que si la App manda 'precio_normal', no se guarde un 0
-            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
-            precio_oferta: Number(req.body.precio_oferta) || 0,
-            
-            observaciones: obs,
-            lat: Number(req.body.lat) || 0,
-            lng: Number(req.body.lng) || 0,
-            datosExtra: datosExtra, 
-            timestamp: new Date()
-        };
+if (tipoBajo.includes('venta')) {
+    vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
+    // En ventas puras, solemos ignorar stock inicial a menos que lo necesites
+} else if (tipoBajo.includes('inventario') || tipoBajo.includes('competencia')) {
+    inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
+    inv_f = Number(req.body.inv_final) || (inv_i + resurtido); 
+} else {
+    // Para otros tipos, intentamos capturar lo que venga
+    vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
+    inv_i = Number(req.body.inv_inicial) || 0;
+}
+
+// --- 4. ENSAMBLAJE FINAL DEL REPORTE ---
+const reportData = {
+    userId: req.user._id,
+    agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
+    projectId: req.body.projectId || req.user.projectId,
+    storeId: req.body.storeId,
+    reportType: tipoReporte,
+    photo: fotoUrl,
+    foto_url: fotoUrl,
+    
+    // Campo crítico para el Promotor
+    pre_agotados: req.body.pre_agotados === 'true' || req.body.pre_agotados === true || req.body.pre_agotados === "1",
+
+    // Datos numéricos limpios
+    articulo: req.body.articulo || "N/A",
+    inv_inicial: inv_i,
+    resurtido: resurtido,
+    ventas: vtas, 
+    inv_final: inv_f,
+
+    // Soporte para Degustación
+    cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : vtas,
+
+    // Precios
+    precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
+    precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
+    precio_oferta: Number(req.body.precio_oferta) || 0,
+    
+    observaciones: obs,
+    lat: Number(req.body.lat) || 0,
+    lng: Number(req.body.lng) || 0,
+    datosExtra: datosExtra, // Asegúrate de que datosExtra esté definido arriba
+    timestamp: new Date()
+};
+
 
 
 

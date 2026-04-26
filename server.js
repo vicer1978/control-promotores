@@ -699,14 +699,21 @@ app.delete("/users/:id", auth, async (req, res) => {
 app.get("/reports", auth, async (req, res) => {
     try {
         const agencyId = req.user.agencyId;
-        if (!agencyId) return res.status(400).json({ error: "Sin agencia vinculada" });
         
-        // En lugar de redirect, llamamos a la lógica directamente
-        // Reutilizamos req.params para que sea compatible con tu otra ruta
-        req.params.agencyId = agencyId; 
-        return app._router.handle_request(req, res, next); // O simplemente copia la lógica de la ruta agency/:agencyId aquí
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+        if (!agencyId) {
+            return res.status(400).json({ error: "El usuario no tiene una agencia vinculada" });
+        }
+        
+        // Redirigimos a la ruta que ya tienes programada y que funciona
+        // Esto es mucho más estable que intentar manejar el router manualmente
+        res.redirect(`/reports/agency/${agencyId}`);
+        
+    } catch (err) { 
+        console.error("Error en redirección de reportes:", err);
+        res.status(500).json({ error: "Error interno al procesar reportes" }); 
+    }
 });
+
 
 
 
@@ -741,9 +748,16 @@ app.delete("/stores/:id", auth, async (req, res) => {
 // --- NAVEGACIÓN ---
 app.get("/admin", (req, res) => res.sendFile(path.resolve(__dirname, "public", "Admin", "admin.html")));
 app.get("/dashboard", (req, res) => res.sendFile(path.resolve(__dirname, "public", "dashboard.html")));
+app.get("/login", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
+
+// Solo carga login si entran a la raíz
 app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
 
-app.get(/.*/, (req, res) => res.sendFile(path.resolve(__dirname, "public", "login.html")));
+// Opcional: Manejo de 404 para archivos no encontrados
+app.use((req, res) => {
+    res.status(404).send("Página no encontrada en StorePulse");
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));

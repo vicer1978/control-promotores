@@ -322,11 +322,6 @@ function filterReports() {
 }
 
 
-    renderTableReport(filtered, typeSel);
-}
-
-
-
 function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
     if (data.length === 0) { container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`; return; }

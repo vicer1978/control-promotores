@@ -327,19 +327,13 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
             reporte: r.reportType || r.reporte || "Reporte"
         }));
 
-        res.json(formatted);
-    } catch (err) {
-        console.error("Error:", err);
-        res.status(500).json([]);
-    }
-});
-
-
-        console.log(`✅ Tabla lista con ${formatted.length} reportes formateados.`);
+     console.log(`✅ Tabla lista con ${formatted.length} reportes formateados.`);
         res.json(formatted);
 
+
+    
     } catch (err) {
-        console.error("❌ Error en formato final:", err);
+        console.error("❌ Error en reportes:", err);
         res.status(500).json([]);
     }
 });

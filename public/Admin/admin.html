@@ -144,36 +144,32 @@ function applyRoleRestrictions() {
 }
 
 async function fetchAPI(url, options = {}) {
-    // 1. Añadir un timestamp para evitar el error 304 (fuerza al servidor a dar datos frescos)
     const separator = url.includes('?') ? '&' : '?';
     const finalUrl = `${url}${separator}t=${new Date().getTime()}`;
 
-    // 2. Configurar headers (UserId y ProjectId para los filtros del backend)
+    // ASEGÚRATE DE QUE ESTO ESTÉ ASÍ:
     const headers = { 
-        "userid": session.userId, 
+        "userid": localStorage.getItem("userId"), // Leer directamente de la fuente
         "Content-Type": "application/json" 
     };
     
-    if (session.selectedProjectId) {
-        headers["projectid"] = session.selectedProjectId;
+    const pId = localStorage.getItem("selectedProjectId");
+    if (pId && pId !== "null") {
+        headers["projectid"] = pId;
     }
 
     options.headers = { ...(options.headers || {}), ...headers };
+    console.log("🚀 Petición a:", url, "con Headers:", headers);
 
     try {
-        const res = await fetch(finalUrl, options); // Usamos finalUrl con el timestamp
-        
-        if (!res.ok) {
-            // Si el error es 401 o 403, podrías redirigir a login, pero por ahora solo lanzamos error
-            throw new Error(`Error en servidor: ${res.status}`);
-        }
-
+        const res = await fetch(finalUrl, options);
+        if (!res.ok) return null;
         return await res.json();
     } catch (err) {
-        console.error("❌ Fetch Error:", err);
         return null;
     }
 }
+
 
 
 async function loadGlobalProjects() {
@@ -275,51 +271,61 @@ function filterReports() {
     const end = document.getElementById("fEnd")?.value;
     const roleSel = document.getElementById("fRole")?.value.toLowerCase();
     const userSel = document.getElementById("fUser")?.value;
-
-    console.log("🔍 Iniciando filtro. Total crudos:", allReportsRaw.length);
+    const citySel = document.getElementById("fCity")?.value; 
+    const storeSel = document.getElementById("fStore")?.value; 
 
     const filtered = allReportsRaw.filter(r => {
         // 1. Normalización de IDs
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const userObj = allUsersCached.find(u => u._id === rUid);
+        const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
+        const storeObj = cachedStores.find(s => s._id === rSid);
         
-        // 2. Normalización del Tipo (Soporta reportType, reporte y tipo)
-        const rTypeLower = String(r.reportType || r.reporte || r.tipo || "").toLowerCase().trim();
+        // 2. Normalización del Tipo (Soporta reportType y reporte)
+        const rType = (r.reportType || r.reporte || "").toLowerCase().trim();
+        const rTypeLower = rType;
         
         // Excluir asistencia
-        if (rTypeLower.includes('checkin') || rTypeLower.includes('checkout')) return false;
+        if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
-        // 3. Manejo de Fechas (Formato ISO para comparar seguro)
-        const rDate = new Date(r.createdAt).toISOString().split('T')[0]; // YYYY-MM-DD
+        // 3. Manejo de Fechas y Ciudad
+        const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
+        const rCity = storeObj?.address?.split(',').pop().trim() || "";
 
-        // 4. Lógica de Matching de Categoría (Prioridad Ventas)
+        // 4. Lógica de Filtro de Rol
+        let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
+        
+        // 5. Lógica de Matching de Categoría
         let matchType = false;
         if (typeSel === 'ventas') {
             matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
         } else if (typeSel === 'inventario') {
             matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
+        } else if (typeSel === 'precios') {
+            matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
+        } else if (typeSel === 'competencia') {
+            matchType = rTypeLower.includes('competencia');
+        } else if (typeSel === 'agotado') {
+            matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
         } else if (typeSel === 'ranking') {
             matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
         } else {
-            // Match genérico para el resto
             matchType = rTypeLower.includes(typeSel.toLowerCase());
         }
 
-        // 5. Filtros de Usuario y Rol
-        let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
-        let matchUser = (userSel === "all" || rUid === userSel);
-
-        // Retornar si cumple TODO
+        // Filtro final combinado
         return (!start || rDate >= start) && 
                (!end || rDate <= end) && 
                matchRole && 
-               matchUser && 
-               matchType;
+               (userSel === "all" || rUid === userSel) && 
+               matchType && 
+               (citySel === "all" || rCity === citySel) && 
+               (storeSel === "all" || rSid === storeSel);
     });
 
-    console.log("✅ Resultados tras filtrar:", filtered.length);
     renderTableReport(filtered, typeSel);
 }
+
 
 
 function renderTableReport(data, type) {

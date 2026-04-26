@@ -278,52 +278,47 @@ function filterReports() {
     const citySel = document.getElementById("fCity")?.value; 
     const storeSel = document.getElementById("fStore")?.value; 
 
-    const filtered = allReportsRaw.filter(r => {
-        // 1. Normalización de IDs (por si vienen populados o no)
+        const filtered = allReportsRaw.filter(r => {
+        // 1. Normalización de IDs
         const rUid = (typeof r.userId === 'object') ? r.userId?._id : r.userId;
         const userObj = allUsersCached.find(u => u._id === rUid);
         const rSid = (typeof r.storeId === 'object') ? r.storeId?._id : r.storeId;
         const storeObj = cachedStores.find(s => s._id === rSid);
         
-        // 2. Normalización del Tipo (Soporta el cambio a reportType)
-        const rType = (r.reportType || r.reporte || r.tipo || "").toLowerCase().trim();
+        // 2. NORMALIZACIÓN DEL TIPO (Soporta reportType y reporte)
+        const rType = (r.reportType || r.reporte || "").toLowerCase().trim();
+        const rTypeLower = rType; // Para mantener consistencia con tu lógica
         
-        // Excluir asistencia de la tabla de reportes operativos
+        // Excluir asistencia
         if (rType.includes('checkin') || rType.includes('checkout')) return false;
 
-        // 3. Manejo de Fechas
+        // 3. Manejo de Fechas y Ciudad
         const rDate = new Date(r.createdAt).toLocaleDateString('en-CA');
         const rCity = storeObj?.address?.split(',').pop().trim() || "";
 
-        // 4. Lógica de Filtros
+        // 4. Lógica de Filtro de Rol
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
         
-        // 5. Lógica de Matching de Categoría (Mejorada)
-        // 1. Normalizamos el tipo de reporte (esto va justo antes del matchType)
-const rType = r.reportType || r.reporte || ""; // <--- Acepta ambos nombres
-const rTypeLower = rType.toLowerCase();
-let matchType = false;
+        // 5. Lógica de Matching de Categoría (Prioridad Ventas)
+        let matchType = false;
 
-// 2. Lógica de Matching (Tu bloque ordenado)
-if (typeSel === 'ventas') {
-    matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
-} else if (typeSel === 'inventario') {
-    matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
-} else if (typeSel === 'precios') {
-    matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
-} else if (typeSel === 'competencia') {
-    matchType = rTypeLower.includes('competencia');
-} else if (typeSel === 'agotado') {
-    matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
-} else if (typeSel === 'ranking') {
-    matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
-} else {
-    matchType = rTypeLower.includes(typeSel.toLowerCase());
-}
-
-
-
-
+        if (typeSel === 'ventas') {
+            // Acepta ambos términos para que aparezca lo de la demostradora
+            matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
+        } else if (typeSel === 'inventario') {
+            // Inventario puro para promotores
+            matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
+        } else if (typeSel === 'precios') {
+            matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
+        } else if (typeSel === 'competencia') {
+            matchType = rTypeLower.includes('competencia');
+        } else if (typeSel === 'agotado') {
+            matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
+        } else if (typeSel === 'ranking') {
+            matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
+        } else {
+            matchType = rTypeLower.includes(typeSel.toLowerCase());
+        }
 
         return (!start || rDate >= start) && 
                (!end || rDate <= end) && 
@@ -333,6 +328,7 @@ if (typeSel === 'ventas') {
                (citySel === "all" || rCity === citySel) && 
                (storeSel === "all" || rSid === storeSel);
     });
+
 
     renderTableReport(filtered, typeSel);
 }

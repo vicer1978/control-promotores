@@ -362,27 +362,30 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             }
         }
 
-        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA ---
+        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA (CORREGIDA) ---
 const obs = req.body.observaciones || req.body.comentarios || "";
 let tipoReporte = req.body.reportType || req.body.reporte || "otro";
 const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-// Valores base para evitar cruce de datos
 let vtas = 0;
 let inv_i = 0;
-let resurtido = Number(req.body.resurtido) || 0;
 let inv_f = 0;
-
+let resurtido = Number(req.body.resurtido) || 0;
 const tipoBajo = tipoReporte.toLowerCase();
 
-if (tipoBajo.includes('venta')) {
+// Lógica de limpieza por tipo de flujo
+if (tipoBajo.includes('venta') || tipoBajo.includes('degustacion') || tipoBajo.includes('ranking')) {
+    // FLUJO VENTAS / DEMOSTRADORA: Prioridad absoluta al dato de movimiento
     vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
-    // En ventas puras, solemos ignorar stock inicial a menos que lo necesites
-} else if (tipoBajo.includes('inventario') || tipoBajo.includes('competencia')) {
+    inv_i = 0; 
+    inv_f = 0;
+} else if (tipoBajo.includes('inventario') || tipoBajo.includes('agotado')) {
+    // FLUJO PROMOTOR: Prioridad a stock
     inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
-    inv_f = Number(req.body.inv_final) || (inv_i + resurtido); 
+    inv_f = Number(req.body.inv_final) || (inv_i + resurtido);
+    vtas = 0;
 } else {
-    // Para otros tipos, intentamos capturar lo que venga
+    // Otros (Precios, Competencia, etc.)
     vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
     inv_i = Number(req.body.inv_inicial) || 0;
 }
@@ -390,27 +393,25 @@ if (tipoBajo.includes('venta')) {
 // --- 4. ENSAMBLAJE FINAL DEL REPORTE ---
 const reportData = {
     userId: req.user._id,
-    agencyId: req.user.agencyId || req.body.agencyId || "SIN_AGENCIA", 
+    agencyId: req.user.agencyId || "SIN_AGENCIA", 
     projectId: req.body.projectId || req.user.projectId,
     storeId: req.body.storeId,
     reportType: tipoReporte,
     photo: fotoUrl,
     foto_url: fotoUrl,
     
-    // Campo crítico para el Promotor
+    // Si es pre-agotado, capturamos el booleano correctamente
     pre_agotados: req.body.pre_agotados === 'true' || req.body.pre_agotados === true || req.body.pre_agotados === "1",
 
-    // Datos numéricos limpios
     articulo: req.body.articulo || "N/A",
     inv_inicial: inv_i,
     resurtido: resurtido,
     ventas: vtas, 
     inv_final: inv_f,
+    
+    // Aseguramos que 'cantidad' siempre tenga el valor de ventas para el Admin
+    cantidad: vtas > 0 ? vtas : (req.body.cantidad || 0),
 
-    // Soporte para Degustación
-    cantidad: tipoReporte === "Degustación" ? (req.body.cantidad || "N/A") : vtas,
-
-    // Precios
     precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
     precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
     precio_oferta: Number(req.body.precio_oferta) || 0,
@@ -418,9 +419,10 @@ const reportData = {
     observaciones: obs,
     lat: Number(req.body.lat) || 0,
     lng: Number(req.body.lng) || 0,
-    datosExtra: datosExtra, // Asegúrate de que datosExtra esté definido arriba
+    datosExtra: datosExtra, 
     timestamp: new Date()
 };
+
 
 
 

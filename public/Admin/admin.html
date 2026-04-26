@@ -299,28 +299,28 @@ function filterReports() {
         let matchRole = (roleSel === "all" || (userObj && userObj.role?.toLowerCase() === roleSel));
         
         // 5. Lógica de Matching de Categoría (Mejorada)
-        let matchType = false;
-        const rTypeLower = rType.toLowerCase();
+        // 1. Normalizamos el tipo de reporte (esto va justo antes del matchType)
+const rType = r.reportType || r.reporte || ""; // <--- Acepta ambos nombres
+const rTypeLower = rType.toLowerCase();
+let matchType = false;
 
-        if (typeSel === 'precios') {
-            matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
-        } else if (typeSel === 'competencia') {
-            matchType = rTypeLower.includes('competencia');
-        } else if (typeSel === 'agotado') {
-            matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
-        } else if (typeSel === 'pre-agotado' || typeSel === 'preagotado') {
-            matchType = rTypeLower.includes('pre') && rTypeLower.includes('agotado');
-        } else if (typeSel === 'ventas') {
-            // CORRECCIÓN: Ahora incluye lo que las demostradoras mandan como inventario
-            matchType = rTypeLower.includes('ventas') || rTypeLower.includes('inventario');
-        } else if (typeSel === 'inventario') {
-            // Filtro para cuando quieres ver inventarios de promotor (excluyendo ventas)
-            matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
-        } else if (typeSel === 'ranking') {
-            matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
-        } else {
-            matchType = rTypeLower.includes(typeSel.toLowerCase());
-        }
+// 2. Lógica de Matching (Tu bloque ordenado)
+if (typeSel === 'ventas') {
+    matchType = (rTypeLower.includes('ventas') || rTypeLower.includes('inventario'));
+} else if (typeSel === 'inventario') {
+    matchType = rTypeLower.includes('inventario') && !rTypeLower.includes('ventas');
+} else if (typeSel === 'precios') {
+    matchType = rTypeLower.includes('precios') && !rTypeLower.includes('competencia');
+} else if (typeSel === 'competencia') {
+    matchType = rTypeLower.includes('competencia');
+} else if (typeSel === 'agotado') {
+    matchType = rTypeLower.includes('agotado') && !rTypeLower.includes('pre');
+} else if (typeSel === 'ranking') {
+    matchType = (rTypeLower.includes('degustacion') || rTypeLower.includes('degustación') || rTypeLower.includes('ranking'));
+} else {
+    matchType = rTypeLower.includes(typeSel.toLowerCase());
+}
+
 
 
 

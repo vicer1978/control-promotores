@@ -745,22 +745,55 @@ app.get("/reports", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
+        // 1. Si es Admin o Super-Admin: Ve las globales + las de su agencia
         if (req.user.role.includes('admin')) {
-            const allStores = await Store.find({}).sort({ name: 1 }).lean();
-            return res.json(allStores);
+            const query = {
+                $or: [
+                    { agencyId: null }, // Globales
+                    { agencyId: req.user.agencyId } // De su agencia
+                ]
+            };
+            const stores = await Store.find(query).sort({ name: 1 }).lean();
+            return res.json(stores);
         }
-        const stores = await Store.find({ _id: { $in: req.user.stores || [] } }).sort({ name: 1 }).lean();
+
+        // 2. Si es Promotor/Demostradora: Solo ve las que tiene asignadas
+        // (Pero permitimos que vea las globales si están en su lista de IDs)
+        const stores = await Store.find({ 
+            _id: { $in: req.user.stores || [] } 
+        }).sort({ name: 1 }).lean();
+        
         res.json(stores);
-    } catch (err) { res.json([]); }
+
+    } catch (err) { 
+        console.error("Error en /stores:", err);
+        res.json([]); 
+    }
 });
+
 
 app.post("/stores", auth, async (req, res) => {
     try {
-        const newStore = new Store({ ...req.body });
+        const storeData = { ...req.body };
+        
+        if (req.user.role !== "super-admin") {
+            storeData.agencyId = req.user.agencyId;
+            storeData.isGlobal = false;
+        } else {
+            // El Super-Admin crea tiendas para el catálogo maestro
+            storeData.isGlobal = true;
+            storeData.agencyId = null; 
+        }
+
+        const newStore = new Store(storeData);
         await newStore.save();
-        res.json({ message: "Tienda añadida", store: newStore });
-    } catch (err) { res.status(500).json({ error: "Error al crear tienda" }); }
+        res.json({ message: "Tienda añadida con éxito", store: newStore });
+    } catch (err) { 
+        console.error("Error al crear tienda:", err); // Para que tú puedas ver el error real en la consola
+        res.status(500).json({ error: "No se pudo guardar la tienda" }); 
+    }
 });
+
 
 app.delete("/stores/:id", auth, async (req, res) => {
     try {

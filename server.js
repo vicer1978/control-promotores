@@ -47,13 +47,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 15 * 1024 * 1024 }, // Bajado a 15MB para optimizar
+    limits: { fileSize: 20 * 1024 * 1024 }, // Bajado a 15MB para optimizar
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png|webp/;
+        const filetypes = /jpeg|jpg|png|webp|xlsx|xls|csv/;
         const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         if (mimetype && extname) return cb(null, true);
-        cb(new Error("Solo se permiten imágenes (jpg, jpeg, png, webp)"));
+        cb(new Error("Solo se permiten imágenes o archivos de excel (.xlsx, .xls)"));
     }
 });
 

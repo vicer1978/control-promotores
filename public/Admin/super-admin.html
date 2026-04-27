@@ -129,7 +129,7 @@ async function updateStats() {
     } catch (e) { console.error(e); }
 }
 
-// --- PÁGINA: AGENCIAS ---
+// --- PÁGINA: AGENCIAS (CON DESGLOSE DETALLADO) ---
 async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Agencias...</h3>";
     await updateStats();
@@ -145,16 +145,35 @@ async function loadAgenciesPage() {
         </div>
         <div class="card">
             <table>
-                <thead><tr><th>Agencia</th><th>Desglose</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Agencia</th>
+                        <th>Desglose de Usuarios</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
                 <tbody>${agenciesList.map(a => {
+                    // Filtramos los usuarios que pertenecen a esta agencia
                     const u = usersList.filter(usr => (usr.agencyId?._id || usr.agencyId) === a._id);
+                    
+                    // Conteo por roles específicos
+                    const admins = u.filter(x => x.role.toLowerCase() === 'admin').length;
+                    const promotores = u.filter(x => x.role.toLowerCase() === 'promotor').length;
+                    const demostradoras = u.filter(x => x.role.toLowerCase() === 'demostradora').length;
+                    const clientes = u.filter(x => x.role.toLowerCase() === 'cliente').length;
+
                     return `
                     <tr>
-                        <td><b>${a.name}</b><br><small>${a.email}</small></td>
+                        <td><b>${a.name}</b><br><small>${a.email || 'Sin email'}</small></td>
                         <td>
-                            <span class="badge badge-role" style="background:#64748b" title="Admins">${u.filter(x=>x.role=='admin').length}</span>
-                            <span class="badge badge-role" style="background:#0284c7" title="Promotores">${u.filter(x=>x.role=='promotor').length}</span>
-                            <b>Total: ${u.length}</b>
+                            <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
+                                <span class="badge badge-role" style="background:#64748b" title="Admins">AD: ${admins}</span>
+                                <span class="badge badge-role" style="background:#0284c7" title="Promotores">PR: ${promotores}</span>
+                                <span class="badge badge-role" style="background:#8b5cf6" title="Demostradora">DE: ${demostradoras}</span>
+                                <span class="badge badge-role" style="background:#f59e0b" title="Clientes">CL: ${clientes}</span>
+                                <b style="margin-left: 5px;">Total: ${u.length}</b>
+                            </div>
                         </td>
                         <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
                         <td>
@@ -167,6 +186,7 @@ async function loadAgenciesPage() {
         </div>`;
     document.getElementById("content").innerHTML = html;
 }
+
 
 
 

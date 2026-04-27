@@ -872,6 +872,31 @@ app.post("/stores", auth, async (req, res) => {
 });
 
 
+// --- ACTUALIZAR TIENDA (Adopción o Edición) ---
+app.put("/stores/:id", auth, async (req, res) => {
+    try {
+        const storeId = req.params.id;
+        const updateData = { ...req.body };
+
+        // Si un Admin está adoptando una tienda, nos aseguramos de que 
+        // se marque como "no global" para su vista y se ligue a su agencyId
+        const store = await Store.findByIdAndUpdate(
+            storeId,
+            { $set: updateData },
+            { new: true }
+        );
+
+        if (!store) return res.status(404).json({ error: "Tienda no encontrada" });
+
+        res.json({ message: "Tienda actualizada con éxito", store });
+    } catch (err) {
+        console.error("❌ Error al actualizar tienda:", err);
+        res.status(500).json({ error: "Error interno al actualizar tienda" });
+    }
+});
+
+
+
 
 app.delete("/stores/:id", auth, async (req, res) => {
     try {

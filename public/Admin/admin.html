@@ -536,16 +536,116 @@ async function syncUserStores(userId) {
 }
 
 // --- TIENDAS ---
+// --- TIENDAS (GESTIÓN GLOBAL Y LOCAL) ---
 async function loadStores() {
     const data = await fetchAPI(`${BACKEND_URL}/stores`);
     cachedStores = Array.isArray(data) ? data : [];
-    document.getElementById("content").innerHTML = `<div class="card"><h2>🏬 Tiendas</h2><div class="grid-filters"><input type="text" id="stName" placeholder="Tienda"><input type="text" id="stAddr" placeholder="Dirección"><select id="stProj"><option value="">Proyecto...</option>${allProjects.map(p=>`<option value="${p._id}">${p.name}</option>`).join('')}</select><button class="btn-action" style="background:var(--success)" onclick="createStore()">AGREGAR</button></div></div><div class="card" style="padding:0;"><table class="report-table"><thead><tr><th>Nombre</th><th>Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead><tbody>${cachedStores.map(s => `<tr><td><b>${s.name}</b></td><td>${s.address||'-'}</td><td>${allProjects.find(p=>p._id===s.projectId)?.name||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`;
+    
+    // Separar tiendas para mayor claridad
+    const globalStores = cachedStores.filter(s => s.isGlobal);
+    const agencyStores = cachedStores.filter(s => !s.isGlobal);
+
+    document.getElementById("content").innerHTML = `
+        <div class="card">
+            <h2>🏬 Catálogo de Tiendas</h2>
+            <p style="font-size: 13px; color: #64748b;">Crea tiendas locales o añade tiendas del catálogo nacional a tu agencia.</p>
+            <div class="grid-filters">
+                <input type="text" id="stName" placeholder="Nombre de Tienda (Solo para nuevas)">
+                <input type="text" id="stAddr" placeholder="Dirección / Ciudad">
+                <button class="btn-action" style="background:var(--success)" onclick="createStore()">CREAR TIENDA LOCAL</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3>📍 Mi Catálogo (Agencia)</h3>
+                <input type="text" placeholder="Filtrar mis tiendas..." style="width:250px" onkeyup="filterStoreTable('localTable', this.value)">
+            </div>
+            <table class="report-table" id="localTable">
+                <thead><tr><th>Nombre</th><th>Dirección / Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
+                <tbody>${agencyStores.map(s => `
+                    <tr>
+                        <td><b>${s.name}</b></td>
+                        <td>${s.address||'-'}</td>
+                        <td><span class="badge" style="background:#e2e8f0; color:#475569">${allProjects.find(p=>p._id===s.projectId)?.name||'Sin Asignar'}</span></td>
+                        <td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3>🌍 Buscador Nacional (Walmart, Sam's, etc)</h3>
+                <input type="text" placeholder="Buscar por nombre o estado..." style="width:250px" onkeyup="filterStoreTable('globalTable', this.value)">
+            </div>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="report-table" id="globalTable">
+                    <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
+                        <tr><th>Nombre</th><th>Dirección / Estado</th><th>Acción</th></tr>
+                    </thead>
+                    <tbody>${globalStores.map(s => `
+                        <tr>
+                            <td><b>${s.name}</b></td>
+                            <td>${s.address||'-'}</td>
+                            <td>
+                                <button class="btn-action" style="padding: 5px 12px; font-size: 11px; background: var(--primary);" 
+                                onclick="adoptGlobalStore('${s._id}')">Añadir a mi Agencia</button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
 }
+
+// 1. Para que el administrador pueda "reclamar" la tienda del catálogo nacional
+async function adoptGlobalStore(storeId) {
+    if(confirm("¿Quieres añadir esta tienda a tu catálogo de agencia?")) {
+        const res = await fetchAPI(`${BACKEND_URL}/stores/${storeId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                agencyId: session.agencyId,
+                isGlobal: false // Al asignarla a la agencia, deja de ser "global pura" en su vista
+            })
+        });
+
+        if(res) {
+            alert("Tienda añadida con éxito.");
+            loadStores(); // Refresca las tablas
+        }
+    }
+}
+
+// 2. Para que los buscadores de "Filtrar..." funcionen al escribir
+function filterStoreTable(tableId, value) {
+    const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+    const q = value.toLowerCase();
+    rows.forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+
+
 async function createStore() {
-    const name = document.getElementById("stName").value; const address = document.getElementById("stAddr").value; const projectId = document.getElementById("stProj").value;
-    await fetchAPI(`${BACKEND_URL}/stores`, { method:'POST', body:JSON.stringify({name, address, agencyId:session.agencyId, projectId}) });
+    const name = document.getElementById("stName").value; 
+    const address = document.getElementById("stAddr").value;
+    // Quitamos la referencia a stProj porque ya no está en el HTML
+    if(!name) return alert("El nombre es obligatorio");
+    
+    await fetchAPI(`${BACKEND_URL}/stores`, { 
+        method:'POST', 
+        body:JSON.stringify({
+            name, 
+            address, 
+            agencyId: session.agencyId,
+            isGlobal: false // Las creadas manualmente son locales por defecto
+        }) 
+    });
     loadStores();
 }
+
 
 // --- PROYECTOS ---
 async function loadProjectsSection() {

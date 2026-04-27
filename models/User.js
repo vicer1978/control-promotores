@@ -12,13 +12,10 @@ const UserSchema = new mongoose.Schema({
     password: { type: String, required: true },
     role: { 
         type: String, 
-        default: 'Promotor',
+        default: 'promotor',
+        lowercase: true, // Convierte todo a minúsculas automáticamente
         trim: true,
-        enum: [
-            'Promotor', 'Demostradora', 'Admin', 'Super-Admin', 
-            'promotor', 'demostradora', 'ADMIN', 'PROMOTOR', 
-            'DEMOSTRADORA', 'cliente', 'Cliente'
-        ] 
+        enum: ['promotor', 'demostradora', 'admin', 'super-admin', 'cliente'] 
     }, 
     agencyId: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -31,10 +28,9 @@ const UserSchema = new mongoose.Schema({
         index: true,
         default: null 
     },
-    // CAMBIO AQUÍ: Definición explícita para evitar errores de validación al vaciar el arreglo
     stores: {
         type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Store' }],
-        default: [] // Asegura que siempre sea un array, aunque esté vacío
+        default: [] 
     }
 }, { timestamps: true });
 

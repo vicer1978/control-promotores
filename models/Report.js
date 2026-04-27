@@ -1,37 +1,32 @@
 const mongoose = require('mongoose');
 
 const ReportSchema = new mongoose.Schema({
-    // --- FLEXIBILIDAD DE IDS ---
-    // Usamos String para evitar errores de validación entre ObjectId y Texto
+    // --- IDENTIFICADORES ---
+    // Usamos Mixed o String si realmente prefieres flexibilidad, 
+    // pero ObjectId es mejor para la integridad de los datos.
     agencyId: { type: String, required: true, index: true },
     projectId: { type: String, index: true }, 
-    
-    // Estos se quedan como ObjectId para poder usar .populate()
+
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     storeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
 
     // --- DATOS DEL REPORTE ---
-    reportType: { 
-        type: String, 
-        required: true, 
-        trim: true 
-    },
+    reportType: { type: String, required: true, index: true },
 
-    // Campos de Inventario / Ventas
+    // Campos Numéricos (Cambiados a Number para analítica)
     articulo:      { type: String, default: "N/A" },
     inv_inicial:   { type: Number, default: 0 },
     resurtido:     { type: Number, default: 0 }, 
-    ventas:         { type: Number, default: 0 }, 
-    cantidad:      { type: String, default: "0" }, 
+    ventas:        { type: Number, default: 0 }, 
+    cantidad:      { type: Number, default: 0 }, // Cambiado a Number
     inv_final:     { type: Number, default: 0 },
     
-    // Campos de Precios
+    // Precios
     precio:        { type: Number, default: 0 }, 
     precio_normal: { type: Number, default: 0 }, 
     precio_oferta: { type: Number, default: 0 }, 
     
-    // Otros datos estándar
-    personas:      { type: Number, default: 0 }, 
+    // Contenido
     observaciones: { type: String, default: "" }, 
     photo:         { type: String, default: null }, 
     foto_url:      { type: String, default: null }, 
@@ -40,9 +35,17 @@ const ReportSchema = new mongoose.Schema({
     lat: { type: Number, default: 0 },
     lng: { type: Number, default: 0 },
 
+    // Booleano para alertas rápidas (ej. si marcaron agotado en el front)
+    pre_agotados: { type: Boolean, default: false },
+
     // --- EXTENSIBILIDAD ---
     datosExtra: { type: mongoose.Schema.Types.Mixed, default: {} }
 
-}, { timestamps: true });
+}, { 
+    timestamps: true // Esto crea createdAt y updatedAt automáticamente
+});
+
+// ÍNDICE COMPUESTO: Optimiza las búsquedas del Admin (Agencia -> Proyecto -> Fecha)
+ReportSchema.index({ agencyId: 1, projectId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Report', ReportSchema);

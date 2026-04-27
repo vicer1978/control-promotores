@@ -109,20 +109,21 @@ app.post("/login", async (req, res) => {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ message: "Email y password requeridos" });
 
-        const user = await User.findOne({ 
-            email: email.trim().toLowerCase(), 
-            password: password.trim() 
-        }).populate('stores');
+        // Buscamos solo por email primero (que ya se guarda en lowercase)
+        const user = await User.findOne({ email: email.trim().toLowerCase() }).populate('stores');
 
-        if (!user) return res.status(404).json({ message: "Credenciales incorrectas" });
+        // Validamos usuario y contraseña (en el futuro aquí usarás bcrypt)
+        if (!user || user.password !== password.trim()) {
+            return res.status(404).json({ message: "Credenciales incorrectas" });
+        }
 
-        // Generamos Token
+        // Generamos Token con el rol ya normalizado
         const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 
         res.json({ 
-            token, // Nuevo: Envía esto al front
+            token,
             userId: user._id, 
-            role: user.role, 
+            role: user.role, // Esto ya vendrá en minúsculas gracias al modelo
             agencyId: user.agencyId, 
             name: user.name,
             projectId: user.projectId,
@@ -133,6 +134,7 @@ app.post("/login", async (req, res) => {
         res.status(500).json({ message: "Error en login" }); 
     }
 });
+
 
 // --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
@@ -824,24 +826,34 @@ app.get("/reports", auth, async (req, res) => {
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {
     try {
-        // 1. Si es Admin o Super-Admin: Ve las globales + las de su agencia
-        if (req.user.role.includes('admin')) {
+        const isGlobalSearch = req.query.global === "true";
+
+                // SI ES BÚSQUEDA GLOBAL: Traemos el catálogo maestro
+        if (isGlobalSearch) {
+            let filter = { isGlobal: true };
+            
+            // Si el frontend envía un término de búsqueda (?search=sauz)
+            if (req.query.search) {
+                filter.name = { $regex: req.query.search, $options: 'i' }; // 'i' para ignorar mayúsculas
+            }
+
+            const stores = await Store.find(filter).sort({ name: 1 }).limit(100).lean();
+            return res.json(stores);
+        }
+
+        // SI ES "MIS TIENDAS" (Lógica que ya tienes):
+        if (req.user.role.toLowerCase().includes('admin')) {
             const query = {
                 $or: [
-                    { agencyId: null }, // Globales
-                    { agencyId: req.user.agencyId } // De su agencia
+                    { agencyId: null, isGlobal: true }, 
+                    { agencyId: req.user.agencyId }
                 ]
             };
             const stores = await Store.find(query).sort({ name: 1 }).lean();
             return res.json(stores);
         }
 
-        // 2. Si es Promotor/Demostradora: Solo ve las que tiene asignadas
-        // (Pero permitimos que vea las globales si están en su lista de IDs)
-        const stores = await Store.find({ 
-            _id: { $in: req.user.stores || [] } 
-        }).sort({ name: 1 }).lean();
-        
+        const stores = await Store.find({ _id: { $in: req.user.stores || [] } }).sort({ name: 1 }).lean();
         res.json(stores);
 
     } catch (err) { 
@@ -849,6 +861,7 @@ app.get("/stores", auth, async (req, res) => {
         res.json([]); 
     }
 });
+
 
 
 app.post("/stores", auth, async (req, res) => {
@@ -894,7 +907,6 @@ app.put("/stores/:id", auth, async (req, res) => {
         res.status(500).json({ error: "Error interno al actualizar tienda" });
     }
 });
-
 
 
 

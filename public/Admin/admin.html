@@ -538,19 +538,16 @@ async function syncUserStores(userId) {
 // --- TIENDAS ---
 // --- TIENDAS (GESTIÓN GLOBAL Y LOCAL) ---
 async function loadStores() {
+    // Cargamos solo las tiendas de la agencia al inicio
     const data = await fetchAPI(`${BACKEND_URL}/stores`);
     cachedStores = Array.isArray(data) ? data : [];
-    
-    // Separar tiendas para mayor claridad
-    const globalStores = cachedStores.filter(s => s.isGlobal);
     const agencyStores = cachedStores.filter(s => !s.isGlobal);
 
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h2>🏬 Catálogo de Tiendas</h2>
-            <p style="font-size: 13px; color: #64748b;">Crea tiendas locales o añade tiendas del catálogo nacional a tu agencia.</p>
             <div class="grid-filters">
-                <input type="text" id="stName" placeholder="Nombre de Tienda (Solo para nuevas)">
+                <input type="text" id="stName" placeholder="Nombre de Tienda (Nueva)">
                 <input type="text" id="stAddr" placeholder="Dirección / Ciudad">
                 <button class="btn-action" style="background:var(--success)" onclick="createStore()">CREAR TIENDA LOCAL</button>
             </div>
@@ -562,42 +559,67 @@ async function loadStores() {
                 <input type="text" placeholder="Filtrar mis tiendas..." style="width:250px" onkeyup="filterStoreTable('localTable', this.value)">
             </div>
             <table class="report-table" id="localTable">
-                <thead><tr><th>Nombre</th><th>Dirección / Ciudad</th><th>Proyecto</th><th>Acción</th></tr></thead>
-                <tbody>${agencyStores.map(s => `
-                    <tr>
-                        <td><b>${s.name}</b></td>
-                        <td>${s.address||'-'}</td>
-                        <td><span class="badge" style="background:#e2e8f0; color:#475569">${allProjects.find(p=>p._id===s.projectId)?.name||'Sin Asignar'}</span></td>
-                        <td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td>
-                    </tr>`).join('')}
-                </tbody>
+                <thead><tr><th>Nombre</th><th>Dirección</th><th>Acción</th></tr></thead>
+                <tbody>${agencyStores.map(s => `<tr><td><b>${s.name}</b></td><td>${s.address||'-'}</td><td><button class="btn-icon btn-delete-tool" onclick="deleteStore('${s._id}')">🗑</button></td></tr>`).join('')}</tbody>
             </table>
         </div>
 
-        <div class="card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+        <div class="card" style="background: #f0f4f8; border: 2px solid var(--primary);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3>🌍 Buscador Nacional (Walmart, Sam's, etc)</h3>
-                <input type="text" placeholder="Buscar por nombre o estado..." style="width:250px" onkeyup="filterStoreTable('globalTable', this.value)">
+                <h3>🌍 Buscador Nacional (México)</h3>
+                <input type="text" id="inputBusquedaGlobal" placeholder="Escribe nombre de tienda o estado (ej. Sauz)..." 
+                       style="width:300px; border: 2px solid var(--primary);" 
+                       onkeyup="buscarEnServidorGlobal(this.value)">
             </div>
             <div style="max-height: 400px; overflow-y: auto;">
                 <table class="report-table" id="globalTable">
-                    <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
+                    <thead style="position: sticky; top: 0; background: #e2e8f0;">
                         <tr><th>Nombre</th><th>Dirección / Estado</th><th>Acción</th></tr>
                     </thead>
-                    <tbody>${globalStores.map(s => `
-                        <tr>
-                            <td><b>${s.name}</b></td>
-                            <td>${s.address||'-'}</td>
-                            <td>
-                                <button class="btn-action" style="padding: 5px 12px; font-size: 11px; background: var(--primary);" 
-                                onclick="adoptGlobalStore('${s._id}')">Añadir a mi Agencia</button>
-                            </td>
-                        </tr>`).join('')}
+                    <tbody id="bodyGlobal">
+                        <tr><td colspan="3" style="text-align:center; padding:20px;">Escribe más de 3 letras para buscar en el catálogo nacional...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>`;
 }
+
+
+let debounceTimer;
+async function buscarEnServidorGlobal(termino) {
+    const container = document.getElementById("bodyGlobal");
+    
+    if (termino.length < 3) {
+        container.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:20px;">Escribe más de 3 letras...</td></tr>`;
+        return;
+    }
+
+    // Debounce: Esperamos 300ms después de que el usuario deja de escribir para no saturar el server
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+        container.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:20px;">Buscando en catálogo nacional...</td></tr>`;
+        
+        // Llamada al servidor usando tu fetchAPI existente
+        const data = await fetchAPI(`${BACKEND_URL}/stores?global=true&search=${termino}`);
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:20px;">No se encontraron tiendas con ese nombre.</td></tr>`;
+            return;
+        }
+
+        container.innerHTML = data.map(s => `
+            <tr>
+                <td><b>${s.name}</b></td>
+                <td>${s.address || s.state || '-'}</td>
+                <td>
+                    <button class="btn-action" style="padding: 5px 12px; font-size: 11px;" 
+                    onclick="adoptGlobalStore('${s._id}')">Añadir a mi Agencia</button>
+                </td>
+            </tr>`).join('');
+    }, 300);
+}
+
+
 
 // 1. Para que el administrador pueda "reclamar" la tienda del catálogo nacional
 async function adoptGlobalStore(storeId) {

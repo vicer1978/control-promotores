@@ -172,7 +172,7 @@
         }
     }
 
-    async function saveReport() {
+        async function saveReport() {
         const btn = document.getElementById("btnSend");
         btn.disabled = true; btn.innerText = "OBTENIENDO GPS...";
 
@@ -193,23 +193,21 @@
         formData.append("agencyId", agencyId);
         formData.append("storeId", storeId);
         formData.append("userId", userId);
-        
-        // Enviamos el título de la config para que el Admin lo reconozca
-        const reportTitle = config[typeFromUrl] ? config[typeFromUrl].title : typeFromUrl;
-        formData.append("reportType", reportTitle); 
-        
         formData.append("lat", coords.lat);
         formData.append("lng", coords.lng);
 
+        // 1. Manejo de Artículos
         if(!document.getElementById("group-articulo").classList.contains("hidden")) {
             formData.append("articulo", document.getElementById("articulo").value || "N/A");
         }
         
+        // 2. Manejo de Precios
         if(!document.getElementById("group-precios").classList.contains("hidden")) {
             formData.append("precio_normal", Number(document.getElementById("precio_normal").value) || 0);
             formData.append("precio_oferta", Number(document.getElementById("precio_oferta").value) || 0);
         }
 
+        // 3. Manejo de Bloque Demo (Ventas/Inventarios)
         if(!document.getElementById("block-demo").classList.contains("hidden")) {
             formData.append("inv_inicial", Number(document.getElementById("inv_inicial").value) || 0);
             formData.append("resurtido", Number(document.getElementById("resurtido").value) || 0);
@@ -217,28 +215,33 @@
             formData.append("inv_final", Number(document.getElementById("inv_final").value) || 0);
         }
 
+        // 4. LÓGICA ESPECIAL: Cantidad y Observaciones (especial para Degustación)
         if(!document.getElementById("group-cantidad").classList.contains("hidden")) {
-    const valorCant = document.getElementById("cantidad").value;
-    // Si es degustación enviamos el texto, si es otro reporte intentamos enviar número
-    if (typeFromUrl === 'degustacion') {
-        formData.append("cantidad", valorCant || "N/A");
-    } else {
-        formData.append("cantidad", Number(valorCant) || 0);
-    }
-}
+            const valorCant = document.getElementById("cantidad").value;
 
+            if (typeFromUrl === 'degustacion') {
+                formData.append("cantidad", 0); // Evita error de validación en Mongoose
+                const obsActual = document.getElementById("comentarios").value || "";
+                formData.set("observaciones", `DETALLE DEGUSTACIÓN: ${valorCant}. ${obsActual}`);
+            } else {
+                formData.append("cantidad", Number(valorCant) || 0);
+            }
+        }
 
+        // 5. Observaciones para reportes normales (si no se definieron arriba)
+        if (!formData.has("observaciones")) {
+            formData.append("observaciones", document.getElementById("comentarios").value || "");
+        }
 
-        formData.append("observaciones", document.getElementById("comentarios").value || "");
+        // 6. ReportType en minúsculas (VITAL para el Admin)
+        formData.append("reportType", typeFromUrl); 
+
+        // 7. Foto
         const fotoInput = document.getElementById("foto");
         if(fotoInput && fotoInput.files[0]) formData.append("photo", fotoInput.files[0]);
 
         try {
-            console.log("Enviando reporte con los siguientes datos:");
-for (var pair of formData.entries()) {
-    console.log(pair[0] + ': ' + pair[1]);
-}
-
+            console.log("Enviando reporte...");
             const res = await fetch(`${BACKEND_URL}/reports`, {
                 method: "POST",
                 headers: { "userId": userId },
@@ -247,18 +250,19 @@ for (var pair of formData.entries()) {
 
             if(res.ok) {
                 alert("✅ Reporte enviado correctamente");
-                // REDIRECCIÓN ÚNICA AL DASHBOARD DE TAREAS PARA AMBOS ROLES
                 window.location.href = "dashboard_tareas.html";
             } else {
                 const err = await res.json();
                 alert("❌ Error: " + (err.error || "Falla al enviar"));
             }
         } catch (err) {
+            console.error(err);
             alert("❌ Error de conexión con el servidor");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }
     }
+
 </script>
 </body>
 </html>

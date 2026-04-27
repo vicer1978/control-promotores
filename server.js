@@ -47,15 +47,27 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 20 * 1024 * 1024 }, // Bajado a 15MB para optimizar
+    limits: { fileSize: 20 * 1024 * 1024 }, 
     fileFilter: (req, file, cb) => {
+        // 1. Definimos extensiones permitidas
         const filetypes = /jpeg|jpg|png|webp|xlsx|xls|csv/;
-        const mimetype = filetypes.test(file.mimetype);
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-        if (mimetype && extname) return cb(null, true);
-        cb(new Error("Solo se permiten imágenes o archivos de excel (.xlsx, .xls)"));
+
+        // 2. Si es una imagen, podemos ser estrictos con el mimetype
+        const isImage = /jpeg|jpg|png|webp/.test(file.mimetype);
+        
+        // 3. Si es Excel, el mimetype varía mucho según el Windows/Mac del usuario,
+        // así que confiamos en la extensión (extname) que ya validamos arriba.
+        const isExcel = /xlsx|xls|csv/.test(path.extname(file.originalname).toLowerCase());
+
+        if (extname && (isImage || isExcel)) {
+            return cb(null, true);
+        }
+        
+        cb(new Error("Formato no válido. Solo se permiten imágenes (.jpg, .png) o archivos de Excel (.xlsx, .xls)"));
     }
 });
+
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))

@@ -108,8 +108,8 @@
                     // Guardado de sesión
                     localStorage.setItem("token", data.token);
                     localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
-                    localStorage.setItem("userRole", role);
-                    localStorage.setItem("userName", userObj.name || data.name || "Usuario");
+                    localStorage.setItem("role", role);
+                    localStorage.setItem("name", userObj.name || data.name || "Usuario");
 
                     // Datos específicos de StorePulse
                     if (data.agencyId || userObj.agencyId) {

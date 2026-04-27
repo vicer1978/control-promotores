@@ -168,6 +168,9 @@ async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = html;
 }
 
+
+
+
 // --- PÁGINA: USUARIOS ---
 async function loadUsersPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Usuarios...</h3>";
@@ -207,7 +210,7 @@ async function loadUsersPage() {
 }
 
 // --- PÁGINA: CATÁLOGO MAESTRO (TIENDAS) ---
-function loadStoresPage() {
+async function loadStoresPage() {
     document.getElementById("content").innerHTML = `
         <div class="card">
             <h3>🏪 Gestión de Catálogo Maestro (Tiendas Globales)</h3>
@@ -215,56 +218,171 @@ function loadStoresPage() {
                 <button class="tab-btn active" id="btn-ind" onclick="showStoreTab('individual')">Registro Individual</button>
                 <button class="tab-btn" id="btn-bulk" onclick="showStoreTab('bulk')">Carga Masiva (Excel)</button>
             </div>
+            
             <div id="tab-individual">
-                <div class="form-grid">
-                    <div><label>Nombre de Tienda</label><input type="text" id="storeName" placeholder="Ej. Walmart Celaya"></div>
-                    <div><label>Dirección</label><input type="text" id="storeAddress" placeholder="Ej. Av. Tecnológico"></div>
+                <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                    <div>
+                        <label>Nombre de Tienda</label>
+                        <input type="text" id="storeName" placeholder="Ej. Bodega Aurrera - Centro">
+                    </div>
+                    <div>
+                        <label>Dirección</label>
+                        <input type="text" id="storeAddress" placeholder="Calle, Número, Colonia">
+                    </div>
+                    <div>
+                        <label>Estado / Entidad</label>
+                        <select id="storeState">
+                            <option value="">Selecciona Estado...</option>
+                            <option value="Aguascalientes">Aguascalientes</option>
+                            <option value="Baja California">Baja California</option>
+                            <option value="Baja California Sur">Baja California Sur</option>
+                            <option value="Campeche">Campeche</option>
+                            <option value="Chiapas">Chiapas</option>
+                            <option value="Chihuahua">Chihuahua</option>
+                            <option value="Coahuila">Coahuila</option>
+                            <option value="Colima">Colima</option>
+                            <option value="Ciudad de México">Ciudad de México</option>
+                            <option value="Durango">Durango</option>
+                            <option value="Guanajuato">Guanajuato</option>
+                            <option value="Guerrero">Guerrero</option>
+                            <option value="Hidalgo">Hidalgo</option>
+                            <option value="Jalisco">Jalisco</option>
+                            <option value="Estado de México">Estado de México</option>
+                            <option value="Michoacán">Michoacán</option>
+                            <option value="Morelos">Morelos</option>
+                            <option value="Nayarit">Nayarit</option>
+                            <option value="Nuevo León">Nuevo León</option>
+                            <option value="Oaxaca">Oaxaca</option>
+                            <option value="Puebla">Puebla</option>
+                            <option value="Querétaro">Querétaro</option>
+                            <option value="Quintana Roo">Quintana Roo</option>
+                            <option value="San Luis Potosí">San Luis Potosí</option>
+                            <option value="Sinaloa">Sinaloa</option>
+                            <option value="Sonora">Sonora</option>
+                            <option value="Tabasco">Tabasco</option>
+                            <option value="Tamaulipas">Tamaulipas</option>
+                            <option value="Tlaxcala">Tlaxcala</option>
+                            <option value="Veracruz">Veracruz</option>
+                            <option value="Yucatán">Yucatán</option>
+                            <option value="Zacatecas">Zacatecas</option>
+                        </select>
+                    </div>
                 </div>
-                <button class="btn-action" onclick="saveSingleStore()">Guardar Tienda Global</button>
+                <button class="btn-action" onclick="saveSingleStore()">GUARDAR TIENDA GLOBAL</button>
             </div>
+
             <div id="tab-bulk" style="display:none;">
-                <p>Sube un Excel con columnas <b>Nombre</b> y <b>Direccion</b>.</p>
-                <input type="file" id="excelInput" accept=".xlsx, .xls">
-                <button class="btn-action" onclick="uploadBulkStores()" style="background:var(--blue); margin-top:10px;">Procesar Excel</button>
-                <div id="uploadStatus" style="margin-top:10px; font-weight:bold;"></div>
+                <p style="color: #64748b; font-size: 0.9rem;">
+                   Sube un archivo Excel con: <b>Nombre</b> | <b>Direccion</b> | <b>Estado</b>
+                </p>
+                <div style="border: 2px dashed #cbd5e1; padding: 20px; border-radius: 12px; text-align: center;">
+                    <input type="file" id="excelInput" accept=".xlsx, .xls">
+                </div>
+                <button class="btn-action" onclick="uploadBulkStores()" style="background:var(--blue); margin-top:15px; width: 100%;">PROCESAR EXCEL</button>
+                <div id="uploadStatus" style="margin-top:15px; text-align: center;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; gap: 20px;">
+                <h3>📋 Tiendas en el Sistema</h3>
+                <input type="text" id="storeSearch" placeholder="🔍 Buscar por nombre, estado o dirección..." 
+                       onkeyup="filterStores()" style="max-width: 400px; margin: 0;">
+                <span id="totalStoresCount" class="badge badge-role" style="background:var(--primary)">0 tiendas</span>
+            </div>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Estado</th>
+                            <th>Dirección</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="globalStoresBody">
+                        <tr><td colspan="4" style="text-align:center;">Cargando catálogo...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>`;
+    
+    renderGlobalStoresTable();
 }
 
 // --- LÓGICA DE TIENDAS ---
+
+function filterStores() {
+    const searchTerm = document.getElementById('storeSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#globalStoresBody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+}
+
+async function renderGlobalStoresTable() {
+    try {
+        const stores = await fetchAPI(`${BACKEND_URL}/super/stores`);
+        const tbody = document.getElementById('globalStoresBody');
+        document.getElementById('totalStoresCount').innerText = `${stores.length} tiendas`;
+        
+        if (stores.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay tiendas globales.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = stores.map(s => `
+            <tr>
+                <td><b>${s.name}</b></td>
+                <td><span class="badge" style="background:#64748b">${s.state || 'N/A'}</span></td>
+                <td><small>${s.address || 'Sin dirección'}</small></td>
+                <td>
+                    <button class="btn-action btn-danger" style="padding: 5px 10px;" onclick="deleteGlobalStore('${s._id}')">
+                        Borrar
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        document.getElementById('globalStoresBody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Error al cargar datos.</td></tr>';
+    }
+}
+
+async function saveSingleStore() {
+    const name = document.getElementById('storeName').value.trim();
+    const address = document.getElementById('storeAddress').value.trim();
+    const state = document.getElementById('storeState').value;
+
+    if(!name || !state) return alert("⚠️ Nombre y Estado son obligatorios.");
+
+    try {
+        await fetchAPI(`${BACKEND_URL}/stores`, { 
+            method: 'POST', 
+            body: { name, address, state } 
+        });
+        alert("✅ Tienda Global registrada");
+        // Limpiar y recargar
+        document.getElementById('storeName').value = "";
+        document.getElementById('storeAddress').value = "";
+        document.getElementById('storeState').value = "";
+        renderGlobalStoresTable(); 
+    } catch (e) { alert("❌ Error: " + e.message); }
+}
+
+async function deleteGlobalStore(id) {
+    if (!confirm("¿Eliminar del catálogo maestro?")) return;
+    try {
+        await fetchAPI(`${BACKEND_URL}/stores/${id}`, { method: 'DELETE' });
+        renderGlobalStoresTable();
+    } catch (e) { alert("Error al eliminar"); }
+}
+
 function showStoreTab(type) {
     document.getElementById('tab-individual').style.display = type === 'individual' ? 'block' : 'none';
     document.getElementById('tab-bulk').style.display = type === 'bulk' ? 'block' : 'none';
     document.getElementById('btn-ind').classList.toggle('active', type === 'individual');
     document.getElementById('btn-bulk').classList.toggle('active', type === 'bulk');
-}
-
-async function saveSingleStore() {
-    const name = document.getElementById('storeName').value;
-    const address = document.getElementById('storeAddress').value;
-    if(!name) return alert("Nombre obligatorio");
-    try {
-        await fetchAPI(`${BACKEND_URL}/stores`, { method: 'POST', body: { name, address } });
-        alert("✅ Tienda Global guardada");
-        loadStoresPage();
-    } catch (e) { alert("Error al guardar"); }
-}
-
-async function uploadBulkStores() {
-    const fileInput = document.getElementById('excelInput');
-    if (!fileInput.files[0]) return alert("Selecciona un archivo");
-    const formData = new FormData();
-    formData.append("excelFile", fileInput.files[0]);
-    document.getElementById('uploadStatus').innerText = "Procesando...";
-    try {
-        const res = await fetch(`${BACKEND_URL}/stores/bulk-upload`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-        });
-        const result = await res.json();
-        document.getElementById('uploadStatus').innerText = res.ok ? `✅ Éxito: ${result.count} tiendas.` : `❌ Error: ${result.error}`;
-    } catch (e) { alert("Error de conexión"); }
 }
 
 // --- ACCIONES GENERALES ---
@@ -283,11 +401,52 @@ async function assignUserToAgency(usrId, ageId) {
 }
 
 
+async function uploadBulkStores() {
+    const fileInput = document.getElementById('excelInput');
+    const statusDiv = document.getElementById('uploadStatus');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        return alert("⚠️ Por favor, selecciona un archivo Excel primero.");
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append("excelFile", file); // El nombre 'excelFile' debe coincidir con upload.single en el server
+
+    statusDiv.innerHTML = "⏳ Procesando archivo, por favor espera...";
+    
+    try {
+        const response = await fetch(`${BACKEND_URL}/stores/bulk-upload`, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "userId": userId
+                // Nota: No poner Content-Type, el navegador lo pondrá automáticamente con el boundary del FormData
+            },
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            statusDiv.innerHTML = `<b style="color:var(--success)">✅ ¡Éxito! ${result.count} tiendas agregadas.</b>`;
+            fileInput.value = ""; // Limpiar input
+            renderGlobalStoresTable(); // Recargar la tabla
+        } else {
+            throw new Error(result.error || result.detalle || "Error desconocido");
+        }
+    } catch (e) {
+        console.error(e);
+        statusDiv.innerHTML = `<b style="color:var(--danger)">❌ Error: ${e.message}</b>`;
+    }
+}
+
+
+
 async function deleteGlobalUser(id) {
     if(!confirm("¿Eliminar usuario?")) return;
     try { await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" }); loadUsersPage(); } catch(e) { alert("Error"); }
 }
-
 
 
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }

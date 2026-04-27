@@ -1,19 +1,43 @@
 const mongoose = require('mongoose');
 
 const StoreSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    address: { type: String, default: 'Sin dirección registrada' },
+    name: { 
+        type: String, 
+        required: true 
+    },
+    address: { 
+        type: String 
+    },
+    state: { 
+        type: String, 
+        required: true 
+    }, 
+    isActive: { 
+        type: Boolean, 
+        default: true 
+    },
+    
+    // Si agencyId es null, la tienda es GLOBAL (la ven todos)
+    // Si tiene un ID, solo la ve esa agencia.
     agencyId: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Agency',
-        index: true // Importante para que cada Admin vea solo SUS tiendas
+        default: null, 
+        index: true 
     },
-    // NUEVO: Vinculación de la tienda a un Proyecto/Cliente específico
+
     projectId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Project',
-        index: true // Optimiza el filtrado de tiendas por cliente
+        default: null,
+        index: true 
+    },
+
+    // Flag para identificar rápidamente tiendas del catálogo oficial
+    isGlobal: { 
+        type: Boolean, 
+        default: false 
     }
-}, { timestamps: true }); // Útil para auditoría
+}, { timestamps: true }); // Los timestamps van aquí, al final del objeto del esquema
 
 module.exports = mongoose.model('Store', StoreSchema);

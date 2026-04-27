@@ -5,6 +5,9 @@ const multer = require("multer");
 const path = require("path");
 const jwt = require("jsonwebtoken"); // Nuevo: Para seguridad real
 require("dotenv").config();
+const XLSX = require('xlsx');
+
+
 
 // Modelos
 const User = require("./models/User");
@@ -560,6 +563,70 @@ app.delete("/super/agencies/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
+
+
+// --- CARGA MASIVA DE TIENDAS (SOLO SUPER ADMIN) ---
+app.post("/stores/bulk-upload", auth, upload.single("excelFile"), async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") {
+            return res.status(403).json({ error: "No autorizado" });
+        }
+
+        if (!req.file) return res.status(400).json({ error: "No se subió archivo" });
+
+        const workbook = XLSX.readFile(req.file.path);
+        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+        // --- EL BLOQUE MEJORADO ---
+        const storesToInsert = data.map(row => {
+            const nombre = row.Nombre || row.nombre || row.STORE || row.Tienda || row.Name;
+            const estado = row.Estado || row.estado || row.ENTIDAD || row.State || "Ciudad de México";
+            const direccion = row.Direccion || row.direccion || row.Dirección || row.ADDRESS || "";
+
+            return {
+                name: nombre ? nombre.toString().trim() : "Tienda Sin Nombre",
+                address: direccion.toString().trim(),
+                state: estado.toString().trim(),
+                isGlobal: true,
+                agencyId: null,
+                isActive: true
+            };
+        }).filter(s => s.name !== "Tienda Sin Nombre" && s.name !== ""); 
+
+        if (storesToInsert.length === 0) {
+            return res.status(400).json({ error: "No se encontraron tiendas válidas en el archivo" });
+        }
+
+        const result = await Store.insertMany(storesToInsert);
+
+        // Opcional: Borrar el archivo temporal de Excel después de procesarlo
+        const fs = require('fs');
+        fs.unlinkSync(req.file.path);
+
+        res.json({ message: "Carga exitosa", count: result.length });
+
+    } catch (err) {
+        console.error("❌ Error en carga masiva:", err);
+        res.status(500).json({ error: "Error al procesar Excel", detalle: err.message });
+    }
+});
+
+
+// --- LISTADO DE TIENDAS PARA SUPER ADMIN (OPCIONAL) ---
+// Útil para que el Super Admin vea el catálogo maestro sin filtros de agencia
+app.get("/super/stores", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        const stores = await Store.find({ isGlobal: true }).sort({ state: 1, name: 1 }).lean();
+        res.json(stores);
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener catálogo" });
+    }
+});
+
+
+
+
 // ==========================================
 // --- GESTIÓN DE USUARIOS GLOBALES (MARKETPLACE) ---
 // ==========================================
@@ -776,23 +843,22 @@ app.post("/stores", auth, async (req, res) => {
     try {
         const storeData = { ...req.body };
         
-        if (req.user.role !== "super-admin") {
+        if (req.user.role === "super-admin") {
+            storeData.isGlobal = true;  // Forzamos que sea del catálogo maestro
+            storeData.agencyId = null;  // No pertenece a ninguna agencia en particular
+        } else {
             storeData.agencyId = req.user.agencyId;
             storeData.isGlobal = false;
-        } else {
-            // El Super-Admin crea tiendas para el catálogo maestro
-            storeData.isGlobal = true;
-            storeData.agencyId = null; 
         }
 
         const newStore = new Store(storeData);
         await newStore.save();
         res.json({ message: "Tienda añadida con éxito", store: newStore });
     } catch (err) { 
-        console.error("Error al crear tienda:", err); // Para que tú puedas ver el error real en la consola
         res.status(500).json({ error: "No se pudo guardar la tienda" }); 
     }
 });
+
 
 
 app.delete("/stores/:id", auth, async (req, res) => {
@@ -813,6 +879,17 @@ app.get("/", (req, res) => res.sendFile(path.resolve(__dirname, "public", "login
 // Opcional: Manejo de 404 para archivos no encontrados
 app.use((req, res) => {
     res.status(404).send("Página no encontrada en StorePulse");
+});
+
+
+// Manejador de errores global para Multer y otros
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+            return res.status(400).json({ error: "La imagen es muy pesada (máx 15MB)" });
+        }
+    }
+    res.status(500).json({ error: err.message || "Error interno del servidor" });
 });
 
 

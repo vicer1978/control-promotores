@@ -168,7 +168,7 @@
 
 <div class="container">
     <div id="welcomeOperativo" class="welcome-msg">
-        <h1 id="greeting">Hola...</h1>
+        <h1>¡Hola, <span id="user-display-name">Usuario</span>!</h1>
         <p>Selecciona tu tienda para comenzar el turno.</p>
     </div>
 
@@ -209,8 +209,9 @@
 
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
-        const name = localStorage.getItem("name") || "Usuario";
-        const role = (localStorage.getItem("role") || "Promotor").toLowerCase();
+        // Recuperamos el nombre completo y el rol
+        const fullName = localStorage.getItem("name") || "Usuario";
+        const role = (localStorage.getItem("role") || "promotor").toLowerCase();
         const projectName = localStorage.getItem("projectName") || "No seleccionado";
 
         if (!userId) {
@@ -218,14 +219,21 @@
             return;
         }
 
-        // 1. Datos del Perfil
-        document.getElementById("userName").innerText = name;
+        // --- 1. PERSONALIZACIÓN DEL SALUDO ---
+        // Usamos el primer nombre para el saludo principal
+        const firstName = fullName.split(' ')[0];
+        const greetingElement = document.getElementById("user-display-name");
+        if (greetingElement) greetingElement.innerText = firstName;
+
+        // Datos del Drawer (Menú lateral)
+        document.getElementById("userName").innerText = fullName;
         const elUserRole = document.getElementById("userRole");
         if (elUserRole) elUserRole.innerText = role.toUpperCase();
 
-        // 2. Control de Vistas según ROL
+        // --- 2. CONTROL DE VISIBILIDAD POR ROL ---
+        
+        // Si es CLIENTE
         if (role === "cliente") {
-            // Configuración para Cliente
             document.getElementById("welcomeOperativo").style.display = "none";
             document.getElementById("storesContainer").style.display = "none";
             document.getElementById("checkoutSection").style.display = "none";
@@ -233,14 +241,21 @@
             document.getElementById("welcomeCliente").style.display = "block";
             document.getElementById("panelCliente").style.display = "block";
             document.getElementById("btnMisProyectos").style.display = "block";
-            document.getElementById("adminBtn").style.display = "block"; // El cliente también usa el link del Admin en el Drawer
+            document.getElementById("adminBtn").style.display = "block";
             document.getElementById("projectNameDisplay").innerText = `Proyecto: ${projectName}`;
-        } else {
-            // Configuración para Promotores / Admin
-            document.getElementById("greeting").innerText = `¡Hola, ${name.split(' ')[0]}!`;
+        } 
+        // Si es PROMOTOR o DEMOSTRADORA
+        else {
             if (role === "admin" || role === "superadmin") {
                 document.getElementById("adminBtn").style.display = "block";
             }
+            
+            // Aquí podrías agregar lógica extra si quieres que la demostradora 
+            // vea un mensaje distinto en el dashboard:
+            if (role === "demostradora") {
+                document.querySelector("#welcomeOperativo p").innerText = "Lista de tiendas para demostración:";
+            }
+
             await loadStores(userId);
         }
     };

@@ -126,7 +126,7 @@
     const CONFIG_MENU = {
         "demostradora": [
             { id: 'ventas', label: 'Ventas', icon: 'https://cdn-icons-png.flaticon.com/512/3482/3482458.png' },
-            { id: 'degustacion', label: 'Degustacion', icon: 'https://cdn-icons-png.flaticon.com/512/2619/2619553.png' },
+            { id: 'degustacion', label: 'Degustación', icon: 'https://cdn-icons-png.flaticon.com/512/2619/2619553.png' },
             { id: 'precios', label: 'Chequeo Precios', icon: 'https://cdn-icons-png.flaticon.com/512/1162/1162251.png' }
         ],
         "promotor": [
@@ -144,23 +144,39 @@
     window.onload = function() {
         const storeId = localStorage.getItem("activeStoreId");
         const storeName = localStorage.getItem("activeStoreName");
-        const userRole = (localStorage.getItem("role") || "promotor").toLowerCase();
+        
+        // Obtenemos el rol, limpiamos espacios y pasamos a minúsculas
+        let userRole = (localStorage.getItem("role") || "promotor").trim().toLowerCase();
 
         if (!storeId) {
             window.location.href = "dashboard.html";
             return;
         }
 
+        // Si el rol es admin o superadmin, le damos vista de promotor por defecto
+        if (userRole === "admin" || userRole === "superadmin") {
+            userRole = "promotor";
+        }
+
         if (storeName) document.getElementById("activeStoreName").innerText = storeName;
         
-        // Actualizar etiqueta de rol
-        document.getElementById("roleTag").innerText = userRole.toUpperCase();
+        // Actualizar etiqueta visual
+        const roleTag = document.getElementById("roleTag");
+        roleTag.innerText = userRole.toUpperCase();
+        
+        // Cambiar color del tag si es demostradora (Opcional, para diferenciar)
+        if (userRole === "demostradora") {
+            roleTag.style.background = "#8b5cf6"; // Un morado suave
+            roleTag.style.color = "white";
+        }
 
         renderMenu(userRole);
     };
 
     function renderMenu(role) {
         const grid = document.getElementById("menuGrid");
+        
+        // Seleccionamos el set de botones, si no existe el rol usamos promotor
         const items = CONFIG_MENU[role] || CONFIG_MENU["promotor"];
 
         grid.innerHTML = items.map(item => `
@@ -173,6 +189,7 @@
 
     function irAReporte(tipo) {
         localStorage.setItem("currentReportType", tipo);
+        // Asegúrate de que report.html esté preparado para recibir estos tipos
         window.location.href = `report.html?type=${tipo}`;
     }
 
@@ -182,6 +199,7 @@
         }
     }
 </script>
+
 
 </body>
 </html>

@@ -46,10 +46,11 @@
         .btn-action { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         .btn-danger { background: var(--danger) !important; }
         
-        /* Tabs para Tiendas */
         .tabs { border-bottom: 1px solid #ddd; margin-bottom: 15px; display: flex; gap: 10px; }
         .tab-btn { padding: 10px 20px; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; }
         .tab-btn.active { border-bottom: 2px solid var(--blue); color: var(--blue); font-weight: bold; }
+
+        #pending-section { border: 2px solid var(--gold) !important; background: #fffdf9; }
     </style>
 </head>
 <body>
@@ -82,6 +83,7 @@
 <div id="editAgencyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
     <div class="card" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:400px;">
         <h3>✏️ Editar Agencia</h3>
+        <input type="hidden" id="edit_agency_id">
         <label>Nombre</label><input id="edit_agency_name">
         <label>Email</label><input id="edit_agency_email">
         <label>Nueva Pass (opcional)</label><input id="edit_agency_pass" type="password">
@@ -129,7 +131,6 @@ async function updateStats() {
     } catch (e) { console.error(e); }
 }
 
-// --- PÁGINA: AGENCIAS (CON DESGLOSE DETALLADO) ---
 async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Agencias...</h3>";
     await updateStats();
@@ -145,34 +146,24 @@ async function loadAgenciesPage() {
         </div>
         <div class="card">
             <table>
-                <thead>
-                    <tr>
-                        <th>Agencia</th>
-                        <th>Desglose de Usuarios</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Agencia</th><th>Desglose de Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody>${agenciesList.map(a => {
-                    // Filtramos los usuarios que pertenecen a esta agencia
                     const u = usersList.filter(usr => (usr.agencyId?._id || usr.agencyId) === a._id);
-                    
-                    // Conteo por roles específicos
-                    const admins = u.filter(x => x.role.toLowerCase() === 'admin').length;
-                    const promotores = u.filter(x => x.role.toLowerCase() === 'promotor').length;
-                    const demostradoras = u.filter(x => x.role.toLowerCase() === 'demostradora').length;
-                    const clientes = u.filter(x => x.role.toLowerCase() === 'cliente').length;
-
+                    const roles = {
+                        admin: u.filter(x => x.role.toLowerCase() === 'admin').length,
+                        prom: u.filter(x => x.role.toLowerCase() === 'promotor').length,
+                        demo: u.filter(x => x.role.toLowerCase() === 'demostradora').length,
+                        clie: u.filter(x => x.role.toLowerCase() === 'cliente').length
+                    };
                     return `
                     <tr>
-                        <td><b>${a.name}</b><br><small>${a.email || 'Sin email'}</small></td>
+                        <td><b>${a.name}</b><br><small>${a.email}</small></td>
                         <td>
-                            <div style="display: flex; gap: 5px; flex-wrap: wrap; align-items: center;">
-                                <span class="badge badge-role" style="background:#64748b" title="Admins">AD: ${admins}</span>
-                                <span class="badge badge-role" style="background:#0284c7" title="Promotores">PR: ${promotores}</span>
-                                <span class="badge badge-role" style="background:#8b5cf6" title="Demostradora">DE: ${demostradoras}</span>
-                                <span class="badge badge-role" style="background:#f59e0b" title="Clientes">CL: ${clientes}</span>
-                                <b style="margin-left: 5px;">Total: ${u.length}</b>
+                            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                                <span class="badge badge-role" style="background:#64748b">AD: ${roles.admin}</span>
+                                <span class="badge badge-role" style="background:#0284c7">PR: ${roles.prom}</span>
+                                <span class="badge badge-role" style="background:#8b5cf6">DE: ${roles.demo}</span>
+                                <span class="badge badge-role" style="background:#f59e0b">CL: ${roles.clie}</span>
                             </div>
                         </td>
                         <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
@@ -187,11 +178,6 @@ async function loadAgenciesPage() {
     document.getElementById("content").innerHTML = html;
 }
 
-
-
-
-
-// --- PÁGINA: USUARIOS ---
 async function loadUsersPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Usuarios...</h3>";
     await updateStats();
@@ -207,7 +193,7 @@ async function loadUsersPage() {
         </div>
         <div class="card">
             <table>
-                <thead><tr><th>Nombre</th><th>Rol</th><th>Asignación de Agencia</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Nombre</th><th>Rol</th><th>Asignación</th><th>Acciones</th></tr></thead>
                 <tbody>${usersList.map(u => {
                     const isSuper = u.role === 'super-admin';
                     let select = `<select onchange="assignUserToAgency('${u._id}', this.value)" style="padding:5px; font-size:0.8rem;"><option value="">-- Sin Agencia --</option>`;
@@ -219,7 +205,7 @@ async function loadUsersPage() {
                     return `
                     <tr>
                         <td><b>${u.name}</b><br><small>${u.email}</small></td>
-                        <td><span class="badge badge-role ${isSuper?'super':''}">${u.role.toUpperCase()}</span></td>
+                        <td><span class="badge badge-role">${u.role.toUpperCase()}</span></td>
                         <td>${isSuper ? 'GLOBAL' : select}</td>
                         <td><button class="btn-action btn-danger" onclick="deleteUser('${u._id}')">Borrar</button></td>
                     </tr>`;
@@ -229,116 +215,93 @@ async function loadUsersPage() {
     document.getElementById("content").innerHTML = html;
 }
 
-// --- PÁGINA: CATÁLOGO MAESTRO (TIENDAS) ---
 async function loadStoresPage() {
+    const estados = ["Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas", "Chihuahua", "Coahuila", "Colima", "Ciudad de México", "Durango", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Estado de México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"];
+
     document.getElementById("content").innerHTML = `
+        <div class="card" id="pending-section">
+            <h3>🔔 Tiendas Pendientes de Validación</h3>
+            <table>
+                <thead><tr><th>Tienda</th><th>Agencia</th><th>Ubicación</th><th>Acciones</th></tr></thead>
+                <tbody id="pendingStoresBody"></tbody>
+            </table>
+        </div>
+
         <div class="card">
-            <h3>🏪 Gestión de Catálogo Maestro (Tiendas Globales)</h3>
+            <h3>🏪 Gestión de Catálogo Maestro</h3>
             <div class="tabs">
                 <button class="tab-btn active" id="btn-ind" onclick="showStoreTab('individual')">Registro Individual</button>
                 <button class="tab-btn" id="btn-bulk" onclick="showStoreTab('bulk')">Carga Masiva (Excel)</button>
             </div>
-            
             <div id="tab-individual">
-                <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
-                    <div>
-                        <label>Nombre de Tienda</label>
-                        <input type="text" id="storeName" placeholder="Ej. Bodega Aurrera - Centro">
-                    </div>
-                    <div>
-                        <label>Dirección</label>
-                        <input type="text" id="storeAddress" placeholder="Calle, Número, Colonia">
-                    </div>
-                    <div>
-                        <label>Estado / Entidad</label>
-                        <select id="storeState">
-                            <option value="">Selecciona Estado...</option>
-                            <option value="Aguascalientes">Aguascalientes</option>
-                            <option value="Baja California">Baja California</option>
-                            <option value="Baja California Sur">Baja California Sur</option>
-                            <option value="Campeche">Campeche</option>
-                            <option value="Chiapas">Chiapas</option>
-                            <option value="Chihuahua">Chihuahua</option>
-                            <option value="Coahuila">Coahuila</option>
-                            <option value="Colima">Colima</option>
-                            <option value="Ciudad de México">Ciudad de México</option>
-                            <option value="Durango">Durango</option>
-                            <option value="Guanajuato">Guanajuato</option>
-                            <option value="Guerrero">Guerrero</option>
-                            <option value="Hidalgo">Hidalgo</option>
-                            <option value="Jalisco">Jalisco</option>
-                            <option value="Estado de México">Estado de México</option>
-                            <option value="Michoacán">Michoacán</option>
-                            <option value="Morelos">Morelos</option>
-                            <option value="Nayarit">Nayarit</option>
-                            <option value="Nuevo León">Nuevo León</option>
-                            <option value="Oaxaca">Oaxaca</option>
-                            <option value="Puebla">Puebla</option>
-                            <option value="Querétaro">Querétaro</option>
-                            <option value="Quintana Roo">Quintana Roo</option>
-                            <option value="San Luis Potosí">San Luis Potosí</option>
-                            <option value="Sinaloa">Sinaloa</option>
-                            <option value="Sonora">Sonora</option>
-                            <option value="Tabasco">Tabasco</option>
-                            <option value="Tamaulipas">Tamaulipas</option>
-                            <option value="Tlaxcala">Tlaxcala</option>
-                            <option value="Veracruz">Veracruz</option>
-                            <option value="Yucatán">Yucatán</option>
-                            <option value="Zacatecas">Zacatecas</option>
-                        </select>
-                    </div>
+                <div class="form-grid">
+                    <input type="text" id="storeName" placeholder="Nombre de Tienda">
+                    <input type="text" id="storeAddress" placeholder="Dirección">
+                    <select id="storeState"><option value="">Estado...</option>${estados.map(e => `<option value="${e}">${e}</option>`).join('')}</select>
                 </div>
                 <button class="btn-action" onclick="saveSingleStore()">GUARDAR TIENDA GLOBAL</button>
             </div>
-
             <div id="tab-bulk" style="display:none;">
-                <p style="color: #64748b; font-size: 0.9rem;">
-                   Sube un archivo Excel con: <b>Nombre</b> | <b>Direccion</b> | <b>Estado</b>
-                </p>
-                <div style="border: 2px dashed #cbd5e1; padding: 20px; border-radius: 12px; text-align: center;">
-                    <input type="file" id="excelInput" accept=".xlsx, .xls">
-                </div>
-                <button class="btn-action" onclick="uploadBulkStores()" style="background:var(--blue); margin-top:15px; width: 100%;">PROCESAR EXCEL</button>
-                <div id="uploadStatus" style="margin-top:15px; text-align: center;"></div>
+                <input type="file" id="excelInput" accept=".xlsx, .xls">
+                <button class="btn-action" onclick="uploadBulkStores()" style="background:var(--blue); margin-top:10px;">PROCESAR EXCEL</button>
+                <div id="uploadStatus"></div>
             </div>
         </div>
 
         <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; gap: 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h3>📋 Tiendas en el Sistema</h3>
-                <input type="text" id="storeSearch" placeholder="🔍 Buscar por nombre, estado o dirección..." 
-                       onkeyup="filterStores()" style="max-width: 400px; margin: 0;">
+                <input type="text" id="storeSearch" placeholder="🔍 Buscar..." onkeyup="filterStores()" style="width:300px;">
                 <span id="totalStoresCount" class="badge badge-role" style="background:var(--primary)">0 tiendas</span>
             </div>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Estado</th>
-                            <th>Dirección</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="globalStoresBody">
-                        <tr><td colspan="4" style="text-align:center;">Cargando catálogo...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <table id="globalStoresTable">
+                <thead><tr><th>Nombre</th><th>Estado</th><th>Dirección</th><th>Acciones</th></tr></thead>
+                <tbody id="globalStoresBody"></tbody>
+            </table>
         </div>`;
     
+    renderPendingStoresTable();
     renderGlobalStoresTable();
 }
 
-// --- LÓGICA DE TIENDAS ---
+// --- LOGICA REGENERADA ---
+function openEditAgencyModal(id, name, email) {
+    document.getElementById('edit_agency_id').value = id;
+    document.getElementById('edit_agency_name').value = name;
+    document.getElementById('edit_agency_email').value = email;
+    document.getElementById('editAgencyModal').style.display = 'block';
+}
 
-function filterStores() {
-    const searchTerm = document.getElementById('storeSearch').value.toLowerCase();
-    const rows = document.querySelectorAll('#globalStoresBody tr');
-    rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(searchTerm) ? '' : 'none';
-    });
+async function saveAgencyChanges() {
+    const id = document.getElementById('edit_agency_id').value;
+    const body = {
+        name: document.getElementById('edit_agency_name').value,
+        email: document.getElementById('edit_agency_email').value,
+        password: document.getElementById('edit_agency_pass').value || undefined
+    };
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, { method: 'PUT', body });
+        document.getElementById('editAgencyModal').style.display = 'none';
+        loadAgenciesPage();
+    } catch (e) { alert("Error al actualizar"); }
+}
+
+async function renderPendingStoresTable() {
+    try {
+        const pending = await fetchAPI(`${BACKEND_URL}/super/stores/pending`);
+        const tbody = document.getElementById('pendingStoresBody');
+        if (!pending || pending.length === 0) { document.getElementById('pending-section').style.display = 'none'; return; }
+        tbody.innerHTML = pending.map(s => `
+            <tr>
+                <td><b>${s.name}</b></td>
+                <td><span class="badge badge-role">${s.agencyId?.name || 'Agencia'}</span></td>
+                <td><small>${s.state}, ${s.address}</small></td>
+                <td>
+                    <button class="btn-action" style="background:var(--success)" onclick="approveStore('${s._id}')">✅</button>
+                    <button class="btn-action btn-danger" onclick="deleteGlobalStore('${s._id}')">❌</button>
+                </td>
+            </tr>`).join('');
+    } catch (e) { console.error(e); }
 }
 
 async function renderGlobalStoresTable() {
@@ -346,66 +309,46 @@ async function renderGlobalStoresTable() {
         const stores = await fetchAPI(`${BACKEND_URL}/super/stores`);
         const tbody = document.getElementById('globalStoresBody');
         document.getElementById('totalStoresCount').innerText = `${stores.length} tiendas`;
-        
-        if (stores.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay tiendas globales.</td></tr>';
-            return;
-        }
-
         tbody.innerHTML = stores.map(s => `
             <tr>
                 <td><b>${s.name}</b></td>
-                <td><span class="badge" style="background:#64748b">${s.state || 'N/A'}</span></td>
-                <td><small>${s.address || 'Sin dirección'}</small></td>
-                <td>
-                    <button class="btn-action btn-danger" style="padding: 5px 10px;" onclick="deleteGlobalStore('${s._id}')">
-                        Borrar
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (e) {
-        document.getElementById('globalStoresBody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Error al cargar datos.</td></tr>';
-    }
+                <td><span class="badge" style="background:#64748b">${s.state}</span></td>
+                <td><small>${s.address}</small></td>
+                <td><button class="btn-action btn-danger" onclick="deleteGlobalStore('${s._id}')">Borrar</button></td>
+            </tr>`).join('');
+    } catch (e) { console.error(e); }
 }
 
-async function saveSingleStore() {
-    const name = document.getElementById('storeName').value.trim();
-    const address = document.getElementById('storeAddress').value.trim();
-    const state = document.getElementById('storeState').value;
-
-    if(!name || !state) return alert("⚠️ Nombre y Estado son obligatorios.");
-
+async function approveStore(id) {
+    if(!confirm("¿Aprobar tienda como global?")) return;
     try {
-        await fetchAPI(`${BACKEND_URL}/stores`, { 
-            method: 'POST', 
-            body: { name, address, state } 
-        });
-        alert("✅ Tienda Global registrada");
-        // Limpiar y recargar
-        document.getElementById('storeName').value = "";
-        document.getElementById('storeAddress').value = "";
-        document.getElementById('storeState').value = "";
-        renderGlobalStoresTable(); 
-    } catch (e) { alert("❌ Error: " + e.message); }
+        await fetchAPI(`${BACKEND_URL}/super/stores/approve/${id}`, { method: 'PUT' });
+        loadStoresPage();
+    } catch (e) { alert("Error"); }
 }
 
 async function deleteGlobalStore(id) {
-    if (!confirm("¿Eliminar del catálogo maestro?")) return;
+    if(!confirm("¿Eliminar del sistema?")) return;
     try {
         await fetchAPI(`${BACKEND_URL}/stores/${id}`, { method: 'DELETE' });
-        renderGlobalStoresTable();
-    } catch (e) { alert("Error al eliminar"); }
+        loadStoresPage();
+    } catch (e) { alert("Error"); }
 }
 
-function showStoreTab(type) {
-    document.getElementById('tab-individual').style.display = type === 'individual' ? 'block' : 'none';
-    document.getElementById('tab-bulk').style.display = type === 'bulk' ? 'block' : 'none';
-    document.getElementById('btn-ind').classList.toggle('active', type === 'individual');
-    document.getElementById('btn-bulk').classList.toggle('active', type === 'bulk');
+function filterStores() {
+    const val = document.getElementById('storeSearch').value.toLowerCase();
+    document.querySelectorAll('#globalStoresBody tr').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
+    });
 }
 
-// --- ACCIONES GENERALES ---
+function showStoreTab(t) {
+    document.getElementById('tab-individual').style.display = t==='individual'?'block':'none';
+    document.getElementById('tab-bulk').style.display = t==='bulk'?'block':'none';
+    document.getElementById('btn-ind').classList.toggle('active', t==='individual');
+    document.getElementById('btn-bulk').classList.toggle('active', t==='bulk');
+}
+
 async function createAgency() {
     const body = { name: document.getElementById("n_name").value, email: document.getElementById("n_email").value, password: document.getElementById("n_pass").value };
     try { await fetchAPI(`${BACKEND_URL}/super/agencies`, { method: "POST", body }); loadAgenciesPage(); } catch (e) { alert(e.message); }
@@ -419,55 +362,6 @@ async function deleteAgency(id) {
 async function assignUserToAgency(usrId, ageId) {
     try { await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: { agencyId: ageId } }); alert("Asignado ✅"); } catch(e) { alert("Error"); }
 }
-
-
-async function uploadBulkStores() {
-    const fileInput = document.getElementById('excelInput');
-    const statusDiv = document.getElementById('uploadStatus');
-    
-    if (!fileInput.files || fileInput.files.length === 0) {
-        return alert("⚠️ Por favor, selecciona un archivo Excel primero.");
-    }
-
-    const file = fileInput.files[0];
-    const formData = new FormData();
-    formData.append("excelFile", file); // El nombre 'excelFile' debe coincidir con upload.single en el server
-
-    statusDiv.innerHTML = "⏳ Procesando archivo, por favor espera...";
-    
-    try {
-        const response = await fetch(`${BACKEND_URL}/stores/bulk-upload`, {
-            method: 'POST',
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "userId": userId
-                // Nota: No poner Content-Type, el navegador lo pondrá automáticamente con el boundary del FormData
-            },
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            statusDiv.innerHTML = `<b style="color:var(--success)">✅ ¡Éxito! ${result.count} tiendas agregadas.</b>`;
-            fileInput.value = ""; // Limpiar input
-            renderGlobalStoresTable(); // Recargar la tabla
-        } else {
-            throw new Error(result.error || result.detalle || "Error desconocido");
-        }
-    } catch (e) {
-        console.error(e);
-        statusDiv.innerHTML = `<b style="color:var(--danger)">❌ Error: ${e.message}</b>`;
-    }
-}
-
-
-
-async function deleteGlobalUser(id) {
-    if(!confirm("¿Eliminar usuario?")) return;
-    try { await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" }); loadUsersPage(); } catch(e) { alert("Error"); }
-}
-
 
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = loadAgenciesPage;

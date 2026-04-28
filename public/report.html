@@ -97,19 +97,17 @@
 <script>
     const BACKEND_URL = "https://storepulse.onrender.com";
     const urlParams = new URLSearchParams(window.location.search);
-    const typeFromUrl = urlParams.get('type') || localStorage.getItem("currentReportType");
+    
+    let typeFromUrl = urlParams.get('type') || localStorage.getItem("currentReportType") || 'ventas';
+    if (typeFromUrl === 'Ventas') typeFromUrl = 'ventas';
+
     const userId = localStorage.getItem("userId");
-    const storeId = localStorage.getItem("activeStoreId");
+    const storeId = localStorage.getItem("activeStoreId"); 
     const agencyId = localStorage.getItem("agencyId");
 
-    // CONFIGURACIÓN: El 'title' debe coincidir con el 'val' de tu Admin
     const config = {
         'ventas': { title: 'inventario', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
-        'degustacion': { 
-            title: 'ranking', 
-            fields: ['group-articulo', 'group-cantidad'],
-            labelCant: 'Detalla la cantidad de degustación proporcionada' 
-        },
+        'degustacion': { title: 'ranking', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Detalla la cantidad de degustación proporcionada' },
         'precios': { title: 'precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
         'agotados': { title: 'agotado', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
         'preagotados': { title: 'preagotado', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
@@ -123,8 +121,6 @@
         if (!userId) { window.location.href = "login.html"; return; }
 
         const s = config[typeFromUrl] || config['ventas'];
-        
-        // Título visual agradable para el usuario
         const visualTitle = (typeFromUrl === 'ventas') ? "Ventas" : 
                            (typeFromUrl === 'degustacion') ? "Degustación" : s.title;
         
@@ -220,8 +216,13 @@
             formData.append("observaciones", document.getElementById("comentarios").value || "");
         }
 
-        // Se envía el valor 'val' que espera el Admin (ej: "inventario")
-        const reportVal = config[typeFromUrl] ? config[typeFromUrl].title : typeFromUrl;
+        let reportVal = 'inventario'; 
+        if (config[typeFromUrl]) {
+            reportVal = config[typeFromUrl].title;
+        } else if (typeFromUrl === 'degustacion' || typeFromUrl === 'ranking') {
+            reportVal = 'ranking';
+        }
+
         formData.append("reportType", reportVal);
 
         const fotoInput = document.getElementById("foto");

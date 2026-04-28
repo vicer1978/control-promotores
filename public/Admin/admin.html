@@ -416,29 +416,54 @@ function renderTableReport(data, type) {
 
 // --- FUNCIONES DE EDICIÓN DE REPORTES (AGREGAR ESTO) ---
 
-function editReportPrompt(reportId) {
-    // Buscamos el reporte en el array local comparando como strings
+async function editReportPrompt(reportId) {
+    // 1. Buscamos el reporte en el caché local
     const r = allReportsRaw.find(x => x._id.toString() === reportId.toString());
     
-    if (!r) {
-        console.error("No se encontró el reporte:", reportId);
-        return alert("Error: No se pudo cargar la información del reporte.");
+    if (!r) return alert("Error: No se pudo cargar la información.");
+
+    // 2. Determinamos qué campos mostrar (Ventas vs Otros)
+    const esVentas = (r.reportType || r.reporte || "").toLowerCase().includes("ventas");
+    
+    let camposDinamicos = "";
+
+    if (esVentas) {
+        camposDinamicos = `
+            <label>INV. INICIAL</label>
+            <input type="number" id="editInvI" value="${r.inv_inicial || 0}">
+            <label>RESURTIDO</label>
+            <input type="number" id="editResurtido" value="${r.resurtido || 0}">
+            <label>VENTAS</label>
+            <input type="number" id="editVentas" value="${r.ventas || r.cantidad || 0}">
+            <label>INV. FINAL</label>
+            <input type="number" id="editInvF" value="${r.inv_final || 0}">
+        `;
+    } else {
+        camposDinamicos = `
+            <label>CANTIDAD</label>
+            <input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
+        `;
     }
 
+    // 3. Abrimos el Drawer con el diseño original
     openDrawer(`
         <div class="drawer-header"><h3>Corregir Reporte</h3></div>
         <div style="display: flex; flex-direction: column; gap: 15px;">
-            <p style="font-size: 12px; color: #64748b;">ID: ${reportId}</p>
-            <label>Artículo / Producto</label>
+            <p style="font-size: 11px; color: #64748b;">TIPO: ${(r.reportType || 'General').toUpperCase()}</p>
+            
+            <label>ARTÍCULO / PRODUCTO</label>
             <input type="text" id="editRepArticulo" value="${r.articulo || ''}">
-            <label>Cantidad (Texto o Número)</label>
-            <input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
-            <label>Observaciones</label>
+            
+            ${camposDinamicos}
+            
+            <label>OBSERVACIONES</label>
             <textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
-            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="updateReport('${reportId}')">GUARDAR CAMBIOS</button>
+            
+            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="enviarUpdateReport('${reportId}', ${esVentas})">GUARDAR CAMBIOS</button>
         </div>
     `);
 }
+
 
 async function updateReport(reportId) {
     const articulo = document.getElementById('editRepArticulo').value;

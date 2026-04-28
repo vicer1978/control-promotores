@@ -397,21 +397,31 @@ function renderTableReport(data, type) {
         const usuario = (r.userId && r.userId.name) ? r.userId.name : (r.userName || 'S/N');
         const tienda = (r.storeId && r.storeId.name) ? r.storeId.name : (r.storeName || 'S/T');
 
-        let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
+                let rowData = `<td>${fecha}</td><td>${usuario}</td><td>${tienda}</td>`;
         
         dynamicKeys.forEach(k => {
             let val = r[k];
             // Formato moneda
-            if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== "") val = `$${val}`;
-            // Si es nulo en ventas, ponemos 0 para que no se vea vacío
-            if (['inv_inicial', 'inv_final', 'ventas', 'resurtido'].includes(k.toLowerCase()) && (val === undefined || val === null)) val = "0";
+            if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== "") {
+                val = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val);
+            }
+            // Si es nulo en campos críticos, ponemos 0
+            if (['inv_inicial', 'inv_final', 'ventas', 'resurtido'].includes(k.toLowerCase()) && (val === undefined || val === null)) {
+                val = "0";
+            }
             
             rowData += `<td>${val || '-'}</td>`;
         });
 
+        // LÓGICA DE FOTO MEJORADA
         if (data.some(x => x.foto_url)) {
-            rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
+            const finalPhotoUrl = r.foto_url?.startsWith('http') ? r.foto_url : `${BACKEND_URL}${r.foto_url}`;
+            
+            rowData += `<td>${r.foto_url ? 
+                `<img src="${finalPhotoUrl}" class="asistencia-foto" onclick="window.open(this.src)">` 
+                : '-'}</td>`;
         }
+
 
         return `<tr>${rowData}<td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="editReportPrompt('${r._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td></tr>`;
     }).join('');
@@ -511,6 +521,56 @@ async function updateReport(reportId) {
         filterReports();
     }
 }
+
+
+async function enviarUpdateReport(id, esVentas) {
+    // 1. Recolectamos los datos de los inputs del Drawer usando los IDs correctos
+    const updates = {
+        articulo: document.getElementById("editRepArticulo").value,
+        observaciones: document.getElementById("editRepObs").value,
+    };
+
+    // Si es un reporte de ventas/inventario, agregamos esos campos
+    if (esVentas) {
+        updates.inv_inicial = Number(document.getElementById("editInvI")?.value) || 0;
+        updates.resurtido = Number(document.getElementById("editResurtido")?.value) || 0;
+        updates.ventas = Number(document.getElementById("editVentas")?.value) || 0;
+        updates.inv_final = Number(document.getElementById("editInvF")?.value) || 0;
+    } else {
+        updates.cantidad = document.getElementById("editRepCantidad")?.value;
+    }
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/reports/${id}`, {
+            method: "PUT",
+            headers: { 
+                "Content-Type": "application/json",
+                "userid": localStorage.getItem("userId")
+            },
+            body: JSON.stringify(updates)
+        });
+
+        if (res.ok) {
+            alert("✅ Reporte actualizado con éxito");
+            closeDrawer(); // Cerramos el panel
+            
+            // Actualizamos el caché local para que la tabla se vea bien sin recargar todo
+            const index = allReportsRaw.findIndex(x => x._id.toString() === id.toString());
+            if (index !== -1) {
+                allReportsRaw[index] = { ...allReportsRaw[index], ...updates };
+            }
+            
+            filterReports(); // Refrescamos la tabla visualmente
+        } else {
+            const err = await res.json();
+            alert("❌ Error: " + (err.error || "No se pudo actualizar"));
+        }
+    } catch (error) {
+        console.error("Error al actualizar:", error);
+        alert("Hubo un error al conectar con el servidor");
+    }
+}
+
 
 
 

@@ -335,39 +335,45 @@ function renderTableReport(data, type) {
     const exclude = [
         '_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 
         'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 
-        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio', 'pre_agotados' 
+        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio', 'photo', 'datosExtra'
     ];
 
-    const roleSel = document.getElementById("fRole")?.value;
-    let dynamicKeys = [];
-
-    // --- LÓGICA DE COLUMNAS PERSONALIZADA PARA VENTAS ---
-    if (type === 'inventario') {
-        // Forzamos el orden que pediste
-        dynamicKeys = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'observaciones'];
-    } else {
-        // Lógica automática para los demás tipos de reporte
-        dynamicKeys = Object.keys(data[0]).filter(key => {
-            if (exclude.includes(key)) return false;
-            const keyLower = key.toLowerCase();
-            if ((type === 'precios' || type === 'competencia') && keyLower === 'cantidad') return false;
-            if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) return false;
-            return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+    // --- MEJORA: Escaneamos TODOS los registros para encontrar todas las columnas posibles ---
+    let allPossibleKeys = new Set();
+    data.forEach(item => {
+        Object.keys(item).forEach(key => {
+            if (!exclude.includes(key)) allPossibleKeys.add(key);
         });
-    }
+    });
 
-    // Construcción de Encabezados
+    let dynamicKeys = Array.from(allPossibleKeys).filter(key => {
+        const keyLower = key.toLowerCase();
+        // Filtros de negocio que ya tenías
+        if ((type === 'precios' || type === 'competencia') && keyLower === 'cantidad') return false;
+        if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo' || keyLower === 'cantidad')) return false;
+        
+        // Solo mostrar si al menos un registro en el set tiene un valor real
+        return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+    });
+
+    // --- ORDENACIÓN LÓGICA DE COLUMNAS ---
+    const order = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'observaciones'];
+    dynamicKeys.sort((a, b) => {
+        let ia = order.indexOf(a.toLowerCase());
+        let ib = order.indexOf(b.toLowerCase());
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    // Construcción de headers
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => {
-        // Formateamos los nombres para que se vean bien
         let label = k.replace('_', ' ').toUpperCase();
-        if(label === 'INV INICIAL') label = 'INV. INICIAL';
-        if(label === 'INV FINAL') label = 'INV. FINAL';
+        if(label === "INV INICIAL") label = "INV. INICIAL";
+        if(label === "INV FINAL") label = "INV. FINAL";
         headers += `<th>${label}</th>`;
     });
     
     if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
-    
     const hasAction = (session.role?.toLowerCase() !== 'cliente');
     
     let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
@@ -381,15 +387,11 @@ function renderTableReport(data, type) {
         
         dynamicKeys.forEach(k => {
             let val = r[k];
-            // Si es un valor numérico de inventario y viene vacío, poner 0
-            if(['inv_inicial', 'resurtido', 'ventas', 'inv_final'].includes(k)) {
-                val = (val === undefined || val === null) ? 0 : val;
-            }
-            if(k.toLowerCase().includes('precio') && !isNaN(val)) val = `$${val}`;
-            rowData += `<td>${val || '-'}</td>`;
+            if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== "") val = `$${val}`;
+            rowData += `<td>${(val !== undefined && val !== null) ? val : '-'}</td>`;
         });
 
-        if (r.foto_url || data.some(x => x.foto_url)) {
+        if (data.some(x => x.foto_url)) {
             rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
         }
 

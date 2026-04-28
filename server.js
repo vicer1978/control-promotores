@@ -379,15 +379,21 @@ app.post("/reports", auth, upload.single("photo"), async (req, res) => {
             }
         }
 
-        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA (CORREGIDA) ---
+        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA (CORREGIDA PARA QUE SEA DINÁMICA) ---
 const obs = req.body.observaciones || req.body.comentarios || "";
 let tipoReporte = req.body.reportType || req.body.reporte || "otro";
 const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-let vtas = 0;
-let inv_i = 0;
-let inv_f = 0;
+// En lugar de forzar ceros, tomamos lo que venga del body
+// Si el campo existe, lo usamos; si no, ponemos 0.
+let vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
+let inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
 let resurtido = Number(req.body.resurtido) || 0;
+let inv_f = Number(req.body.inv_final) || (inv_i + resurtido - vtas);
+
+// Eliminamos los "if else" que sobreescribían a 0.
+// Ahora, si la demostradora manda inventario inicial en un reporte de ventas, SE GUARDA.
+
 const tipoBajo = tipoReporte.toLowerCase();
 
 // Lógica de limpieza por tipo de flujo

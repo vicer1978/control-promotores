@@ -453,17 +453,34 @@ async function editReportPrompt(reportId) {
     }
 
     openDrawer(`
-        <div class="drawer-header"><h3>Corregir Reporte</h3></div>
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <p style="font-size: 11px; color: #64748b;">CATEGORÍA: ${tipoStr.toUpperCase()}</p>
-            <label>ARTÍCULO / PRODUCTO</label>
-            <input type="text" id="editRepArticulo" value="${r.articulo || ''}">
-            ${camposDinamicos}
-            <label>OBSERVACIONES</label>
-            <textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
-            <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="enviarUpdateReport('${reportId}', ${esVentas})">GUARDAR CAMBIOS</button>
+    <div style="display: flex; flex-direction: column; height: 100%;">
+        <div class="drawer-header" style="padding: 15px; border-bottom: 1px solid #eee;">
+            <h3>Corregir Reporte</h3>
         </div>
-    `);
+        
+        <div style="flex: 1; overflow-y: auto; padding: 20px;">
+            <p style="font-size: 11px; color: #64748b; margin-bottom: 15px;">CATEGORÍA: ${tipoStr.toUpperCase()}</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <label>ARTÍCULO / PRODUCTO</label>
+                <input type="text" id="editRepArticulo" value="${r.articulo || ''}" class="form-control">
+                
+                ${camposDinamicos}
+                
+                <label>OBSERVACIONES</label>
+                <textarea id="editRepObs" class="form-control" style="height: 80px;">${r.observaciones || ''}</textarea>
+            </div>
+        </div>
+
+        <div style="padding: 15px; border-top: 1px solid #eee; background: white;">
+            <button class="btn-action" style="width: 100%; background: var(--success); padding: 12px;" 
+                    onclick="enviarUpdateReport('${reportId}', ${esVentas})">
+                GUARDAR CAMBIOS
+            </button>
+        </div>
+    </div>
+`);
+
 }
 
 

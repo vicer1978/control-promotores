@@ -400,22 +400,23 @@ if (inv_f === 0 && (inv_i > 0 || vtas > 0)) {
 
 const tipoBajo = tipoReporte.toLowerCase();
 
-// Lógica de limpieza por tipo de flujo
+// Nueva lógica: Capturamos todo lo que venga sin borrar los otros campos
 if (tipoBajo.includes('venta') || tipoBajo.includes('degustacion') || tipoBajo.includes('ranking')) {
-    // FLUJO VENTAS / DEMOSTRADORA: Prioridad absoluta al dato de movimiento
     vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
-    inv_i = 0; 
-    inv_f = 0;
+    inv_i = Number(req.body.inv_inicial) || 0;
+    inv_f = Number(req.body.inv_final) || 0;
 } else if (tipoBajo.includes('inventario') || tipoBajo.includes('agotado')) {
-    // FLUJO PROMOTOR: Prioridad a stock
     inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
-    inv_f = Number(req.body.inv_final) || (inv_i + resurtido);
-    vtas = 0;
-    } else {
+    vtas = Number(req.body.ventas) || 0;
+    // Si no mandan final, lo calculamos, pero si lo mandan (como en la edición), lo respetamos
+    inv_f = Number(req.body.inv_final) || (inv_i + resurtido - vtas);
+} else {
     // Otros (Precios, Competencia, etc.)
     vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
     inv_i = Number(req.body.inv_inicial) || 0;
+    inv_f = Number(req.body.inv_final) || 0;
 }
+
 
 // --- 4. ENSAMBLAJE FINAL DEL REPORTE ---
 const reportData = {

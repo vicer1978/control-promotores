@@ -393,6 +393,7 @@ let inv_f = Number(req.body.inv_final) || 0;
 // Si el inventario final viene en 0 pero tenemos inicial, resurtido y ventas, lo calculamos
 if (inv_f === 0 && (inv_i > 0 || vtas > 0)) {
     inv_f = (inv_i + resurtido) - vtas;
+}
 
 // Eliminamos los "if else" que sobreescribían a 0.
 // Ahora, si la demostradora manda inventario inicial en un reporte de ventas, SE GUARDA.
@@ -410,7 +411,7 @@ if (tipoBajo.includes('venta') || tipoBajo.includes('degustacion') || tipoBajo.i
     inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
     inv_f = Number(req.body.inv_final) || (inv_i + resurtido);
     vtas = 0;
-} else {
+    } else {
     // Otros (Precios, Competencia, etc.)
     vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
     inv_i = Number(req.body.inv_inicial) || 0;

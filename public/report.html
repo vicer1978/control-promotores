@@ -99,32 +99,37 @@
     const urlParams = new URLSearchParams(window.location.search);
     const typeFromUrl = urlParams.get('type') || localStorage.getItem("currentReportType");
     const userId = localStorage.getItem("userId");
-    const userRole = (localStorage.getItem("role") || "promotor").toLowerCase();
     const storeId = localStorage.getItem("activeStoreId");
     const agencyId = localStorage.getItem("agencyId");
 
+    // CONFIGURACIÓN: El 'title' debe coincidir con el 'val' de tu Admin
     const config = {
-        'ventas': { title: 'Ventas', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
+        'ventas': { title: 'inventario', fields: ['group-articulo', 'block-demo', 'group-comentarios'] },
         'degustacion': { 
-            title: 'Degustación', 
+            title: 'ranking', 
             fields: ['group-articulo', 'group-cantidad'],
             labelCant: 'Detalla la cantidad de degustación proporcionada' 
         },
-        'precios': { title: 'Precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
-        'agotados': { title: 'Agotados', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
-        'preagotados': { title: 'Pre-Agotados', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
-        'inventario': { title: 'Inventarios', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Física' },
-        'exhibicion': { title: 'Exhibiciones Adicionales', fields: ['group-comentarios', 'group-foto'], labelCom: 'Descripción de la Exhibición' },
-        'competencia': { title: 'Precios Competencia', fields: ['group-articulo', 'group-precios'], labelArt: 'Marca Competencia' },
-        'fotos': { title: 'Fotos Anaquel', fields: ['group-foto', 'group-comentarios'] }
+        'precios': { title: 'precios', fields: ['group-articulo', 'group-precios'], labelArt: 'Artículo / Producto' },
+        'agotados': { title: 'agotado', fields: ['group-articulo'], labelArt: 'Artículo Agotado' },
+        'preagotados': { title: 'preagotado', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad en Stock' },
+        'inventario': { title: 'inventario', fields: ['group-articulo', 'group-cantidad'], labelCant: 'Cantidad Física' },
+        'exhibicion': { title: 'exhibicion', fields: ['group-comentarios', 'group-foto'], labelCom: 'Descripción de la Exhibición' },
+        'competencia': { title: 'competencia', fields: ['group-articulo', 'group-precios'], labelArt: 'Marca Competencia' },
+        'fotos': { title: 'foto', fields: ['group-foto', 'group-comentarios'] }
     };
 
     window.onload = () => {
         if (!userId) { window.location.href = "login.html"; return; }
 
         const s = config[typeFromUrl] || config['ventas'];
-        document.getElementById("formTitle").innerText = s.title;
-        document.getElementById("headerTitle").innerText = s.title;
+        
+        // Título visual agradable para el usuario
+        const visualTitle = (typeFromUrl === 'ventas') ? "Ventas" : 
+                           (typeFromUrl === 'degustacion') ? "Degustación" : s.title;
+        
+        document.getElementById("formTitle").innerText = visualTitle;
+        document.getElementById("headerTitle").innerText = visualTitle;
 
         s.fields.forEach(id => {
             const el = document.getElementById(id);
@@ -215,9 +220,9 @@
             formData.append("observaciones", document.getElementById("comentarios").value || "");
         }
 
-        // ASIGNACIÓN DE TIPO PARA EL ADMIN
-        const reportTitle = config[typeFromUrl] ? config[typeFromUrl].title : typeFromUrl;
-        formData.append("reportType", reportTitle);
+        // Se envía el valor 'val' que espera el Admin (ej: "inventario")
+        const reportVal = config[typeFromUrl] ? config[typeFromUrl].title : typeFromUrl;
+        formData.append("reportType", reportVal);
 
         const fotoInput = document.getElementById("foto");
         if(fotoInput && fotoInput.files[0]) formData.append("photo", fotoInput.files[0]);
@@ -237,7 +242,7 @@
                 alert("❌ Error: " + (err.error || "Falla al enviar"));
             }
         } catch (err) {
-            alert("❌ Error de conexión con el servidor");
+            alert("❌ Error de conexión");
         } finally {
             btn.disabled = false; btn.innerText = "ENVIAR REPORTE";
         }

@@ -179,8 +179,11 @@
         btn.innerText = "ENVIANDO...";
 
         const formData = new FormData();
+        // RESPALDO SI EL LOCALSTORAGE ESTÁ VACÍO
+        const sId = storeId || localStorage.getItem("activeStoreId");
+    
         formData.append("agencyId", agencyId);
-        formData.append("storeId", storeId);
+        formData.append("storeId", sId); // Aseguramos que no vaya null
         formData.append("userId", userId);
         formData.append("lat", coords.lat);
         formData.append("lng", coords.lng);

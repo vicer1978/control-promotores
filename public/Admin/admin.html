@@ -332,13 +332,15 @@ function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
     if (data.length === 0) { container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`; return; }
 
+    // 1. Lista negra de columnas que NUNCA deben aparecer
     const exclude = [
         '_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 
         'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 
-        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio', 'photo', 'datosExtra'
+        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio', 'photo', 
+        'datosExtra', 'pre_agotados', 'pre agotados', 'cantidad' // <--- Eliminamos 'cantidad' y 'pre agotados' de raíz
     ];
 
-    // --- MEJORA: Escaneamos TODOS los registros para encontrar todas las columnas posibles ---
+    // 2. Escaneamos columnas disponibles en los datos
     let allPossibleKeys = new Set();
     data.forEach(item => {
         Object.keys(item).forEach(key => {
@@ -348,23 +350,28 @@ function renderTableReport(data, type) {
 
     let dynamicKeys = Array.from(allPossibleKeys).filter(key => {
         const keyLower = key.toLowerCase();
-        // Filtros de negocio que ya tenías
-        if ((type === 'precios' || type === 'competencia') && keyLower === 'cantidad') return false;
-        if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo' || keyLower === 'cantidad')) return false;
         
-        // Solo mostrar si al menos un registro en el set tiene un valor real
+        // REGLA DE ORO: Si el reporte es Ventas, Precios o Degustación, NO mostrar 'cantidad' ni 'pre agotados'
+        if (['ventas', 'precios', 'ranking', 'degustacion'].includes(type.toLowerCase())) {
+            if (keyLower === 'cantidad' || keyLower.includes('pre agotado')) return false;
+        }
+
+        // Para fotos/exhibición no mostramos artículos
+        if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo')) return false;
+        
+        // Solo mostrar si hay datos reales
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });
 
-    // --- ORDENACIÓN LÓGICA DE COLUMNAS ---
-    const order = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'observaciones'];
+    // 3. ORDEN FORZADO: Forzamos que Inicial y Final aparezcan en Ventas
+    const order = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'precio_normal', 'precio_oferta', 'observaciones'];
     dynamicKeys.sort((a, b) => {
         let ia = order.indexOf(a.toLowerCase());
         let ib = order.indexOf(b.toLowerCase());
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
 
-    // Construcción de headers
+    // 4. Construcción de Headers
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
     dynamicKeys.forEach(k => {
         let label = k.replace('_', ' ').toUpperCase();
@@ -374,9 +381,8 @@ function renderTableReport(data, type) {
     });
     
     if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
-    const hasAction = (session.role?.toLowerCase() !== 'cliente');
     
-    let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}${hasAction?'<th>ACCION</th>':''}</tr></thead><tbody>`;
+    let html = `<div class="card" style="overflow-x: auto; padding: 0;"><table class="report-table" style="margin-top:0;"><thead style="background: var(--primary); color: white;"><tr>${headers}<th>ACCION</th></tr></thead><tbody>`;
     
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
@@ -387,19 +393,24 @@ function renderTableReport(data, type) {
         
         dynamicKeys.forEach(k => {
             let val = r[k];
+            // Formato moneda
             if(k.toLowerCase().includes('precio') && !isNaN(val) && val !== "") val = `$${val}`;
-            rowData += `<td>${(val !== undefined && val !== null) ? val : '-'}</td>`;
+            // Si es nulo en ventas, ponemos 0 para que no se vea vacío
+            if (['inv_inicial', 'inv_final', 'ventas', 'resurtido'].includes(k.toLowerCase()) && (val === undefined || val === null)) val = "0";
+            
+            rowData += `<td>${val || '-'}</td>`;
         });
 
         if (data.some(x => x.foto_url)) {
             rowData += `<td>${r.foto_url ? `<img src="${BACKEND_URL}${r.foto_url}" class="asistencia-foto" onclick="window.open(this.src)">` : '-'}</td>`;
         }
 
-        return `<tr>${rowData}${hasAction ? `<td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="editReportPrompt('${r._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td>` : ''}</tr>`;
+        return `<tr>${rowData}<td style="white-space: nowrap;"><button class="btn-icon btn-edit-tool" onclick="editReportPrompt('${r._id}')">✏️</button><button class="btn-icon btn-delete-tool" onclick="deleteReport('${r._id}')">🗑</button></td></tr>`;
     }).join('');
     
     container.innerHTML = html + `</tbody></table></div>`;
 }
+
 
 
 

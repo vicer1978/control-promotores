@@ -332,51 +332,39 @@ function renderTableReport(data, type) {
     const container = document.getElementById("reportList");
     if (data.length === 0) { container.innerHTML = `<div class="card" style="text-align:center">No se encontraron datos.</div>`; return; }
 
-    // --- CORRECCIÓN AQUÍ ---
-    // Añadimos 'userName' y 'storeName' a la lista de excluidos para que no se creen columnas extra
     const exclude = [
         '_id', 'userId', 'storeId', 'agencyId', 'projectId', 'updatedAt', '__v', 
         'reporte', 'reportType', 'foto_url', 'createdAt', 'location', 
-        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio' 
+        'coordenadas', 'lat', 'lng', 'userName', 'storeName', 'precio', 'pre_agotados' 
     ];
 
     const roleSel = document.getElementById("fRole")?.value;
-    
-    let dynamicKeys = Object.keys(data[0]).filter(key => {
-    // 1. Excluir campos técnicos (IDs, fechas internas, etc.)
-    if (exclude.includes(key)) return false;
+    let dynamicKeys = [];
 
-    const keyLower = key.toLowerCase();
-
-    // 2. REGLA MAESTRA: Quitar 'cantidad' en Precios, Competencia y Ventas
-    if ((type === 'precios' || type === 'competencia'|| type === 'ventas') && keyLower === 'cantidad') {
-        return false;
+    // --- LÓGICA DE COLUMNAS PERSONALIZADA PARA VENTAS ---
+    if (type === 'inventario') {
+        // Forzamos el orden que pediste
+        dynamicKeys = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'observaciones'];
+    } else {
+        // Lógica automática para los demás tipos de reporte
+        dynamicKeys = Object.keys(data[0]).filter(key => {
+            if (exclude.includes(key)) return false;
+            const keyLower = key.toLowerCase();
+            if ((type === 'precios' || type === 'competencia') && keyLower === 'cantidad') return false;
+            if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) return false;
+            return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
+        });
     }
 
-
-    if ((type === 'precios' || type === 'degustación') && keyLower === 'pre agotados') {
-        return false;
-    }
-
-    // 3. REGLA PARA REPORTES FOTOGRÁFICOS (Exhibiciones y Fotos Anaquel)
-    // Quitamos artículo, cantidad y photo para maximizar el espacio de la evidencia
-    if ((type === 'exhibicion' || type === 'foto') && 
-        (keyLower === 'articulo' || keyLower === 'cantidad' || keyLower === 'photo')) {
-        return false;
-    }
-
-    // 4. Regla para DEMOSTRADORA: Solo permitir 'cantidad' en Degustación (ranking)
-    if (roleSel === 'demostradora' && keyLower === 'cantidad' && type !== 'ranking') {
-        return false;
-    }
-
-    // 5. Mostrar columna solo si tiene datos reales
-    return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
-});
-
-
+    // Construcción de Encabezados
     let headers = `<th>FECHA</th><th>USUARIO</th><th>TIENDA</th>`;
-    dynamicKeys.forEach(k => headers += `<th>${k.replace('_', ' ').toUpperCase()}</th>`);
+    dynamicKeys.forEach(k => {
+        // Formateamos los nombres para que se vean bien
+        let label = k.replace('_', ' ').toUpperCase();
+        if(label === 'INV INICIAL') label = 'INV. INICIAL';
+        if(label === 'INV FINAL') label = 'INV. FINAL';
+        headers += `<th>${label}</th>`;
+    });
     
     if (data.some(r => r.foto_url)) headers += `<th>EVIDENCIA</th>`;
     
@@ -386,9 +374,6 @@ function renderTableReport(data, type) {
     
     html += data.map(r => {
         const fecha = new Date(r.createdAt).toLocaleDateString();
-        
-        // --- CORRECCIÓN AQUÍ ---
-        // Usamos la propiedad que venga: o el objeto populado o el string manual que enviamos
         const usuario = (r.userId && r.userId.name) ? r.userId.name : (r.userName || 'S/N');
         const tienda = (r.storeId && r.storeId.name) ? r.storeId.name : (r.storeName || 'S/T');
 
@@ -396,6 +381,10 @@ function renderTableReport(data, type) {
         
         dynamicKeys.forEach(k => {
             let val = r[k];
+            // Si es un valor numérico de inventario y viene vacío, poner 0
+            if(['inv_inicial', 'resurtido', 'ventas', 'inv_final'].includes(k)) {
+                val = (val === undefined || val === null) ? 0 : val;
+            }
             if(k.toLowerCase().includes('precio') && !isNaN(val)) val = `$${val}`;
             rowData += `<td>${val || '-'}</td>`;
         });
@@ -409,6 +398,7 @@ function renderTableReport(data, type) {
     
     container.innerHTML = html + `</tbody></table></div>`;
 }
+
 
 
 // --- FUNCIONES DE EDICIÓN DE REPORTES (AGREGAR ESTO) ---

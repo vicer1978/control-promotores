@@ -348,20 +348,28 @@ function renderTableReport(data, type) {
         });
     });
 
-    let dynamicKeys = Array.from(allPossibleKeys).filter(key => {
+        let dynamicKeys = Array.from(allPossibleKeys).filter(key => {
         const keyLower = key.toLowerCase();
-        
-        // REGLA DE ORO: Si el reporte es Ventas, Precios o Degustación, NO mostrar 'cantidad' ni 'pre agotados'
+        // Evitamos duplicar cantidad si ya tenemos ventas
         if (['ventas', 'precios', 'ranking', 'degustacion'].includes(type.toLowerCase())) {
             if (keyLower === 'cantidad' || keyLower.includes('pre agotado')) return false;
         }
-
-        // Para fotos/exhibición no mostramos artículos
         if ((type === 'exhibicion' || type === 'foto') && (keyLower === 'articulo')) return false;
         
-        // Solo mostrar si hay datos reales
         return data.some(item => item[key] !== undefined && item[key] !== null && item[key] !== "" && item[key] !== 0);
     });
+
+    // --- FORZAR COLUMNAS PARA VENTAS ---
+    if (type.toLowerCase().includes('ventas') || type.toLowerCase().includes('inventario')) {
+        const inventarioColumns = ['inv_inicial', 'resurtido', 'ventas', 'inv_final'];
+        
+        inventarioColumns.forEach(col => {
+            if (!dynamicKeys.includes(col)) {
+                dynamicKeys.push(col);
+            }
+        });
+    }
+
 
     // 3. ORDEN FORZADO: Forzamos que Inicial y Final aparezcan en Ventas
     const order = ['articulo', 'inv_inicial', 'resurtido', 'ventas', 'inv_final', 'precio_normal', 'precio_oferta', 'observaciones'];
@@ -417,13 +425,12 @@ function renderTableReport(data, type) {
 // --- FUNCIONES DE EDICIÓN DE REPORTES (AGREGAR ESTO) ---
 
 async function editReportPrompt(reportId) {
-    // 1. Buscamos el reporte en el caché local
     const r = allReportsRaw.find(x => x._id.toString() === reportId.toString());
-    
     if (!r) return alert("Error: No se pudo cargar la información.");
 
-    // 2. Determinamos qué campos mostrar (Ventas vs Otros)
-    const esVentas = (r.reportType || r.reporte || "").toLowerCase().includes("ventas");
+    // Detección mejorada
+    const tipoStr = (r.reportType || r.reporte || "").toLowerCase();
+    const esVentas = tipoStr.includes("ventas") || tipoStr.includes("inventario") || tipoStr.includes("ranking");
     
     let camposDinamicos = "";
 
@@ -440,29 +447,25 @@ async function editReportPrompt(reportId) {
         `;
     } else {
         camposDinamicos = `
-            <label>CANTIDAD</label>
+            <label>CANTIDAD / VALOR</label>
             <input type="text" id="editRepCantidad" value="${r.cantidad || ''}">
         `;
     }
 
-    // 3. Abrimos el Drawer con el diseño original
     openDrawer(`
         <div class="drawer-header"><h3>Corregir Reporte</h3></div>
         <div style="display: flex; flex-direction: column; gap: 15px;">
-            <p style="font-size: 11px; color: #64748b;">TIPO: ${(r.reportType || 'General').toUpperCase()}</p>
-            
+            <p style="font-size: 11px; color: #64748b;">CATEGORÍA: ${tipoStr.toUpperCase()}</p>
             <label>ARTÍCULO / PRODUCTO</label>
             <input type="text" id="editRepArticulo" value="${r.articulo || ''}">
-            
             ${camposDinamicos}
-            
             <label>OBSERVACIONES</label>
             <textarea id="editRepObs" style="width:100%; height:80px; padding:10px; border-radius:6px; border:1px solid #ddd;">${r.observaciones || ''}</textarea>
-            
             <button class="btn-action" style="background:var(--success); margin-top:20px;" onclick="enviarUpdateReport('${reportId}', ${esVentas})">GUARDAR CAMBIOS</button>
         </div>
     `);
 }
+
 
 
 async function updateReport(reportId) {

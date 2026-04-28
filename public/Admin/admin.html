@@ -353,6 +353,11 @@ function renderTableReport(data, type) {
         return false;
     }
 
+
+    if ((type === 'precios' || type === 'degustación') && keyLower === 'pre agotados') {
+        return false;
+    }
+
     // 3. REGLA PARA REPORTES FOTOGRÁFICOS (Exhibiciones y Fotos Anaquel)
     // Quitamos artículo, cantidad y photo para maximizar el espacio de la evidencia
     if ((type === 'exhibicion' || type === 'foto') && 

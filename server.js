@@ -1,4 +1,5 @@
 const express = require("express");
+const fs = require('fs'); 
 const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
@@ -649,6 +650,16 @@ app.get("/super/stores", auth, async (req, res) => {
     }
 });
 
+
+// Agregar a server.js para que no de error 404 en el panel
+app.get("/super/stores/pending", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        // Busca tiendas que NO son globales y NO tienen agencia (o tienen un flag de pendiente)
+        const pending = await Store.find({ isGlobal: false, agencyId: { $ne: null } }).populate("agencyId", "name").lean();
+        res.json(pending);
+    } catch (err) { res.status(500).json([]); }
+});
 
 
 

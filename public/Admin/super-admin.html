@@ -302,6 +302,9 @@ async function loadStoresPage() {
     renderGlobalStoresTable();
 }
 
+
+
+
 // --- LOGICA REGENERADA ---
 function openEditAgencyModal(id, name, email) {
     document.getElementById('edit_agency_id').value = id;
@@ -344,7 +347,7 @@ async function renderPendingStoresTable() {
 
 async function renderGlobalStoresTable() {
     try {
-        const stores = await fetchAPI(`${BACKEND_URL}/stores`);
+        const stores = await fetchAPI(`${BACKEND_URL}/super/stores`);
         const tbody = document.getElementById('globalStoresBody');
         document.getElementById('totalStoresCount').innerText = `${stores.length} tiendas`;
         tbody.innerHTML = stores.map(s => `
@@ -428,52 +431,73 @@ async function deleteUser(id) {
 // --- FUNCIONES DE TIENDAS ---
 async function saveSingleStore() {
     const body = {
-        name: document.getElementById("storeName").value,
-        address: document.getElementById("storeAddress").value,
-        state: document.getElementById("storeState").value,
-        isGlobal: true // Importante para que aparezca en el catálogo maestro
+        name: document.getElementById("storeName").value, // Corregido el ID
+        address: document.getElementById("storeAddress").value, // Corregido el ID
+        state: document.getElementById("storeState").value, // Corregido el ID
+        isGlobal: true 
     };
     
     if(!body.name || !body.state) return alert("Nombre y Estado son obligatorios");
 
     try {
-        await fetchAPI(`${BACKEND_URL}/super/stores`, { method: "POST", body });
+        // CAMBIO CLAVE: La ruta en tu server es /stores, no /super/stores
+        await fetchAPI(`${BACKEND_URL}/stores`, { 
+            method: "POST", 
+            body: body 
+        });
         alert("Tienda agregada al catálogo maestro ✅");
-        loadStoresPage();
-    } catch (e) { alert(e.message); }
+        
+        // Limpiar campos
+        document.getElementById("storeName").value = "";
+        document.getElementById("storeAddress").value = "";
+        document.getElementById("storeState").value = "";
+        
+        loadStoresPage(); // Recargar tabla
+    } catch (e) { 
+        alert("Error: " + e.message); 
+    }
 }
+
 
 
 async function uploadBulkStores() {
     const fileInput = document.getElementById('excelInput');
     const status = document.getElementById('uploadStatus');
+    
     if (!fileInput.files[0]) return alert("Selecciona un archivo Excel");
 
-    status.innerText = "Procesando...";
-    const reader = new FileReader();
+    status.innerText = "Subiendo y procesando archivo...";
+    
+    // Creamos un FormData para enviar el archivo real al servidor
+    const formData = new FormData();
+    formData.append("excelFile", fileInput.files[0]);
 
-    reader.onload = async (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet);
+    try {
+        const response = await fetch(`${BACKEND_URL}/stores/bulk-upload`, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "userid": userId
+            },
+            body: formData // Enviamos el archivo tal cual
+        });
 
-            // Enviamos al backend
-            const res = await fetchAPI(`${BACKEND_URL}/stores/bulk`, {
-                method: 'POST',
-                body: { stores: json }
-            });
+        const res = await response.json();
 
-            alert(`Éxito: ${res.count} tiendas procesadas.`);
+        if (response.ok) {
+            alert(`Éxito: ${res.count} tiendas cargadas.`);
             loadStoresPage();
-        } catch (err) {
-            console.error(err);
-            alert("Error al procesar el Excel. Revisa el formato.");
+        } else {
+            throw new Error(res.error || "Error en el servidor");
         }
-    };
-    reader.readAsArrayBuffer(fileInput.files[0]);
+    } catch (err) {
+        console.error(err);
+        alert("Error: " + err.message);
+    } finally {
+        status.innerText = "";
+    }
 }
+
 
 
 

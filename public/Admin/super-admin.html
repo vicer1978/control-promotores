@@ -96,10 +96,14 @@
 
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
+
+// 1. VALIDACIÓN DE SESIÓN CORREGIDA
 const token = localStorage.getItem("token");
 const userId = localStorage.getItem("userId");
+const role = localStorage.getItem("role"); // Cambiado de 'userRole' a 'role'
 
-if (!token || localStorage.getItem("userRole") !== 'super-admin') {
+if (!token || role !== 'super-admin') {
+    console.error("Acceso denegado o sesión expirada");
     localStorage.clear();
     window.location.href = "../login.html";
 }
@@ -107,14 +111,38 @@ if (!token || localStorage.getItem("userRole") !== 'super-admin') {
 let agenciesList = [];
 let usersList = [];
 
+// 2. FUNCIÓN FETCH MEJORADA
 async function fetchAPI(url, options = {}) {
-    const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "userId": userId };
-    if (options.body && typeof options.body === 'object') options.body = JSON.stringify(options.body);
-    const res = await fetch(url, { ...options, headers });
-    if (!res.ok) throw new Error("Error en la petición");
-    return res.json();
+    const headers = { 
+        "Content-Type": "application/json", 
+        "Authorization": `Bearer ${token}`, 
+        "userid": userId // Nota: 'userid' en minúsculas suele ser más estándar en headers personalizados
+    };
+
+    const config = {
+        ...options,
+        headers: { ...headers, ...options.headers }
+    };
+
+    // Solo convertimos a string si hay un body y no es ya un string
+    if (config.body && typeof config.body === 'object') {
+        config.body = JSON.stringify(config.body);
+    }
+
+    try {
+        const res = await fetch(url, config);
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || "Error en la petición");
+        }
+        return await res.json();
+    } catch (err) {
+        console.error("API Error:", err);
+        throw err;
+    }
 }
 
+// 3. CAMBIO DE PESTAÑAS
 function changeTab(btn, callback) {
     document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -122,13 +150,16 @@ function changeTab(btn, callback) {
     callback();
 }
 
+// ... El resto de tus funciones (updateStats, loadAgenciesPage, etc.) se mantienen igual ...
+// Solo asegúrate de borrar el bloque duplicado de "if (!session.userId...)" que estaba en medio del script.
+
 async function updateStats() {
     try {
         agenciesList = await fetchAPI(`${BACKEND_URL}/super/agencies`);
         usersList = await fetchAPI(`${BACKEND_URL}/super/users`);
         document.getElementById("stat-agencies").innerText = agenciesList.length;
         document.getElementById("stat-users").innerText = usersList.length;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error stats:", e); }
 }
 
 async function loadAgenciesPage() {
@@ -214,6 +245,8 @@ async function loadUsersPage() {
         </div>`;
     document.getElementById("content").innerHTML = html;
 }
+
+
 
 async function loadStoresPage() {
     const estados = ["Aguascalientes", "Baja California", "Baja California Sur", "Campeche", "Chiapas", "Chihuahua", "Coahuila", "Colima", "Ciudad de México", "Durango", "Guanajuato", "Guerrero", "Hidalgo", "Jalisco", "Estado de México", "Michoacán", "Morelos", "Nayarit", "Nuevo León", "Oaxaca", "Puebla", "Querétaro", "Quintana Roo", "San Luis Potosí", "Sinaloa", "Sonora", "Tabasco", "Tamaulipas", "Tlaxcala", "Veracruz", "Yucatán", "Zacatecas"];
@@ -362,6 +395,51 @@ async function deleteAgency(id) {
 async function assignUserToAgency(usrId, ageId) {
     try { await fetchAPI(`${BACKEND_URL}/super/users/${usrId}/assign`, { method: "PUT", body: { agencyId: ageId } }); alert("Asignado ✅"); } catch(e) { alert("Error"); }
 }
+
+
+// --- FUNCIONES DE USUARIOS GLOBALES ---
+async function createGlobalUser() {
+    const body = {
+        name: document.getElementById("u_name").value,
+        email: document.getElementById("u_email").value,
+        role: document.getElementById("u_role").value,
+        password: "StorePulseTemporaryPass123" // Puedes pedirla en un input si prefieres
+    };
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/users`, { method: "POST", body });
+        alert("Usuario creado con éxito");
+        loadUsersPage();
+    } catch (e) { alert(e.message); }
+}
+
+async function deleteUser(id) {
+    if(!confirm("¿Eliminar este usuario de forma permanente?")) return;
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/users/${id}`, { method: "DELETE" });
+        loadUsersPage();
+    } catch (e) { alert(e.message); }
+}
+
+// --- FUNCIONES DE TIENDAS ---
+async function saveSingleStore() {
+    const body = {
+        name: document.getElementById("storeName").value,
+        address: document.getElementById("storeAddress").value,
+        state: document.getElementById("storeState").value,
+        isGlobal: true // Importante para que aparezca en el catálogo maestro
+    };
+    
+    if(!body.name || !body.state) return alert("Nombre y Estado son obligatorios");
+
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/stores`, { method: "POST", body });
+        alert("Tienda agregada al catálogo maestro ✅");
+        loadStoresPage();
+    } catch (e) { alert(e.message); }
+}
+
+
+
 
 function logout() { localStorage.clear(); window.location.href = "../login.html"; }
 window.onload = loadAgenciesPage;

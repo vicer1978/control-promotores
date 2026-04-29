@@ -344,7 +344,7 @@ async function renderPendingStoresTable() {
 
 async function renderGlobalStoresTable() {
     try {
-        const stores = await fetchAPI(`${BACKEND_URL}/super/stores`);
+        const stores = await fetchAPI(`${BACKEND_URL}/stores`);
         const tbody = document.getElementById('globalStoresBody');
         document.getElementById('totalStoresCount').innerText = `${stores.length} tiendas`;
         tbody.innerHTML = stores.map(s => `
@@ -460,7 +460,7 @@ async function uploadBulkStores() {
             const json = XLSX.utils.sheet_to_json(sheet);
 
             // Enviamos al backend
-            const res = await fetchAPI(`${BACKEND_URL}/super/stores/bulk`, {
+            const res = await fetchAPI(`${BACKEND_URL}/stores/bulk`, {
                 method: 'POST',
                 body: { stores: json }
             });

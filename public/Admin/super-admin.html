@@ -94,6 +94,11 @@
     </div>
 </div>
 
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+
+
 <script>
 const BACKEND_URL = "https://storepulse.onrender.com";
 
@@ -438,6 +443,37 @@ async function saveSingleStore() {
     } catch (e) { alert(e.message); }
 }
 
+
+async function uploadBulkStores() {
+    const fileInput = document.getElementById('excelInput');
+    const status = document.getElementById('uploadStatus');
+    if (!fileInput.files[0]) return alert("Selecciona un archivo Excel");
+
+    status.innerText = "Procesando...";
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+
+            // Enviamos al backend
+            const res = await fetchAPI(`${BACKEND_URL}/super/stores/bulk`, {
+                method: 'POST',
+                body: { stores: json }
+            });
+
+            alert(`Éxito: ${res.count} tiendas procesadas.`);
+            loadStoresPage();
+        } catch (err) {
+            console.error(err);
+            alert("Error al procesar el Excel. Revisa el formato.");
+        }
+    };
+    reader.readAsArrayBuffer(fileInput.files[0]);
+}
 
 
 

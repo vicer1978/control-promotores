@@ -117,9 +117,8 @@
                     }
 
                     // Redirecciones según tu estructura de carpetas
-                    if (role === 'super-admin') {
-                        window.location.href = 'Admin/super-admin.html';
-                    } else if (role === 'admin') {
+                    // Agrupamos super-admin y admin en una sola condición limpia
+                    if (role === 'super-admin' || role === 'admin') {
                         window.location.href = 'Admin/admin.html';
                     } else if (role === 'cliente') {
                         window.location.href = 'mis-proyectos.html';

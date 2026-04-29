@@ -662,6 +662,28 @@ app.get("/super/stores/pending", auth, async (req, res) => {
 });
 
 
+// Aprobar tienda de agencia para que sea GLOBAL
+app.put("/super/stores/approve/:id", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const store = await Store.findByIdAndUpdate(
+            req.params.id,
+            { 
+                isGlobal: true, 
+                agencyId: null // Al ser global, ya no pertenece a una sola agencia
+            },
+            { new: true }
+        );
+        
+        if (!store) return res.status(404).json({ error: "Tienda no encontrada" });
+        res.json({ message: "Tienda aprobada para el catálogo maestro", store });
+    } catch (err) {
+        res.status(500).json({ error: "Error al aprobar tienda" });
+    }
+});
+
+
 
 // ==========================================
 // --- GESTIÓN DE USUARIOS GLOBALES (MARKETPLACE) ---

@@ -126,22 +126,38 @@ const REPORT_TYPES_BY_ROLE = {
     ]
 };
 
-if (!session.userId) {
+// Validación de entrada robusta
+if (!session.userId || session.userId === "undefined" || session.userId === "null") {
+    console.error("Sesión no válida detectada");
+    localStorage.clear();
     window.location.href = "../login.html";
 } else {
+    // Si llegamos aquí, la sesión existe
     window.onload = async () => { 
+        console.log("Sesión activa:", session.role);
         applyRoleRestrictions();
         await loadGlobalProjects();
         showWelcomeMessage(); 
     };
 }
 
+
 function applyRoleRestrictions() {
-    if (session.role && session.role.toLowerCase() === 'cliente') {
-        const adminSec = document.getElementById("adminOnlySections");
-        if(adminSec) adminSec.style.display = "none";
+    const role = (session.role || "").toLowerCase();
+    const adminSec = document.getElementById("adminOnlySections");
+    
+    if (!adminSec) return; // Si no existe el elemento, no hacemos nada
+
+    const rolesAutorizados = ['admin', 'super-admin'];
+
+    if (rolesAutorizados.includes(role)) {
+        adminSec.style.display = "block";
+    } else {
+        adminSec.style.display = "none";
     }
 }
+
+
 
 async function fetchAPI(url, options = {}) {
     const separator = url.includes('?') ? '&' : '?';

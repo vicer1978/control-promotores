@@ -253,7 +253,7 @@
             // Aquí podrías agregar lógica extra si quieres que la demostradora 
             // vea un mensaje distinto en el dashboard:
             if (role === "demostradora") {
-                document.querySelector("#welcomeOperativo p").innerText = "Lista de tiendas para demostración:";
+                document.querySelector("#welcomeOperativo p").innerText = "Selecciona una tienda para comenzar:";
             }
 
             await loadStores(userId);
@@ -408,7 +408,7 @@
                 });
 
                 if (res.ok) {
-                    alert("✅ Turno cerrado.");
+                    alert("✅ Turno cerrado, !Excelente trabajo!.");
                     logout();
                 } else {
                     btn.disabled = false;

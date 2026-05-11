@@ -711,9 +711,8 @@ async function enviarUpdateReport(id, esVentas) {
 
 
 // --- ASISTENCIA ---
-// 1. FUNCIÓN AUXILIAR (El "cerebro" que organiza los datos)
+// 1. FUNCIÓN AUXILIAR
 function groupAttendanceData(reports) {
-    // Agregamos r.type a la lista de campos válidos a revisar
     const assist = reports.filter(r => (r.reporte || r.reportType || r.type || "").toLowerCase().match(/checkin|checkout/));
     const grouped = {};
     
@@ -732,7 +731,6 @@ function groupAttendanceData(reports) {
                 checkout: null
             };
         }
-        // También agregamos a.type aquí para diferenciar entrada de salida
         const isCheckin = (a.reporte || a.reportType || a.type || "").toLowerCase().includes('in');
         if (isCheckin) grouped[groupKey].checkin = a;
         else grouped[groupKey].checkout = a;
@@ -740,27 +738,38 @@ function groupAttendanceData(reports) {
     return Object.values(grouped);
 }
 
-
-// 2. FUNCIÓN PRINCIPAL (La que se dispara al dar clic en el menú "Asistencia")
+// 2. FUNCIÓN PRINCIPAL
 async function loadAttendance() {
     document.getElementById("content").innerHTML = "<h3>Cargando Asistencia...</h3>";
     
-    // Cambiamos la ruta a la de attendance (asistencia)
-    // Nota: Si tu backend devuelve error, avísame para revisar qué ruta tienes expuesta
     const data = await fetchAPI(`${BACKEND_URL}/attendance`);
     const reports = Array.isArray(data) ? data : [];
     
     const groupedList = groupAttendanceData(reports);
 
-    // ... (el resto del código de la función se queda igual)
     let html = `
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 25px;">
-    // ...
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <h2 style="margin: 0;">⏰ Control de Jornadas</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="filterAttendance('activos')" class="btn-action" style="background: #16a34a; font-size: 12px; padding: 8px 15px;">Solo Activos</button>
+                    <button onclick="loadAttendance()" class="btn-action" style="background: var(--primary); font-size: 12px; padding: 8px 15px;">Ver Todos</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="date" id="attDateFilter" style="width: 150px; padding: 5px;">
+                <button onclick="filterAttendance('fecha')" class="btn-action" style="background: white; color: var(--primary); border: 1px solid var(--primary); font-size: 12px; padding: 8px 15px;">📅 Cargar Fecha</button>
+            </div>
+        </div>
+        <div class="attendance-grid" id="attendanceGrid">`;
 
+    html += renderAttendanceCards(groupedList);
+    document.getElementById("content").innerHTML = html + `</div>`;
+}
 
-// 3. FUNCIÓN DE FILTRADO (Para los botones de la barra superior)
+// 3. FUNCIÓN DE FILTRADO
 async function filterAttendance(type) {
-    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    const data = await fetchAPI(`${BACKEND_URL}/attendance`); // Cambiado a /attendance también aquí
     const reports = Array.isArray(data) ? data : [];
     
     let filteredGroups = groupAttendanceData(reports);
@@ -777,64 +786,6 @@ async function filterAttendance(type) {
     document.getElementById("attendanceGrid").innerHTML = renderAttendanceCards(filteredGroups);
 }
 
-
-
-// --- RENDERIZADO DE TARJETAS DE ASISTENCIA ---
-function renderAttendanceCards(list) {
-    if (list.length === 0) {
-        return `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #64748b;">
-                    <p>No hay registros de asistencia para mostrar.</p>
-                </div>`;
-    }
-
-    return list.map(g => {
-        const hasIn = g.checkin;
-        const hasOut = g.checkout;
-        
-        // Calculamos el estado: Si tiene entrada pero no salida, está "En Turno"
-        const statusLabel = (hasIn && !hasOut) ? 
-            `<span class="badge" style="background: #dcfce7; color: #16a34a;">En Turno</span>` : 
-            `<span class="badge" style="background: #f1f5f9; color: #64748b;">Turno Cerrado</span>`;
-
-        return `
-        <div class="attendance-card">
-            <div class="card-header-att">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <span class="user-name-att">${g.user.toUpperCase()}</span>
-                        <span class="store-name-att">📍 ${g.store}</span>
-                    </div>
-                    ${statusLabel}
-                </div>
-            </div>
-            <div class="card-body-att">
-                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 5px;">📅 ${g.date}</div>
-                
-                <div class="event-row">
-                    <div class="event-info">
-                        <span class="event-label label-in">ENTRADA</span>
-                        <span class="event-time">${hasIn ? new Date(hasIn.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
-                    </div>
-                    ${hasIn && (hasIn.photo || hasIn.foto_url) ? 
-                        `<img src="${hasIn.photo || hasIn.foto_url}" class="att-img" onclick="window.open(this.src)">` : 
-                        `<div class="att-img" style="display:flex; align-items:center; justify-content:center; background:#f8fafc; font-size:20px;">📷</div>`}
-                </div>
-
-                <div style="border-top: 1px dashed #e2e8f0; margin: 5px 0;"></div>
-
-                <div class="event-row">
-                    <div class="event-info">
-                        <span class="event-label label-out">SALIDA</span>
-                        <span class="event-time">${hasOut ? new Date(hasOut.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
-                    </div>
-                    ${hasOut && (hasOut.photo || hasOut.foto_url) ? 
-                        `<img src="${hasOut.photo || hasOut.foto_url}" class="att-img" onclick="window.open(this.src)">` : 
-                        `<div class="att-img" style="display:flex; align-items:center; justify-content:center; background:#f8fafc; font-size:20px;">📷</div>`}
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
 
 
 

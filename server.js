@@ -812,6 +812,67 @@ app.get("/attendance", auth, async (req, res) => {
     }
 });
 
+
+// --- NUEVA RUTA: OBTENER SOLO PERSONAL ACTIVO ---
+app.get("/attendance/active", auth, async (req, res) => {
+    try {
+        const pid = req.headers.projectid;
+        let matchStage = { 
+            agencyId: req.user.agencyId 
+        };
+
+        if (pid && mongoose.Types.ObjectId.isValid(pid)) {
+            matchStage.projectId = new mongoose.Types.ObjectId(pid);
+        }
+
+        const activeStaff = await Checkin.aggregate([
+            { $match: matchStage },
+            { $sort: { timestamp: -1 } }, // Ordenamos por lo más reciente
+            { 
+                $group: { 
+                    _id: "$userId", 
+                    ultimoEvento: { $first: "$$ROOT" } 
+                } 
+            },
+            { $match: { "ultimoEvento.type": "checkin" } }, // Si lo último fue entrada, está activo
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "usuario"
+                }
+            },
+            {
+                $lookup: {
+                    from: "stores",
+                    localField: "ultimoEvento.storeId",
+                    foreignField: "_id",
+                    as: "tienda"
+                }
+            },
+            { $unwind: "$usuario" },
+            { $unwind: "$tienda" }
+        ]);
+
+        const formatted = activeStaff.map(a => ({
+            _id: a.ultimoEvento._id,
+            userName: a.usuario.name,
+            storeName: a.tienda.name,
+            timestamp: a.ultimoEvento.timestamp,
+            foto_url: a.ultimoEvento.foto_url,
+            type: "checkin"
+        }));
+
+        res.json(formatted);
+    } catch (err) {
+        console.error("Error en activos:", err);
+        res.status(500).json([]);
+    }
+});
+
+
+
 app.delete("/users/:id", auth, async (req, res) => {
     try {
         // Solo puede borrar si es de su agencia

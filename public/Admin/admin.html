@@ -46,6 +46,88 @@
         .tag-search-container { position: relative; margin-bottom: 10px; }
         .search-results-dropdown { position: absolute; width: 100%; background: white; border: 1px solid #ddd; max-height: 150px; overflow-y: auto; z-index: 100; border-radius: 0 0 8px 8px; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .search-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+        
+
+        /* Estilos para el Grid de Asistencia */
+.attendance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.attendance-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header-att {
+    background: #f8fafc;
+    padding: 15px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.user-name-att {
+    display: block;
+    font-weight: bold;
+    color: var(--primary);
+    font-size: 14px;
+}
+
+.store-name-att {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.card-body-att {
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.event-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.event-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.event-label {
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 4px;
+    width: fit-content;
+    margin-bottom: 4px;
+}
+
+.label-in { background: #dcfce7; color: #16a34a; }
+.label-out { background: #fee2e2; color: #dc2626; }
+
+.event-time {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1e293b;
+}
+
+.att-img {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+}
     </style>
 </head>
 <body>
@@ -620,27 +702,85 @@ async function enviarUpdateReport(id, esVentas) {
 
 // --- ASISTENCIA ---
 async function loadAttendance() {
+    document.getElementById("content").innerHTML = "<h3>Cargando Asistencia...</h3>";
     const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
     const reports = Array.isArray(data) ? data : [];
+    
+    // 1. Filtramos solo los eventos de asistencia (Check-in / Check-out)
     const assist = reports.filter(r => (r.reporte || r.reportType || "").toLowerCase().match(/checkin|checkout/));
-    document.getElementById("content").innerHTML = `<div class="card"><h2>⏰ Control de Asistencia</h2></div><div class="card" style="overflow-x:auto; padding:0;"><table class="report-table" style="margin:0;"><thead><tr><th>Colaborador</th><th>Evento</th><th>Tienda</th><th>Fecha</th><th>Hora</th><th>Foto</th></tr></thead><tbody>${assist.map(a => {
+
+    // 2. Agrupamos por Usuario + Fecha + Tienda para unificar la jornada
+    const grouped = {};
+    assist.forEach(a => {
+        const dateKey = new Date(a.createdAt).toLocaleDateString();
+        const userId = a.userId?._id || 'anon';
+        const storeId = a.storeId?._id || 'gral';
+        const groupKey = `${userId}-${dateKey}-${storeId}`;
+
+        if (!grouped[groupKey]) {
+            grouped[groupKey] = {
+                user: a.userId?.name || 'Usuario Desconocido',
+                store: a.storeId?.name || 'Tienda General',
+                date: dateKey,
+                checkin: null,
+                checkout: null
+            };
+        }
+
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
-        const f = new Date(a.createdAt);
-        return `<tr>
-    <td><b>${(a.userId?.name || 'S/N').toUpperCase()}</b></td>
-    <td><span class="badge" style="background:${isCheckin?'#dcfce7':'#fee2e2'}; color:${isCheckin?'#16a34a':'#dc2626'}">${isCheckin?'ENTRADA':'SALIDA'}</span></td>
-    <td>${a.storeId?.name || 'Gral'}</td>
-    <td>${f.toLocaleDateString()}</td>
-    <td>${f.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td>
-    <td>${(a.photo || a.foto_url) ? 
-        (() => {
-            const imgPath = a.photo || a.foto_url;
-            const fullImgUrl = imgPath.startsWith('http') ? imgPath : `${BACKEND_URL}${imgPath}`;
-            return `<img src="${fullImgUrl}" class="asistencia-foto" onclick="window.open(this.src)">`;
-        })() : '-'}</td>
-</tr>`;
-    }).join('')}</tbody></table></div>`;
+        if (isCheckin) grouped[groupKey].checkin = a;
+        else grouped[groupKey].checkout = a;
+    });
+
+    // 3. Generamos el contenedor de las tarjetas
+    let html = `
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>⏰ Panel de Jornadas</h2>
+                <span style="font-size:12px; color:#64748b;">${Object.keys(grouped).length} Jornadas detectadas</span>
+            </div>
+        </div>
+        <div class="attendance-grid">`;
+
+    // 4. Creamos cada tarjeta
+    Object.values(grouped).forEach(g => {
+        const renderEvent = (event, type) => {
+            if (!event) return `<div class="event-row"><span style="color:#cbd5e1; font-size:12px; font-style:italic;">Pendiente...</span></div>`;
+            
+            const time = new Date(event.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            const rawImg = event.photo || event.foto_url;
+            const fullImg = rawImg ? (rawImg.startsWith('http') ? rawImg : `${BACKEND_URL}${rawImg}`) : null;
+
+            return `
+                <div class="event-row">
+                    <div class="event-info">
+                        <span class="event-label ${type === 'IN' ? 'label-in' : 'label-out'}">${type === 'IN' ? 'ENTRADA' : 'SALIDA'}</span>
+                        <span class="event-time">${time}</span>
+                    </div>
+                    ${fullImg ? `<img src="${fullImg}" class="att-img" onclick="window.open(this.src)">` : '<div style="width:50px"></div>'}
+                </div>`;
+        };
+
+        html += `
+            <div class="attendance-card">
+                <div class="card-header-att">
+                    <span class="user-name-att">${g.user.toUpperCase()}</span>
+                    <span class="store-name-att">📍 ${g.store}</span>
+                </div>
+                <div class="card-body-att">
+                    ${renderEvent(g.checkin, 'IN')}
+                    <div style="border-top: 1px dashed #e2e8f0; margin: 4px 0;"></div>
+                    ${renderEvent(g.checkout, 'OUT')}
+                </div>
+                <div style="background:#f1f5f9; padding:8px 15px; font-size:10px; color:#64748b; text-align:right;">
+                    FECHA: ${g.date}
+                </div>
+            </div>`;
+    });
+
+    document.getElementById("content").innerHTML = html + `</div>`;
 }
+
 
 // --- USUARIOS ---
 async function loadUsers() {

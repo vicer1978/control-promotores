@@ -7,6 +7,7 @@ const path = require("path");
 const jwt = require("jsonwebtoken"); // Nuevo: Para seguridad real
 require("dotenv").config();
 const XLSX = require('xlsx');
+const uploadCloud = require("./config/cloudinary"); // <--- AGREGA ESTA LÍNEA
 
 
 
@@ -219,26 +220,24 @@ app.delete("/projects/:id", auth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error al eliminar" }); }
 });
 
-// --- ASISTENCIA (CORREGIDA) ---
-app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
+// --- ASISTENCIA (CORREGIDA CON CLOUDINARY) ---
+app.post("/checkin", auth, uploadCloud.single("photo"), async (req, res) => { // <-- CAMBIO AQUÍ
     try {
         const { storeId, lat, lng, projectId } = req.body;
         if (!storeId || lat === undefined) return res.status(400).json({ error: "Datos incompletos" });
 
-        // 1. Buscamos el ÚLTIMO evento de asistencia del usuario
         const lastEvent = await Checkin.findOne({ 
             userId: req.user._id 
         }).sort({ timestamp: -1 }).lean();
 
-        // 2. LÓGICA DE RE-ENTRADA:
-        // Solo bloqueamos si el último evento fue un 'checkin' (es decir, no ha cerrado la visita anterior)
         if (lastEvent && lastEvent.type === "checkin") {
             return res.status(400).json({ 
                 error: "Aún tienes una visita activa. Debes registrar salida antes de iniciar otra." 
             });
         }
 
-        const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        // req.file.path ahora es la URL de Cloudinary (https://res.cloudinary.com/...)
+        const fotoUrl = req.file ? req.file.path : null; 
         
         const newCheckin = new Checkin({
             userId: req.user._id,
@@ -252,7 +251,6 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         });
         await newCheckin.save();
 
-        // Guardamos también en la tabla de reportes para el historial visual
         const checkinReport = new Report({
             userId: req.user._id,
             agencyId: req.user.agencyId,
@@ -260,7 +258,8 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
             storeId,
             reportType: "checkin", 
             photo: fotoUrl,        
-            lat: Number(lat), lng: Number(lng)
+            lat: Number(lat), lng: Number(lng),
+            foto_url: fotoUrl // Aseguramos que ambos campos tengan la URL
         });
         await checkinReport.save();
 
@@ -270,6 +269,7 @@ app.post("/checkin", auth, upload.single("photo"), async (req, res) => {
         res.status(500).json({ error: "Error al registrar entrada" });
     }
 });
+
 
 
 app.post("/checkout", auth, async (req, res) => {
@@ -360,113 +360,90 @@ app.get("/reports/agency/:agencyId", auth, async (req, res) => {
 
 
 
-app.post("/reports", auth, upload.single("photo"), async (req, res) => {
+app.post("/reports", auth, uploadCloud.single("photo"), async (req, res) => {
     try {
-        // --- 1. IDENTIFICACIÓN Y PREPARACIÓN ---
+        // 1. Log de control
         console.log(`📝 Recibiendo reporte de: ${req.user.name} | Agencia: ${req.user.agencyId}`);
         
-        // DECLARACIÓN INICIAL: Evita el ReferenceError
+        // 2. Procesamiento de datos extra (SaaS Ready)
         let datosExtra = {}; 
-
-        // --- 2. PROCESAMIENTO DINÁMICO (SaaS Ready) ---
         if (req.body.datosExtra) {
             try {
                 datosExtra = typeof req.body.datosExtra === 'string' 
                     ? JSON.parse(req.body.datosExtra) 
                     : req.body.datosExtra;
             } catch (e) {
-                // Si no es JSON válido, lo guardamos como texto para no perder la info
                 datosExtra = { contenido_crudo: req.body.datosExtra };
             }
         }
 
-        // --- 3. NORMALIZACIÓN Y LIMPIEZA DE LÓGICA (CORREGIDA PARA QUE SEA DINÁMICA) ---
-const obs = req.body.observaciones || req.body.comentarios || "";
-let tipoReporte = req.body.reportType || req.body.reporte || "otro";
-const fotoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        // 3. Normalización de campos
+        const obs = req.body.observaciones || req.body.comentarios || "";
+        let tipoReporte = req.body.reportType || req.body.reporte || "otro";
+        
+        // --- LA MAGIA DE CLOUDINARY ---
+        // req.file.path es la URL directa de la nube
+        const fotoUrl = req.file ? req.file.path : null;
 
-// Capturamos los valores del body de forma segura
-let vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
-let inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
-let resurtido = Number(req.body.resurtido) || 0;
-let inv_f = Number(req.body.inv_final) || 0;
+        // 4. Lógica de inventarios y ventas
+        let vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
+        let inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
+        let resurtido = Number(req.body.resurtido) || 0;
+        let inv_f = Number(req.body.inv_final) || 0;
 
-// Si el inventario final viene en 0 pero tenemos inicial, resurtido y ventas, lo calculamos
-if (inv_f === 0 && (inv_i > 0 || vtas > 0)) {
-    inv_f = (inv_i + resurtido) - vtas;
-}
+        // Cálculo automático si es necesario
+        if (inv_f === 0 && (inv_i > 0 || vtas > 0)) {
+            inv_f = (inv_i + resurtido) - vtas;
+        }
 
-// Eliminamos los "if else" que sobreescribían a 0.
-// Ahora, si la demostradora manda inventario inicial en un reporte de ventas, SE GUARDA.
+        // 5. Ensamblaje final manteniendo todos tus campos de StorePulse
+        const reportData = {
+            userId: req.user._id,
+            agencyId: req.user.agencyId || "SIN_AGENCIA", 
+            projectId: req.body.projectId || req.user.projectId,
+            storeId: req.body.storeId,
+            reportType: tipoReporte,
+            
+            // Guardamos la URL de Cloudinary en ambos campos por compatibilidad
+            photo: fotoUrl,
+            foto_url: fotoUrl,
+            
+            pre_agotados: req.body.pre_agotados === 'true' || req.body.pre_agotados === true || req.body.pre_agotados === "1",
+            articulo: req.body.articulo || "N/A",
+            inv_inicial: inv_i,
+            resurtido: resurtido,
+            ventas: vtas, 
+            inv_final: inv_f,
+            cantidad: vtas > 0 ? vtas : (req.body.cantidad || 0),
 
-const tipoBajo = tipoReporte.toLowerCase();
-
-// Nueva lógica: Capturamos todo lo que venga sin borrar los otros campos
-if (tipoBajo.includes('venta') || tipoBajo.includes('degustacion') || tipoBajo.includes('ranking')) {
-    vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
-    inv_i = Number(req.body.inv_inicial) || 0;
-    inv_f = Number(req.body.inv_final) || 0;
-} else if (tipoBajo.includes('inventario') || tipoBajo.includes('agotado')) {
-    inv_i = Number(req.body.inv_inicial) || Number(req.body.stock_inicial) || 0;
-    vtas = Number(req.body.ventas) || 0;
-    // Si no mandan final, lo calculamos, pero si lo mandan (como en la edición), lo respetamos
-    inv_f = Number(req.body.inv_final) || (inv_i + resurtido - vtas);
-} else {
-    // Otros (Precios, Competencia, etc.)
-    vtas = Number(req.body.ventas) || Number(req.body.cantidad) || 0;
-    inv_i = Number(req.body.inv_inicial) || 0;
-    inv_f = Number(req.body.inv_final) || 0;
-}
-
-
-// --- 4. ENSAMBLAJE FINAL DEL REPORTE ---
-const reportData = {
-    userId: req.user._id,
-    agencyId: req.user.agencyId || "SIN_AGENCIA", 
-    projectId: req.body.projectId || req.user.projectId,
-    storeId: req.body.storeId,
-    reportType: tipoReporte,
-    photo: fotoUrl,
-    foto_url: fotoUrl,
-    
-    // Si es pre-agotado, capturamos el booleano correctamente
-    pre_agotados: req.body.pre_agotados === 'true' || req.body.pre_agotados === true || req.body.pre_agotados === "1",
-
-    articulo: req.body.articulo || "N/A",
-    inv_inicial: inv_i,
-    resurtido: resurtido,
-    ventas: vtas, 
-    inv_final: inv_f,
-    
-    // Aseguramos que 'cantidad' siempre tenga el valor de ventas para el Admin
-    cantidad: vtas > 0 ? vtas : (req.body.cantidad || 0),
-
-    precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
-    precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
-    precio_oferta: Number(req.body.precio_oferta) || 0,
-    
-    observaciones: obs,
-    lat: Number(req.body.lat) || 0,
-    lng: Number(req.body.lng) || 0,
-    datosExtra: datosExtra, 
-    timestamp: new Date()
-};
-
-
-
-
+            // Precios detallados
+            precio: Number(req.body.precio) || Number(req.body.precio_normal) || 0,
+            precio_normal: Number(req.body.precio_normal) || Number(req.body.precio) || 0,
+            precio_oferta: Number(req.body.precio_oferta) || 0,
+            
+            observaciones: obs,
+            lat: Number(req.body.lat) || 0,
+            lng: Number(req.body.lng) || 0,
+            datosExtra: datosExtra, 
+            timestamp: new Date()
+        };
 
         const report = new Report(reportData);
         await report.save();
         
-        console.log(`✅ ÉXITO: Reporte ${report._id} guardado para Agencia: ${report.agencyId}`);
-        res.json({ message: "Reporte guardado con éxito", id: report._id });
+        console.log(`✅ ÉXITO: Reporte ${report._id} en Cloudinary`);
+        res.json({ 
+            message: "Reporte guardado con éxito", 
+            id: report._id, 
+            url: fotoUrl 
+        });
 
     } catch (err) { 
         console.error("❌ ERROR CRÍTICO EN /REPORTS:", err);
         res.status(500).json({ error: "Error al guardar reporte", detalle: err.message }); 
     }
 });
+
 
 
 

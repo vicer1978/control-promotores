@@ -791,6 +791,64 @@ async function filterAttendance(type) {
 
 
 
+// --- RENDERIZADO DE TARJETAS DE ASISTENCIA ---
+function renderAttendanceCards(list) {
+    if (list.length === 0) {
+        return `<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #64748b;">
+                    <p>No hay registros de asistencia para mostrar.</p>
+                </div>`;
+    }
+
+    return list.map(g => {
+        const hasIn = g.checkin;
+        const hasOut = g.checkout;
+        
+        // Calculamos el estado: Si tiene entrada pero no salida, está "En Turno"
+        const statusLabel = (hasIn && !hasOut) ? 
+            `<span class="badge" style="background: #dcfce7; color: #16a34a;">En Turno</span>` : 
+            `<span class="badge" style="background: #f1f5f9; color: #64748b;">Turno Cerrado</span>`;
+
+        return `
+        <div class="attendance-card">
+            <div class="card-header-att">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div>
+                        <span class="user-name-att">${g.user.toUpperCase()}</span>
+                        <span class="store-name-att">📍 ${g.store}</span>
+                    </div>
+                    ${statusLabel}
+                </div>
+            </div>
+            <div class="card-body-att">
+                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 5px;">📅 ${g.date}</div>
+                
+                <div class="event-row">
+                    <div class="event-info">
+                        <span class="event-label label-in">ENTRADA</span>
+                        <span class="event-time">${hasIn ? new Date(hasIn.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                    </div>
+                    ${hasIn && (hasIn.photo || hasIn.foto_url) ? 
+                        `<img src="${hasIn.photo || hasIn.foto_url}" class="att-img" onclick="window.open(this.src)">` : 
+                        `<div class="att-img" style="display:flex; align-items:center; justify-content:center; background:#f8fafc; font-size:20px;">📷</div>`}
+                </div>
+
+                <div style="border-top: 1px dashed #e2e8f0; margin: 5px 0;"></div>
+
+                <div class="event-row">
+                    <div class="event-info">
+                        <span class="event-label label-out">SALIDA</span>
+                        <span class="event-time">${hasOut ? new Date(hasOut.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                    </div>
+                    ${hasOut && (hasOut.photo || hasOut.foto_url) ? 
+                        `<img src="${hasOut.photo || hasOut.foto_url}" class="att-img" onclick="window.open(this.src)">` : 
+                        `<div class="att-img" style="display:flex; align-items:center; justify-content:center; background:#f8fafc; font-size:20px;">📷</div>`}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+
 
 // --- USUARIOS ---
 async function loadUsers() {

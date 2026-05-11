@@ -128,6 +128,16 @@
     cursor: pointer;
     border: 1px solid #e2e8f0;
 }
+
+
+.attendance-card {
+    /* ... tus estilos actuales ... */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.attendance-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
     </style>
 </head>
 <body>
@@ -701,16 +711,11 @@ async function enviarUpdateReport(id, esVentas) {
 
 
 // --- ASISTENCIA ---
-async function loadAttendance() {
-    document.getElementById("content").innerHTML = "<h3>Cargando Asistencia...</h3>";
-    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
-    const reports = Array.isArray(data) ? data : [];
-    
-    // 1. Filtramos solo los eventos de asistencia (Check-in / Check-out)
+// 1. FUNCIÓN AUXILIAR (El "cerebro" que organiza los datos)
+function groupAttendanceData(reports) {
     const assist = reports.filter(r => (r.reporte || r.reportType || "").toLowerCase().match(/checkin|checkout/));
-
-    // 2. Agrupamos por Usuario + Fecha + Tienda para unificar la jornada
     const grouped = {};
+    
     assist.forEach(a => {
         const dateKey = new Date(a.createdAt).toLocaleDateString();
         const userId = a.userId?._id || 'anon';
@@ -726,60 +731,65 @@ async function loadAttendance() {
                 checkout: null
             };
         }
-
         const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
         if (isCheckin) grouped[groupKey].checkin = a;
         else grouped[groupKey].checkout = a;
     });
+    return Object.values(grouped);
+}
 
-    // 3. Generamos el contenedor de las tarjetas
+// 2. FUNCIÓN PRINCIPAL (La que se dispara al dar clic en el menú "Asistencia")
+async function loadAttendance() {
+    document.getElementById("content").innerHTML = "<h3>Cargando Asistencia...</h3>";
+    
+    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    const reports = Array.isArray(data) ? data : [];
+    
+    // Agrupamos los datos usando la función auxiliar
+    const groupedList = groupAttendanceData(reports);
+
     let html = `
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>⏰ Panel de Jornadas</h2>
-                <span style="font-size:12px; color:#64748b;">${Object.keys(grouped).length} Jornadas detectadas</span>
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 25px;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <h2 style="margin: 0;">⏰ Control de Jornadas</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="filterAttendance('activos')" class="btn-action" style="background: #16a34a; font-size: 12px; padding: 8px 15px;">Solo Activos</button>
+                    <button onclick="loadAttendance()" class="btn-action" style="background: var(--primary); font-size: 12px; padding: 8px 15px;">Ver Todos</button>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="date" id="attDateFilter" style="width: 150px; padding: 5px;">
+                <button onclick="filterAttendance('fecha')" class="btn-action" style="background: white; color: var(--primary); border: 1px solid var(--primary); font-size: 12px; padding: 8px 15px;">📅 Cargar Fecha</button>
             </div>
         </div>
-        <div class="attendance-grid">`;
+        <div class="attendance-grid" id="attendanceGrid">`;
 
-    // 4. Creamos cada tarjeta
-    Object.values(grouped).forEach(g => {
-        const renderEvent = (event, type) => {
-            if (!event) return `<div class="event-row"><span style="color:#cbd5e1; font-size:12px; font-style:italic;">Pendiente...</span></div>`;
-            
-            const time = new Date(event.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-            const rawImg = event.photo || event.foto_url;
-            const fullImg = rawImg ? (rawImg.startsWith('http') ? rawImg : `${BACKEND_URL}${rawImg}`) : null;
-
-            return `
-                <div class="event-row">
-                    <div class="event-info">
-                        <span class="event-label ${type === 'IN' ? 'label-in' : 'label-out'}">${type === 'IN' ? 'ENTRADA' : 'SALIDA'}</span>
-                        <span class="event-time">${time}</span>
-                    </div>
-                    ${fullImg ? `<img src="${fullImg}" class="att-img" onclick="window.open(this.src)">` : '<div style="width:50px"></div>'}
-                </div>`;
-        };
-
-        html += `
-            <div class="attendance-card">
-                <div class="card-header-att">
-                    <span class="user-name-att">${g.user.toUpperCase()}</span>
-                    <span class="store-name-att">📍 ${g.store}</span>
-                </div>
-                <div class="card-body-att">
-                    ${renderEvent(g.checkin, 'IN')}
-                    <div style="border-top: 1px dashed #e2e8f0; margin: 4px 0;"></div>
-                    ${renderEvent(g.checkout, 'OUT')}
-                </div>
-                <div style="background:#f1f5f9; padding:8px 15px; font-size:10px; color:#64748b; text-align:right;">
-                    FECHA: ${g.date}
-                </div>
-            </div>`;
-    });
-
+    // Renderizamos las tarjetas con la lista agrupada
+    html += renderAttendanceCards(groupedList);
+    
     document.getElementById("content").innerHTML = html + `</div>`;
 }
+
+// 3. FUNCIÓN DE FILTRADO (Para los botones de la barra superior)
+async function filterAttendance(type) {
+    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    const reports = Array.isArray(data) ? data : [];
+    
+    let filteredGroups = groupAttendanceData(reports);
+
+    if (type === 'activos') {
+        filteredGroups = filteredGroups.filter(g => g.checkin && !g.checkout);
+    } else if (type === 'fecha') {
+        const selectedDate = document.getElementById("attDateFilter").value;
+        if (!selectedDate) return alert("Selecciona una fecha");
+        const formattedSelected = new Date(selectedDate + "T00:00:00").toLocaleDateString();
+        filteredGroups = filteredGroups.filter(g => g.date === formattedSelected);
+    }
+
+    document.getElementById("attendanceGrid").innerHTML = renderAttendanceCards(filteredGroups);
+}
+
+
 
 
 // --- USUARIOS ---

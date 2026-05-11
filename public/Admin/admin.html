@@ -1034,14 +1034,7 @@ async function createStore() {
 }
 
 
-
-
-    const body = {
-        name: document.getElementById("localStoreName").value,
-        address: document.getElementById("localStoreAddress").value,
-        state: document.getElementById("localStoreState").value, // <--- ESTO ES LO QUE FALTA
-        isGlobal: false
-};
+ 
 
 
 
@@ -1100,6 +1093,59 @@ async function updateProject(projectId) {
     const res = await fetchAPI(`${BACKEND_URL}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify({ name: document.getElementById('editProjName').value, description: document.getElementById('editProjDesc').value, clientId: document.getElementById('editProjClient').value }) });
     if (res) { alert("Proyecto actualizado"); closeDrawer(); loadProjectsSection(); }
 }
+
+
+
+function renderAttendanceCards(list) {
+    if (list.length === 0) return `<div class="card" style="grid-column: 1/-1; text-align:center">No hay registros de asistencia hoy.</div>`;
+
+    return list.map(item => {
+        // Formatear fotos
+        const photoIn = item.checkin?.photo || item.checkin?.foto_url;
+        const photoOut = item.checkout?.photo || item.checkout?.foto_url;
+        
+        const urlIn = photoIn ? (photoIn.startsWith('http') ? photoIn : `${BACKEND_URL}${photoIn}`) : null;
+        const urlOut = photoOut ? (photoOut.startsWith('http') ? photoOut : `${BACKEND_URL}${photoOut}`) : null;
+
+        return `
+            <div class="attendance-card">
+                <div class="card-header-att">
+                    <span class="user-name-att">${item.user.toUpperCase()}</span>
+                    <span class="store-name-att">📍 ${item.store}</span>
+                </div>
+                <div class="card-body-att">
+                    <div class="event-row">
+                        <div class="event-info">
+                            <span class="event-label label-in">ENTRADA</span>
+                            <span class="event-time">${item.checkin ? new Date(item.checkin.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                        </div>
+                        ${urlIn ? `<img src="${urlIn}" class="att-img" onclick="window.open(this.src)">` : '<div style="width:50px"></div>'}
+                    </div>
+                    
+                    <div style="border-top: 1px dashed #e2e8f0; margin: 5px 0;"></div>
+
+                    <div class="event-row">
+                        <div class="event-info">
+                            <span class="event-label label-in" style="background:#f1f5f9; color:#64748b;">FECHA</span>
+                            <span style="font-size:12px; font-weight:bold;">${item.date}</span>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px dashed #e2e8f0; margin: 5px 0;"></div>
+
+                    <div class="event-row">
+                        <div class="event-info">
+                            <span class="event-label label-out">SALIDA</span>
+                            <span class="event-time">${item.checkout ? new Date(item.checkout.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'En curso...'}</span>
+                        </div>
+                        ${urlOut ? `<img src="${urlOut}" class="att-img" onclick="window.open(this.src)">` : '<div style="width:50px"></div>'}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 
 // --- UTILIDADES ---
 async function deleteUser(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }

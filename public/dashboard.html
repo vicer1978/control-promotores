@@ -209,6 +209,7 @@
 
     window.onload = async function() {
         const userId = localStorage.getItem("userId");
+        // Recuperamos el nombre completo y el rol
         const fullName = localStorage.getItem("name") || "Usuario";
         const role = (localStorage.getItem("role") || "promotor").toLowerCase();
         const projectName = localStorage.getItem("projectName") || "No seleccionado";
@@ -218,27 +219,43 @@
             return;
         }
 
+        // --- 1. PERSONALIZACIÓN DEL SALUDO ---
+        // Usamos el primer nombre para el saludo principal
         const firstName = fullName.split(' ')[0];
         const greetingElement = document.getElementById("user-display-name");
         if (greetingElement) greetingElement.innerText = firstName;
 
+        // Datos del Drawer (Menú lateral)
         document.getElementById("userName").innerText = fullName;
         const elUserRole = document.getElementById("userRole");
         if (elUserRole) elUserRole.innerText = role.toUpperCase();
 
+        // --- 2. CONTROL DE VISIBILIDAD POR ROL ---
+        
+        // Si es CLIENTE
         if (role === "cliente") {
             document.getElementById("welcomeOperativo").style.display = "none";
             document.getElementById("storesContainer").style.display = "none";
             document.getElementById("checkoutSection").style.display = "none";
+            
             document.getElementById("welcomeCliente").style.display = "block";
             document.getElementById("panelCliente").style.display = "block";
             document.getElementById("btnMisProyectos").style.display = "block";
             document.getElementById("adminBtn").style.display = "block";
             document.getElementById("projectNameDisplay").innerText = `Proyecto: ${projectName}`;
-        } else {
+        } 
+        // Si es PROMOTOR o DEMOSTRADORA
+        else {
             if (role === "admin" || role === "superadmin") {
                 document.getElementById("adminBtn").style.display = "block";
             }
+            
+            // Aquí podrías agregar lógica extra si quieres que la demostradora 
+            // vea un mensaje distinto en el dashboard:
+            if (role === "demostradora") {
+                document.querySelector("#welcomeOperativo p").innerText = "Selecciona una tienda para comenzar:";
+            }
+
             await loadStores(userId);
         }
     };
@@ -250,33 +267,48 @@
     }
 
     async function loadStores(userId) {
-        const container = document.getElementById("storesContainer");
-        try {
-            const res = await fetch(`${BACKEND_URL}/stores`, {
-                method: 'GET',
-                headers: { "Content-Type": "application/json", "userid": userId }
-            });
-            if (!res.ok) throw new Error("No se pudo conectar");
-            const stores = await res.json();
-
-            if (stores.length === 0) {
-                container.innerHTML = `<div style="text-align:center; padding:40px;"><h3>No tienes tiendas asignadas</h3></div>`;
-                return;
+    const container = document.getElementById("storesContainer");
+    try {
+        // CAMBIO CLAVE: Consultamos directamente a /stores, no a /users/id
+        const res = await fetch(`${BACKEND_URL}/stores`, {
+            method: 'GET',
+            headers: { 
+                "Content-Type": "application/json",
+                // Enviamos el userId en el header para el middleware 'auth' si es necesario
+                "userid": userId 
             }
+        });
 
-            container.innerHTML = stores.map(s => `
-                <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
-                    <div class="store-info">
-                        <b>${s.name}</b>
-                        <small>${s.address || "Dirección no disponible"}</small>
-                    </div>
-                    <div class="arrow">➔</div>
-                </div>
-            `).join("");
-        } catch (err) {
-            container.innerHTML = "<h3>⚠️ Error de conexión</h3>";
+        if (!res.ok) throw new Error("No se pudo conectar");
+        
+        // El backend ahora nos devuelve directamente el array de tiendas
+        const stores = await res.json();
+
+        if (stores.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px;">
+                    <h3>No tienes tiendas asignadas</h3>
+                    <p style="color: #64748b;">Contacta a tu supervisor.</p>
+                </div>`;
+            return;
         }
+
+        container.innerHTML = stores.map(s => `
+            <div class="store-card" onclick='openModal(${JSON.stringify(s)})'>
+                <div class="store-info">
+                    <b>${s.name}</b>
+                    <small>${s.address || "Dirección no disponible"}</small>
+                </div>
+                <div class="arrow">➔</div>
+            </div>
+        `).join("");
+
+    } catch (err) {
+        console.error("Error al cargar tiendas:", err);
+        container.innerHTML = "<h3>⚠️ Error de conexión</h3><p>Intenta refrescar la página</p>";
     }
+}
+
 
     function openModal(store) {
         selectedStore = store;
@@ -284,8 +316,13 @@
         document.getElementById("modal").style.display = "flex";
     }
 
-    function closeModal() { document.getElementById("modal").style.display = "none"; }
-    function triggerCamera() { document.getElementById('checkinCamera').click(); }
+    function closeModal() {
+        document.getElementById("modal").style.display = "none";
+    }
+
+    function triggerCamera() {
+        document.getElementById('checkinCamera').click();
+    }
 
     document.getElementById('checkinCamera').onchange = function(e) {
         const file = e.target.files[0];
@@ -293,58 +330,72 @@
     };
 
     async function startCheckin(fotoFile) {
-        const btn = document.getElementById("btnCheckin");
-        const userId = localStorage.getItem("userId");
-        const agencyId = localStorage.getItem("agencyId");
-        const projectId = localStorage.getItem("projectId");
+    const btn = document.getElementById("btnCheckin");
+    const userId = localStorage.getItem("userId");
+    const agencyId = localStorage.getItem("agencyId");
+    
+    // VALIDACIÓN CRÍTICA: Si no hay AgencyId, el backend rebotará el checkin
+    if (!agencyId || agencyId === "undefined" || agencyId === "null") {
+        alert("❌ Error: No se encontró tu ID de Agencia. Cierra sesión y vuelve a entrar.");
+        resetBtn(btn);
+        return;
+    }
 
-        if (!agencyId || agencyId === "null") return alert("Error: No se encontró ID de Agencia.");
-        if (!navigator.geolocation) return alert("GPS no disponible.");
-        
-        btn.innerText = "PROCESANDO...";
-        btn.disabled = true;
+    if (!navigator.geolocation) return alert("GPS no disponible.");
+    
+    btn.innerText = "PROCESANDO...";
+    btn.disabled = true;
 
-        navigator.geolocation.getCurrentPosition(async pos => {
-            try {
-                // PRIMERO creamos el FormData
-                const formData = new FormData();
-                formData.append("storeId", selectedStore._id);
-                formData.append("agencyId", agencyId);
-                formData.append("projectId", projectId); // Ahora sí está definido
-                formData.append("lat", pos.coords.latitude);
-                formData.append("lng", pos.coords.longitude);
-                formData.append("photo", fotoFile);
+    navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+            const formData = new FormData();
+            formData.append("storeId", selectedStore._id);
+            formData.append("agencyId", agencyId);
+            formData.append("lat", pos.coords.latitude);
+            formData.append("lng", pos.coords.longitude);
+            formData.append("photo", fotoFile);
 
-                const res = await fetch(`${BACKEND_URL}/checkin`, {
-                    method: "POST",
-                    headers: { "userid": userId },
-                    body: formData
-                });
+            // LOG DE DEPURACIÓN: Verificamos qué se envía
+            console.log("Enviando Check-in:", {
+                store: selectedStore._id,
+                agency: agencyId,
+                user: userId
+            });
 
-                if (res.ok) {
-                    localStorage.setItem("activeStoreId", selectedStore._id);
-                    localStorage.setItem("activeStoreName", selectedStore.name);
-                    alert(`✅ Entrada registrada en ${selectedStore.name}`);
-                    window.location.href = "./dashboard_tareas.html"; 
-                } else {
-                    const data = await res.json();
-                    alert("❌ Error: " + (data.error || "Falla al iniciar turno"));
-                    resetBtn(btn);
-                }
-            } catch (err) {
-                alert("Error de red.");
+            const res = await fetch(`${BACKEND_URL}/checkin`, {
+                method: "POST",
+                headers: { "userid": userId },
+                body: formData
+            });
+
+            if (res.ok) {
+                localStorage.setItem("activeStoreId", selectedStore._id);
+                localStorage.setItem("activeStoreName", selectedStore.name);
+                alert(`✅ Entrada registrada en ${selectedStore.name}`);
+                window.location.href = "./dashboard_tareas.html"; 
+            } else {
+                const data = await res.json();
+                // Si el backend nos da un error específico, lo mostramos
+                alert("❌ Error del Servidor: " + (data.error || data.message || "Falla al iniciar turno"));
                 resetBtn(btn);
             }
-        }, () => { alert("Activa el GPS."); resetBtn(btn); }, { enableHighAccuracy: true });
-    }
+        } catch (err) {
+            console.error("Error en la petición:", err);
+            alert("Error de red. Revisa tu conexión a internet.");
+            resetBtn(btn);
+        }
+    }, (error) => {
+        console.warn("Error de GPS:", error);
+        alert("Se requiere GPS. Por favor activa la ubicación.");
+        resetBtn(btn);
+    }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
 
     async function finalizarTurno() {
         if (!confirm("¿Deseas cerrar tu turno por hoy?")) return;
         const btn = document.getElementById("btnCheckout");
         const userId = localStorage.getItem("userId");
-        const projectId = localStorage.getItem("projectId");
-        const lastStoreId = localStorage.getItem("activeStoreId");
-
         btn.innerText = "CERRANDO...";
         btn.disabled = true;
 
@@ -353,31 +404,31 @@
                 const res = await fetch(`${BACKEND_URL}/checkout`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", "userid": userId },
-                    body: JSON.stringify({ 
-                        lat: pos.coords.latitude, 
-                        lng: pos.coords.longitude,
-                        projectId: projectId, 
-                        storeId: lastStoreId
-                    })
+                    body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude })
                 });
 
                 if (res.ok) {
                     alert("✅ Turno cerrado, !Excelente trabajo!.");
                     logout();
                 } else {
-                    alert("Error al cerrar turno.");
                     btn.disabled = false;
                     btn.innerText = "CERRAR TURNO / SALIDA";
                 }
             } catch (err) {
                 btn.disabled = false;
             }
-        }, () => { alert("Error de GPS"); btn.disabled = false; });
+        });
     }
 
-    function resetBtn(btn) { btn.innerText = "TOMAR FOTO E INICIAR"; btn.disabled = false; }
-    function logout() { localStorage.clear(); window.location.href = "./login.html"; }
-</script>
+    function resetBtn(btn) {
+        btn.innerText = "TOMAR FOTO E INICIAR";
+        btn.disabled = false;
+    }
 
+    function logout() {
+        localStorage.clear();
+        window.location.href = "./login.html";
+    }
+</script>
 </body>
 </html>

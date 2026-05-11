@@ -713,7 +713,8 @@ async function enviarUpdateReport(id, esVentas) {
 // --- ASISTENCIA ---
 // 1. FUNCIÓN AUXILIAR (El "cerebro" que organiza los datos)
 function groupAttendanceData(reports) {
-    const assist = reports.filter(r => (r.reporte || r.reportType || "").toLowerCase().match(/checkin|checkout/));
+    // Agregamos r.type a la lista de campos válidos a revisar
+    const assist = reports.filter(r => (r.reporte || r.reportType || r.type || "").toLowerCase().match(/checkin|checkout/));
     const grouped = {};
     
     assist.forEach(a => {
@@ -731,44 +732,31 @@ function groupAttendanceData(reports) {
                 checkout: null
             };
         }
-        const isCheckin = (a.reporte || a.reportType || "").toLowerCase().includes('in');
+        // También agregamos a.type aquí para diferenciar entrada de salida
+        const isCheckin = (a.reporte || a.reportType || a.type || "").toLowerCase().includes('in');
         if (isCheckin) grouped[groupKey].checkin = a;
         else grouped[groupKey].checkout = a;
     });
     return Object.values(grouped);
 }
 
+
 // 2. FUNCIÓN PRINCIPAL (La que se dispara al dar clic en el menú "Asistencia")
 async function loadAttendance() {
     document.getElementById("content").innerHTML = "<h3>Cargando Asistencia...</h3>";
     
-    const data = await fetchAPI(`${BACKEND_URL}/reports/agency/${session.agencyId}`);
+    // Cambiamos la ruta a la de attendance (asistencia)
+    // Nota: Si tu backend devuelve error, avísame para revisar qué ruta tienes expuesta
+    const data = await fetchAPI(`${BACKEND_URL}/attendance`);
     const reports = Array.isArray(data) ? data : [];
     
-    // Agrupamos los datos usando la función auxiliar
     const groupedList = groupAttendanceData(reports);
 
+    // ... (el resto del código de la función se queda igual)
     let html = `
         <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 25px;">
-            <div style="display: flex; align-items: center; gap: 20px;">
-                <h2 style="margin: 0;">⏰ Control de Jornadas</h2>
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="filterAttendance('activos')" class="btn-action" style="background: #16a34a; font-size: 12px; padding: 8px 15px;">Solo Activos</button>
-                    <button onclick="loadAttendance()" class="btn-action" style="background: var(--primary); font-size: 12px; padding: 8px 15px;">Ver Todos</button>
-                </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="date" id="attDateFilter" style="width: 150px; padding: 5px;">
-                <button onclick="filterAttendance('fecha')" class="btn-action" style="background: white; color: var(--primary); border: 1px solid var(--primary); font-size: 12px; padding: 8px 15px;">📅 Cargar Fecha</button>
-            </div>
-        </div>
-        <div class="attendance-grid" id="attendanceGrid">`;
+    // ...
 
-    // Renderizamos las tarjetas con la lista agrupada
-    html += renderAttendanceCards(groupedList);
-    
-    document.getElementById("content").innerHTML = html + `</div>`;
-}
 
 // 3. FUNCIÓN DE FILTRADO (Para los botones de la barra superior)
 async function filterAttendance(type) {

@@ -1096,10 +1096,13 @@ app.put("/users/:id/activate", auth, async (req, res) => {
 
         res.json({ message: "Usuario activado y asignado con éxito", user });
     } catch (err) {
-        console.error("❌ Error al activar usuario:", err);
-        res.status(500).json({ error: "Error interno al activar" });
-    }
-});
+    console.error("❌ ERROR REAL EN REGISTRO:", err); // Esto saldrá en los logs de Render
+    res.status(500).json({ 
+        error: "Error en el servidor", 
+        detalle: err.message // Esto te dirá en el alert qué campo está fallando
+    });
+}
+
 
 
 

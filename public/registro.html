@@ -41,30 +41,41 @@
     </div>
 
     <script>
-        document.getElementById('formRegistro').onsubmit = async (e) => {
-            e.preventDefault();
-            const userData = {
-                name: document.getElementById('regName').value,
-                email: document.getElementById('regEmail').value,
-                password: document.getElementById('regPass').value,
-                role: document.getElementById('regRole').value,
-                city: document.getElementById('regCity').value,
-                status: 'pendiente' // Por defecto
-            };
+    document.getElementById('formRegistro').onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const userData = {
+            name: document.getElementById('regName').value,
+            email: document.getElementById('regEmail').value,
+            password: document.getElementById('regPass').value,
+            role: document.getElementById('regRole').value,
+            city: document.getElementById('regCity').value,
+            status: 'pendiente'
+        };
 
-            const res = await fetch('https://storepulse.onrender.com/users/register', {
+        try {
+            // Usamos ruta relativa /users/register
+            const res = await fetch('/users/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
             });
 
+            const data = await res.json();
+
             if (res.ok) {
                 alert("Solicitud enviada. Un administrador te activará pronto.");
                 window.location.href = "login.html";
             } else {
-                alert("Error al registrar: El correo ya existe.");
+                // Aquí verás el mensaje real que viene del servidor (o el error 404)
+                alert("Error del servidor: " + (data.error || data.detalle || "Error desconocido"));
             }
-        };
-    </script>
+        } catch (error) {
+            console.error("Error en fetch:", error);
+            alert("No se pudo conectar con el servidor. Revisa tu conexión.");
+        }
+    };
+</script>
+
 </body>
 </html>

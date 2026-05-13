@@ -13,14 +13,15 @@ const UserSchema = new mongoose.Schema({
     role: { 
         type: String, 
         default: 'promotor',
-        lowercase: true, // Convierte todo a minúsculas automáticamente
+        lowercase: true, 
         trim: true,
         enum: ['promotor', 'demostradora', 'admin', 'super-admin', 'cliente'] 
     }, 
     agencyId: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Agency',
-        index: true 
+        index: true,
+        default: null // Es importante el null aquí para los nuevos registros
     },
     projectId: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -31,13 +32,18 @@ const UserSchema = new mongoose.Schema({
     stores: {
         type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Store' }],
         default: [] 
+    },
+    
+    // --- NUEVOS CAMPOS AGREGADOS ADENTRO DEL ESQUEMA ---
+    status: { 
+        type: String, 
+        default: 'activo' // activo, pendiente, inactivo
+    }, 
+    city: { 
+        type: String 
     }
+    // ---------------------------------------------------
+
 }, { timestamps: true });
-
-
-// En models/User.js asegúrate de tener esto:
-status: { type: String, default: 'activo' }, // activo, pendiente, inactivo
-city: { type: String },
-
 
 module.exports = mongoose.model('User', UserSchema);

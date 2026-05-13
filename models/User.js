@@ -37,7 +37,7 @@ const UserSchema = new mongoose.Schema({
     // --- NUEVOS CAMPOS AGREGADOS ADENTRO DEL ESQUEMA ---
     status: { 
         type: String, 
-        default: 'activo' // activo, pendiente, inactivo
+        default: 'pendiente' // activo, pendiente, inactivo
     }, 
     city: { 
         type: String 

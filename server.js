@@ -138,6 +138,42 @@ app.post("/login", async (req, res) => {
 });
 
 
+
+
+// 1. Ruta Pública para Registrarse (Viene desde registro.html)
+// Nota: NO lleva el middleware "auth" porque el usuario aún no tiene sesión
+app.post("/users/register", async (req, res) => {
+    try {
+        const { name, email, password, role, city, status } = req.body;
+        
+        // Verificar si el correo ya existe
+        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return res.status(400).json({ error: "El correo ya está registrado" });
+        }
+
+        const newUser = new User({
+            name,
+            email: email.toLowerCase().trim(),
+            password,
+            role: role || "promotor",
+            city,
+            status: status || "pendiente",
+            agencyId: null // Entra a la bolsa de trabajo global sin agencia
+        });
+
+        await newUser.save();
+        res.json({ message: "Registro exitoso. Esperando validación." });
+    } catch (err) {
+        console.error("❌ Error en registro:", err);
+        res.status(500).json({ error: "Error interno al registrar usuario" });
+    }
+});
+
+
+
+
+
 // --- GESTIÓN DE PROYECTOS ---
 app.get("/projects", auth, async (req, res) => {
     try {
@@ -1029,35 +1065,7 @@ app.use((err, req, res, next) => {
 // --- REGISTRO Y VALIDACIÓN DE CANDIDATOS ---
 // ==========================================
 
-// 1. Ruta Pública para Registrarse (Viene desde registro.html)
-// Nota: NO lleva el middleware "auth" porque el usuario aún no tiene sesión
-app.post("/users/register", async (req, res) => {
-    try {
-        const { name, email, password, role, city, status } = req.body;
-        
-        // Verificar si el correo ya existe
-        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-        if (existingUser) {
-            return res.status(400).json({ error: "El correo ya está registrado" });
-        }
 
-        const newUser = new User({
-            name,
-            email: email.toLowerCase().trim(),
-            password,
-            role: role || "promotor",
-            city,
-            status: status || "pendiente",
-            agencyId: null // Entra a la bolsa de trabajo global sin agencia
-        });
-
-        await newUser.save();
-        res.json({ message: "Registro exitoso. Esperando validación." });
-    } catch (err) {
-        console.error("❌ Error en registro:", err);
-        res.status(500).json({ error: "Error interno al registrar usuario" });
-    }
-});
 
 // 2. Ruta para que el Super Admin vea a los pendientes
 app.get("/super/users/pending", auth, async (req, res) => {

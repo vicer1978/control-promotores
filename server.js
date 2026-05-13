@@ -1101,8 +1101,6 @@ app.put("/users/:id/activate", auth, async (req, res) => {
         error: "Error en el servidor", 
         detalle: err.message // Esto te dirá en el alert qué campo está fallando
     });
-}
-
 
 
 

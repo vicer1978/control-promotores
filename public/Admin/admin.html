@@ -1035,11 +1035,6 @@ async function createStore() {
 
 
  
-
-
-
-
-
 // --- PROYECTOS ---
 async function loadProjectsSection() {
     const [projects, users] = await Promise.all([fetchAPI(`${BACKEND_URL}/projects`), fetchAPI(`${BACKEND_URL}/users`)]);

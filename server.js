@@ -1024,5 +1024,84 @@ app.use((err, req, res, next) => {
 });
 
 
+
+// ==========================================
+// --- REGISTRO Y VALIDACIÓN DE CANDIDATOS ---
+// ==========================================
+
+// 1. Ruta Pública para Registrarse (Viene desde registro.html)
+// Nota: NO lleva el middleware "auth" porque el usuario aún no tiene sesión
+app.post("/users/register", async (req, res) => {
+    try {
+        const { name, email, password, role, city, status } = req.body;
+        
+        // Verificar si el correo ya existe
+        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return res.status(400).json({ error: "El correo ya está registrado" });
+        }
+
+        const newUser = new User({
+            name,
+            email: email.toLowerCase().trim(),
+            password,
+            role: role || "promotor",
+            city,
+            status: status || "pendiente",
+            agencyId: null // Entra a la bolsa de trabajo global sin agencia
+        });
+
+        await newUser.save();
+        res.json({ message: "Registro exitoso. Esperando validación." });
+    } catch (err) {
+        console.error("❌ Error en registro:", err);
+        res.status(500).json({ error: "Error interno al registrar usuario" });
+    }
+});
+
+// 2. Ruta para que el Super Admin vea a los pendientes
+app.get("/super/users/pending", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const candidates = await User.find({ status: "pendiente" }).sort({ createdAt: -1 }).lean();
+        res.json(candidates);
+    } catch (err) {
+        res.status(500).json({ error: "Error al cargar candidatos" });
+    }
+});
+
+// 3. Ruta para Activar un Usuario y asignarle Agencia
+app.put("/users/:id/activate", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const userId = req.params.id;
+        const { agencyId, status } = req.body;
+
+        if (!agencyId) return res.status(400).json({ error: "Debes asignar una agencia" });
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { 
+                $set: { 
+                    agencyId: agencyId, 
+                    status: status || 'activo' 
+                } 
+            },
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        res.json({ message: "Usuario activado y asignado con éxito", user });
+    } catch (err) {
+        console.error("❌ Error al activar usuario:", err);
+        res.status(500).json({ error: "Error interno al activar" });
+    }
+});
+
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => console.log(`🚀 Servidor en puerto ${PORT}`));

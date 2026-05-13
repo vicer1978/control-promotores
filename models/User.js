@@ -34,4 +34,10 @@ const UserSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+
+// En models/User.js asegúrate de tener esto:
+status: { type: String, default: 'activo' }, // activo, pendiente, inactivo
+city: { type: String },
+
+
 module.exports = mongoose.model('User', UserSchema);

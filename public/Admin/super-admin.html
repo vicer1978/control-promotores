@@ -51,6 +51,32 @@
         .tab-btn.active { border-bottom: 2px solid var(--blue); color: var(--blue); font-weight: bold; }
 
         #pending-section { border: 2px solid var(--gold) !important; background: #fffdf9; }
+
+      
+        /* Añadir a tu sección de <style> */
+        .btn-icon {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--danger);
+            padding: 5px;
+            transition: transform 0.2s;
+}
+        .btn-icon:hover { transform: scale(1.2); }
+
+        .select-small {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            font-size: 0.85rem;
+}
+
+
+
+
+
     </style>
 </head>
 <body>
@@ -61,6 +87,7 @@
     </div>
     <button onclick="changeTab(this, loadAgenciesPage)" class="active">🏢 Gestión de Agencias</button>
     <button onclick="changeTab(this, loadUsersPage)">👥 Usuarios Globales</button>
+    <button onclick="changeTab(this, loadCandidatos)">⏳ Validar Personal</button> 
     <button onclick="changeTab(this, loadStoresPage)">🏪 Catálogo Maestro</button>
     <div style="flex:1"></div>
     <button onclick="logout()" style="color: #fda4af;">🚪 Cerrar Sesión</button>
@@ -511,6 +538,107 @@ async function uploadBulkStores() {
     }
 }
 
+
+async function loadCandidatos() {
+    document.getElementById("content").innerHTML = "<h3>Cargando candidatos...</h3>";
+    
+    // 1. Obtenemos usuarios pendientes y la lista de agencias disponibles
+    // Cambia esto en tu frontend
+const [candidatos, agencias] = await Promise.all([
+    fetchAPI(`${BACKEND_URL}/super/users/pending`), // <--- RUTA CORREGIDA
+    fetchAPI(`${BACKEND_URL}/super/agencies`)
+]);
+
+
+    let html = `
+        <div class="card">
+            <h2>👥 Validación de Nuevo Personal</h2>
+            <p>Usuarios esperando ser asignados a una agencia.</p>
+        </div>
+        <div class="card" style="padding:0;">
+            <table class="report-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Rol</th>
+                        <th>Ciudad</th>
+                        <th>Asignar Agencia</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+    if (candidatos.length === 0) {
+        html += `<tr><td colspan="5" style="text-align:center; padding:20px;">No hay candidatos pendientes.</td></tr>`;
+    }
+
+    html += candidatos.map(c => `
+        <tr>
+            <td><b>${c.name.toUpperCase()}</b><br><small>${c.email}</small></td>
+            <td><span class="badge">${c.role}</span></td>
+            <td>${c.city || 'N/A'}</td>
+            <td>
+                <select id="selAgencia-${c._id}" style="padding:5px; font-size:11px;">
+                    <option value="">Seleccionar Agencia...</option>
+                    ${agencias.map(a => `<option value="${a._id}">${a.name}</option>`).join('')}
+                </select>
+            </td>
+            <td>
+                <button class="btn-action" style="background:var(--success); padding:5px 10px;" 
+                        onclick="activarUsuario('${c._id}')">✓ ACTIVAR</button>
+                <button class="btn-icon" style="color:var(--danger); font-weight:bold;" onclick="rechazarUsuario('${c._id}')">✕</button>
+            </td>
+        </tr>
+    `).join('');
+
+    document.getElementById("content").innerHTML = html + `</tbody></table></div>`;
+}
+
+
+// --- FUNCIONES PARA GESTIÓN DE CANDIDATOS ---
+
+async function activarUsuario(userId) {
+    const agencySelect = document.getElementById(`selAgencia-${userId}`);
+    const agencyId = agencySelect.value;
+    
+    if (!agencyId) {
+        alert("⚠️ Por favor, selecciona una agencia para este colaborador.");
+        return;
+    }
+
+    if (!confirm("¿Deseas dar de alta a este usuario y asignarlo a la agencia seleccionada?")) return;
+
+    try {
+        const res = await fetchAPI(`${BACKEND_URL}/users/${userId}/activate`, {
+            method: 'PUT',
+            body: { 
+                agencyId: agencyId, 
+                status: 'activo' 
+            }
+        });
+
+        if (res) {
+            alert("✅ Usuario activado y asignado exitosamente.");
+            loadCandidatos(); // Refrescar la tabla
+            updateStats();    // Actualizar contadores del header
+        }
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+
+async function rechazarUsuario(userId) {
+    if (!confirm("¿Estás seguro de eliminar esta solicitud? El usuario no podrá ingresar.")) return;
+
+    try {
+        // Reutilizamos la ruta de borrar usuario que ya tienes en el server
+        await fetchAPI(`${BACKEND_URL}/super/users/${userId}`, { method: 'DELETE' });
+        alert("Solicitud eliminada.");
+        loadCandidatos();
+    } catch (err) {
+        alert("Error al eliminar: " + err.message);
+    }
+}
 
 
 

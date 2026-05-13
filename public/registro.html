@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Personal - StorePulse</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0B1F3A; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .reg-card { background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        h2 { color: #0B1F3A; text-align: center; margin-bottom: 20px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #64748b; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .btn-reg { width: 100%; background: #D4AF37; color: #0B1F3A; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-reg:hover { background: #b8972f; }
+    </style>
+</head>
+<body>
+    <div class="reg-card">
+        <h2>Únete a StorePulse</h2>
+        <form id="formRegistro">
+            <label>Nombre Completo</label>
+            <input type="text" id="regName" placeholder="Ej. Juan Pérez" required>
+
+            <label>Correo Electrónico</label>
+            <input type="email" id="regEmail" placeholder="correo@ejemplo.com" required>
+
+            <label>Contraseña</label>
+            <input type="password" id="regPass" required>
+
+            <label>Rol solicitado</label>
+            <select id="regRole">
+                <option value="promotor">Promotor</option>
+                <option value="demostradora">Demostradora</option>
+            </select>
+
+            <label>Ciudad / Estado</label>
+            <input type="text" id="regCity" placeholder="Ej. Celaya, Gto" required>
+
+            <button type="submit" class="btn-reg">ENVIAR SOLICITUD</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('formRegistro').onsubmit = async (e) => {
+            e.preventDefault();
+            const userData = {
+                name: document.getElementById('regName').value,
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPass').value,
+                role: document.getElementById('regRole').value,
+                city: document.getElementById('regCity').value,
+                status: 'pendiente' // Por defecto
+            };
+
+            const res = await fetch('https://storepulse.onrender.com/users/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            });
+
+            if (res.ok) {
+                alert("Solicitud enviada. Un administrador te activará pronto.");
+                window.location.href = "login.html";
+            } else {
+                alert("Error al registrar: El correo ya existe.");
+            }
+        };
+    </script>
+</body>
+</html>

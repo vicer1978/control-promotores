@@ -140,6 +140,12 @@ app.post("/login", async (req, res) => {
 
 
 
+// ==========================================
+// --- REGISTRO Y VALIDACIÓN DE CANDIDATOS ---
+// ==========================================
+
+
+
 // 1. Ruta Pública para Registrarse (Viene desde registro.html)
 // Nota: NO lleva el middleware "auth" porque el usuario aún no tiene sesión
 app.post("/users/register", async (req, res) => {
@@ -171,6 +177,52 @@ app.post("/users/register", async (req, res) => {
 });
 
 
+
+// 2. Ruta para que el Super Admin vea a los pendientes
+app.get("/super/users/pending", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const candidates = await User.find({ status: "pendiente" }).sort({ createdAt: -1 }).lean();
+        res.json(candidates);
+    } catch (err) {
+        res.status(500).json({ error: "Error al cargar candidatos" });
+    }
+});
+
+// 3. Ruta para Activar un Usuario y asignarle Agencia
+// 3. Ruta para Activar un Usuario y asignarle Agencia
+app.put("/super/users/:id/activate", auth, async (req, res) => {
+    try {
+        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
+        
+        const userId = req.params.id;
+        const { agencyId, status } = req.body;
+
+        if (!agencyId) return res.status(400).json({ error: "Debes asignar una agencia" });
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { 
+                $set: { 
+                    agencyId: agencyId, 
+                    status: status || 'activo' 
+                } 
+            },
+            { new: true }
+        );
+
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        res.json({ message: "Usuario activado y asignado con éxito", user });
+    } catch (err) {
+        console.error("❌ ERROR REAL EN REGISTRO:", err); 
+        res.status(500).json({ 
+            error: "Error en el servidor", 
+            detalle: err.message 
+        });
+    }
+});
 
 
 
@@ -1061,57 +1113,6 @@ app.use((err, req, res, next) => {
 
 
 
-// ==========================================
-// --- REGISTRO Y VALIDACIÓN DE CANDIDATOS ---
-// ==========================================
-
-
-
-// 2. Ruta para que el Super Admin vea a los pendientes
-app.get("/super/users/pending", auth, async (req, res) => {
-    try {
-        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        
-        const candidates = await User.find({ status: "pendiente" }).sort({ createdAt: -1 }).lean();
-        res.json(candidates);
-    } catch (err) {
-        res.status(500).json({ error: "Error al cargar candidatos" });
-    }
-});
-
-// 3. Ruta para Activar un Usuario y asignarle Agencia
-// 3. Ruta para Activar un Usuario y asignarle Agencia
-app.put("/super/users/:id/activate", auth, async (req, res) => {
-    try {
-        if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        
-        const userId = req.params.id;
-        const { agencyId, status } = req.body;
-
-        if (!agencyId) return res.status(400).json({ error: "Debes asignar una agencia" });
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { 
-                $set: { 
-                    agencyId: agencyId, 
-                    status: status || 'activo' 
-                } 
-            },
-            { new: true }
-        );
-
-        if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-        res.json({ message: "Usuario activado y asignado con éxito", user });
-    } catch (err) {
-        console.error("❌ ERROR REAL EN REGISTRO:", err); 
-        res.status(500).json({ 
-            error: "Error en el servidor", 
-            detalle: err.message 
-        });
-    }
-}); // <--- AQUÍ FALTABA ESTA LLAVE Y PARÉNTESIS
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {

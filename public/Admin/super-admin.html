@@ -356,7 +356,7 @@ async function saveAgencyChanges() {
 
 async function renderPendingStoresTable() {
     try {
-        const pending = await fetchAPI(`${BACKEND_URL}/super/stores/pending`);
+        const pending = await fetchAPI(`${BACKEND_URL}/super/stores/pending-approval`);
         const section = document.getElementById('pending-section');
         const tbody = document.getElementById('pendingStoresBody');
 

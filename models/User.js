@@ -36,12 +36,14 @@ const UserSchema = new mongoose.Schema({
     
     // --- NUEVOS CAMPOS AGREGADOS ADENTRO DEL ESQUEMA ---
     status: { 
-        type: String, 
-        default: 'pendiente' // activo, pendiente, inactivo
-    }, 
-    city: { 
-        type: String 
-    }
+    type: String, 
+    default: 'pendiente', 
+    lowercase: true, // Esto convierte "Pendiente" a "pendiente" automáticamente
+    trim: true       // Quita espacios en blanco accidentales
+}, 
+city: { 
+    type: String 
+}
     // ---------------------------------------------------
 
 }, { timestamps: true });

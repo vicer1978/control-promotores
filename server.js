@@ -1072,6 +1072,7 @@ app.get("/super/users/pending", auth, async (req, res) => {
 });
 
 // 3. Ruta para Activar un Usuario y asignarle Agencia
+// 3. Ruta para Activar un Usuario y asignarle Agencia
 app.put("/users/:id/activate", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
@@ -1096,11 +1097,20 @@ app.put("/users/:id/activate", auth, async (req, res) => {
 
         res.json({ message: "Usuario activado y asignado con éxito", user });
     } catch (err) {
-    console.error("❌ ERROR REAL EN REGISTRO:", err); // Esto saldrá en los logs de Render
-    res.status(500).json({ 
-        error: "Error en el servidor", 
-        detalle: err.message // Esto te dirá en el alert qué campo está fallando
-    });
+        console.error("❌ ERROR REAL EN REGISTRO:", err); 
+        res.status(500).json({ 
+            error: "Error en el servidor", 
+            detalle: err.message 
+        });
+    }
+}); // <--- AQUÍ FALTABA ESTA LLAVE Y PARÉNTESIS
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Servidor en puerto ${PORT}`);
+}); // <--- AQUÍ TAMBIÉN FALTABA EL CIERRE COMPLETO
+
+
 
 
 

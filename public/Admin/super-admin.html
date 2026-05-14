@@ -575,7 +575,7 @@ const [candidatos, agencias] = await Promise.all([
     html += candidatos.map(c => `
         <tr>
             <td><b>${c.name.toUpperCase()}</b><br><small>${c.email}</small></td>
-            <td><span class="badge">${c.role}</span></td>
+            <td><span class="badge badge-role">${c.role || 'promotor'}</span></td>
             <td>${c.city || 'N/A'}</td>
             <td>
                 <select id="selAgencia-${c._id}" style="padding:5px; font-size:11px;">
@@ -609,7 +609,7 @@ async function activarUsuario(userId) {
     if (!confirm("¿Deseas dar de alta a este usuario y asignarlo a la agencia seleccionada?")) return;
 
     try {
-        const res = await fetchAPI(`${BACKEND_URL}/users/${userId}/activate`, {
+        const res = await fetchAPI(`${BACKEND_URL}/super/users/${userId}/activate`, {
             method: 'PUT',
             body: { 
                 agencyId: agencyId, 

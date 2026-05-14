@@ -1002,6 +1002,28 @@ app.get("/reports", auth, async (req, res) => {
 
 
 
+// --- ELIMINAR REGISTRO DE ASISTENCIA ---
+app.delete("/attendance/:id", auth, async (req, res) => {
+    try {
+        // Solo un Admin o Super Admin de la misma agencia debería poder borrar
+        const result = await Checkin.deleteOne({ 
+            _id: req.params.id, 
+            agencyId: req.user.agencyId 
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: "No se encontró el registro o no tienes permiso" });
+        }
+
+        res.json({ message: "Registro de asistencia eliminado correctamente" });
+    } catch (err) {
+        console.error("Error al eliminar asistencia:", err);
+        res.status(500).json({ error: "Error interno del servidor" });
+    }
+});
+
+
+
 
 // --- GESTIÓN DE TIENDAS ---
 app.get("/stores", auth, async (req, res) => {

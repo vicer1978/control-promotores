@@ -1142,6 +1142,25 @@ function renderAttendanceCards(list) {
 }
 
 
+async function eliminarAsistencia(id) {
+    if (!confirm("¿Estás seguro de eliminar este registro de asistencia?")) return;
+
+    const response = await fetch(`${BACKEND_URL}/attendance/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`, // O el método que uses para el token
+            'userId': localStorage.getItem('userId')
+        }
+    });
+
+    if (response.ok) {
+        alert("Eliminado");
+        location.reload(); // Recarga para ver la lista limpia
+    }
+}
+
+
+
 // --- UTILIDADES ---
 async function deleteUser(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/users/${id}`, {method:'DELETE'}); loadUsers(); } }
 async function deleteStore(id) { if(confirm("¿Borrar?")) { await fetchAPI(`${BACKEND_URL}/stores/${id}`, {method:'DELETE'}); loadStores(); } }

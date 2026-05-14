@@ -622,19 +622,29 @@ app.post("/super/agencies", auth, async (req, res) => {
 });
 
 // 3. Editar datos básicos de Agencia
+// --- RUTA UNIFICADA EN TU SERVER.JS ---
 app.put("/super/agencies/:id", auth, async (req, res) => {
     try {
         if (req.user.role !== "super-admin") return res.status(403).json({ error: "No autorizado" });
-        const { name, email, password } = req.body;
-        const updateData = {};
-        if (name) updateData.name = name;
-        if (email) updateData.email = email.toLowerCase().trim();
-        if (password) updateData.password = password.trim();
+        
+        // Usamos req.body directamente para capturar isActive, name, email, etc.
+        const updateData = { ...req.body };
+        
+        if (updateData.email) updateData.email = updateData.email.toLowerCase().trim();
+        if (updateData.password) updateData.password = updateData.password.trim();
 
-        const agency = await Agency.findByIdAndUpdate(req.params.id, { $set: updateData }, { new: true });
+        const agency = await Agency.findByIdAndUpdate(
+            req.params.id, 
+            { $set: updateData }, 
+            { new: true }
+        );
+        
         res.json({ message: "Agencia actualizada", agency });
-    } catch (err) { res.status(500).json({ error: "Error al actualizar" }); }
+    } catch (err) { 
+        res.status(500).json({ error: "Error al actualizar la agencia" }); 
+    }
 });
+
 
 // 4. Cambiar estatus Activa/Pausada
 app.put("/super/agencies/:id/status", auth, async (req, res) => {

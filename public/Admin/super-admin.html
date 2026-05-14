@@ -229,7 +229,8 @@ async function loadAgenciesPage() {
                                 <span class="badge badge-role" style="background:#f59e0b">CL: ${roles.clie}</span>
                             </div>
                         </td>
-                        <td><span class="badge badge-${a.isActive ? 'active' : 'inactive'}">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
+                        <td>
+                                <span class="badge badge-${a.isActive ? 'active' : 'inactive'}" style="cursor:pointer" onclick="toggleAgencyStatus('${a._id}', ${a.isActive})">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
                         <td>
                             <button class="btn-action" style="background:#3498db" onclick="openEditAgencyModal('${a._id}','${a.name}','${a.email}')">Edit</button>
                             <button class="btn-action btn-danger" onclick="deleteAgency('${a._id}')">Borrar</button>
@@ -240,6 +241,26 @@ async function loadAgenciesPage() {
         </div>`;
     document.getElementById("content").innerHTML = html;
 }
+
+
+async function toggleAgencyStatus(id, currentStatus) {
+    if (!confirm(`¿Deseas ${currentStatus ? 'pausar' : 'activar'} esta agencia?`)) return;
+
+    try {
+        await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, {
+            method: 'PUT',
+            body: { isActive: !currentStatus } // Invierte el estado actual
+        });
+        
+        alert("Estatus actualizado correctamente ✅");
+        loadAgenciesPage(); // Recarga la tabla para ver el cambio
+    } catch (e) {
+        alert("Error al cambiar el estatus: " + e.message);
+    }
+}
+
+
+
 
 async function loadUsersPage() {
     document.getElementById("content").innerHTML = "<h3>Cargando Usuarios...</h3>";

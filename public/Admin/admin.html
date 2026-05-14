@@ -185,7 +185,27 @@
     </div>
 </div>
 
+
+
+// Dentro de tu bucle que recorre la asistencia (ej. attendance.forEach...)
+const card = `
+    <div class="attendance-card" id="card-${item._id}">
+        <div class="card-header">
+            <h3>${item.userName}</h3>
+            <!-- Botón de eliminar -->
+            <button onclick="eliminarAsistencia('${item._id}')" class="btn-delete-record">
+                🗑️
+            </button>
+        </div>
+        <p>📍 ${item.storeName}</p>
+        <div class="status-badge ${item.type}">${item.type.toUpperCase()}</div>
+        <p>Fecha: ${new Date(item.timestamp).toLocaleDateString()}</p>
+        <button class="btn-ver-mapa">Ver ubicación</button>
+    </div>
+`;
 <script>
+
+    
 const BACKEND_URL = "https://storepulse.onrender.com";
 let session = { 
     userId: localStorage.getItem("userId"), 

@@ -148,21 +148,23 @@ async function fetchAPI(url, options = {}) {
     const headers = { 
         "Content-Type": "application/json", 
         "Authorization": `Bearer ${token}`, 
-        "userid": userId // Nota: 'userid' en minúsculas suele ser más estándar en headers personalizados
+        "userid": userId 
     };
 
-    const config = {
-        ...options,
-        headers: { ...headers, ...options.headers }
-    };
-
-    // Solo convertimos a string si hay un body y no es ya un string
-    if (config.body && typeof config.body === 'object') {
-        config.body = JSON.stringify(config.body);
-    }
+    const config = { ...options, headers: { ...headers, ...options.headers } };
+    if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
 
     try {
         const res = await fetch(url, config);
+        
+        // --- MEJORA DE SEGURIDAD ---
+        if (res.status === 401 || res.status === 403) {
+            const errorData = await res.json();
+            alert(errorData.message || "Sesión inválida o cuenta pausada.");
+            logout(); // Expulsa al usuario si su agencia fue pausada
+            return;
+        }
+
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.message || "Error en la petición");
@@ -173,6 +175,7 @@ async function fetchAPI(url, options = {}) {
         throw err;
     }
 }
+
 
 // 3. CAMBIO DE PESTAÑAS
 function changeTab(btn, callback) {
@@ -230,7 +233,8 @@ async function loadAgenciesPage() {
                             </div>
                         </td>
                         <td>
-                                <span class="badge badge-${a.isActive ? 'active' : 'inactive'}" style="cursor:pointer" onclick="toggleAgencyStatus('${a._id}', ${a.isActive})">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
+                                <span class="badge badge-${a.isActive ? 'active' : 'inactive'}" style="cursor:pointer; width: 80px;" 
+          onclick="toggleAgencyStatus('${a._id}', ${a.isActive})">${a.isActive ? 'ACTIVA' : 'PAUSA'}</span></td>
                         <td>
                             <button class="btn-action" style="background:#3498db" onclick="openEditAgencyModal('${a._id}','${a.name}','${a.email}')">Edit</button>
                             <button class="btn-action btn-danger" onclick="deleteAgency('${a._id}')">Borrar</button>
@@ -244,20 +248,28 @@ async function loadAgenciesPage() {
 
 
 async function toggleAgencyStatus(id, currentStatus) {
-    if (!confirm(`¿Deseas ${currentStatus ? 'pausar' : 'activar'} esta agencia?`)) return;
+    const nuevoEstadoBool = !currentStatus;
+    const etiquetaEstado = nuevoEstadoBool ? 'ACTIVA' : 'PAUSA';
+    
+    if (!confirm(`¿Deseas cambiar el estado de esta agencia a: ${etiquetaEstado}?`)) return;
 
     try {
         await fetchAPI(`${BACKEND_URL}/super/agencies/${id}`, {
             method: 'PUT',
-            body: { isActive: !currentStatus } // Invierte el estado actual
+            body: { 
+                isActive: nuevoEstadoBool,
+                estado: etiquetaEstado // Esto es lo que lee tu lógica de login
+            }
         });
         
-        alert("Estatus actualizado correctamente ✅");
-        loadAgenciesPage(); // Recarga la tabla para ver el cambio
+        alert(`Agencia actualizada a ${etiquetaEstado} ✅`);
+        loadAgenciesPage(); 
     } catch (e) {
         alert("Error al cambiar el estatus: " + e.message);
     }
 }
+
+
 
 
 

@@ -121,6 +121,7 @@
                 // --- MEJORA AQUÍ ---
                 // Si el status es 403, es porque la agencia está en PAUSA
                 if (response.status === 403) {
+                    localStorage.clear(); // <--- Limpia basura anterior
                     msg.style.fontWeight = "bold";
                     msg.innerText = data.message; // "Cuenta suspendida..."
                 } else {

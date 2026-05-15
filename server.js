@@ -137,13 +137,16 @@ app.post("/login", async (req, res) => {
             return res.status(404).json({ message: "Credenciales incorrectas" });
         }
 
-        // 3. BLOQUEO DE AGENCIA EN PAUSA
-        // Si tiene agencia y el estado es 'PAUSA', bloqueamos el acceso
-        if (user.agencyId && user.agencyId.estado === 'PAUSA') {
-            return res.status(403).json({ 
-                message: "Cuenta suspendida. La agencia se encuentra en pausa por falta de pago o mantenimiento." 
-            });
-        }
+        // 3. BLOQUEO DE AGENCIA EN PAUSA (Mejorado)
+if (user.agencyId) {
+    const agencia = user.agencyId;
+    // Validamos ambas posibilidades: que isActive sea false O que el estado sea 'PAUSA'
+    if (agencia.isActive === false || agencia.estado === 'PAUSA') {
+        return res.status(403).json({ 
+            message: "Cuenta suspendida. La agencia se encuentra en pausa por falta de pago o mantenimiento." 
+        });
+    }
+}
 
         // 4. Generamos Token JWT con el rol y id
         const token = jwt.sign(

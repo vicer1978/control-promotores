@@ -71,21 +71,18 @@
     // Configuración base
     const BACKEND_URL = "https://storepulse.onrender.com";
 
-    async function login(event) {
-        // Detener la recarga de la página
+        async function login(event) {
         if (event) event.preventDefault();
-        
-        console.log("Iniciando proceso de login...");
         
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value.trim();
         const msg = document.getElementById('msg');
-        // Soporte para ambos nombres de botón que hemos usado
         const btn = document.getElementById('btnEntrar') || document.getElementById('btn-login');
 
         btn.disabled = true;
         btn.innerText = "VERIFICANDO...";
         msg.innerText = "";
+        msg.style.color = "#ef4444"; // Color rojo por defecto
 
         try {
             const response = await fetch(`${BACKEND_URL}/login`, {
@@ -94,56 +91,51 @@
                 body: JSON.stringify({ email, password })
             });
 
-            const contentType = response.headers.get("content-type");
-            
-            if (contentType && contentType.includes("application/json")) {
-                const data = await response.json();
+            const data = await response.json();
 
-                if (response.ok) {
-                    console.log("Respuesta exitosa del servidor.");
-                    // Limpieza total para evitar conflictos de roles viejos
-                    localStorage.clear();
+            if (response.ok) {
+                localStorage.clear();
 
-                    const userObj = data.user || data;
-                    const role = (userObj.role || "").toLowerCase().trim();
+                // Usamos la estructura unificada que enviamos desde el server
+                localStorage.setItem("token", data.token);
+                localStorage.setItem("userId", data.userId);
+                localStorage.setItem("role", data.role);
+                localStorage.setItem("name", data.name || "Usuario");
 
-                    // Guardado de sesión
-                    localStorage.setItem("token", data.token);
-                    localStorage.setItem("userId", userObj._id || userObj.userId || data.userId);
-                    localStorage.setItem("role", role);
-                    localStorage.setItem("name", userObj.name || data.name || "Usuario");
+                if (data.agencyId) {
+                    localStorage.setItem('agencyId', data.agencyId);
+                }
 
-                    // Datos específicos de StorePulse
-                    if (data.agencyId || userObj.agencyId) {
-                        localStorage.setItem('agencyId', data.agencyId || userObj.agencyId);
-                    }
-
-                    // Redirecciones según tu estructura de carpetas
-                    // Agrupamos super-admin y admin en una sola condición limpia
-                    if (role === 'super-admin') {
-                        window.location.href = 'Admin/super-admin.html';
-                    } else if (role === 'admin') {
-                        window.location.href = 'Admin/admin.html';
-                    } else if (role === 'cliente') {
-                        window.location.href = 'mis-proyectos.html';
-                    } else {
-                        window.location.href = 'dashboard.html';
-                    }
+                // Redirecciones
+                const role = data.role.toLowerCase();
+                if (role === 'super-admin') {
+                    window.location.href = 'Admin/super-admin.html';
+                } else if (role === 'admin') {
+                    window.location.href = 'Admin/admin.html';
+                } else if (role === 'cliente') {
+                    window.location.href = 'mis-proyectos.html';
+                } else {
+                    window.location.href = 'dashboard.html';
+                }
+            } else {
+                // --- MEJORA AQUÍ ---
+                // Si el status es 403, es porque la agencia está en PAUSA
+                if (response.status === 403) {
+                    msg.style.fontWeight = "bold";
+                    msg.innerText = data.message; // "Cuenta suspendida..."
                 } else {
                     msg.innerText = data.message || "Credenciales incorrectas";
                 }
-            } else {
-                console.error("El servidor devolvió HTML (posible 404 o 500)");
-                msg.innerText = "Error: El servidor no encontró la ruta de acceso (404).";
             }
         } catch (err) {
-            console.error("Error crítico de conexión:", err);
+            console.error("Error crítico:", err);
             msg.innerText = "Error de conexión con el servidor.";
         } finally {
             btn.disabled = false;
             btn.innerText = "ENTRAR";
         }
     }
+
 
     // VITAL: Esto expone la función al HTML y quita el error de "not defined"
     window.login = login;

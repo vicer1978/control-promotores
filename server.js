@@ -75,7 +75,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ MongoDB conectado"))
     .catch(err => console.error("❌ Error DB:", err));
 
-// --- AUTH MEJORADO ---
+// --- AUTH MEJORADO CON BLOQUEO EN TIEMPO REAL ---
 async function auth(req, res, next) {
     try {
         let userId;
@@ -87,7 +87,7 @@ async function auth(req, res, next) {
             const decoded = jwt.verify(token, JWT_SECRET);
             userId = decoded.id;
         } else {
-            // Backup: Tu lógica original por headers para no romper nada hoy
+            // Backup por headers
             userId = req.headers.userid || req.headers.userId || req.headers.UserId;
         }
         
@@ -95,8 +95,19 @@ async function auth(req, res, next) {
             return res.status(401).json({ error: "Sesión inválida o expirada" });
         }
         
-        const user = await User.findById(userId);
-        if (!user) return res.status(401).json({ error: "Usuario no existe" });
+        // --- EL CAMBIO CLAVE AQUÍ ---
+        const user = await User.findById(userId).populate('agencyId');
+        
+        if (!user) {
+            return res.status(401).json({ error: "Usuario no existe" });
+        }
+
+        // Si la agencia está en pausa, bloqueamos cualquier petición de la API
+        if (user.agencyId && user.agencyId.estado === 'PAUSA') {
+            return res.status(403).json({ 
+                error: "Agencia suspendida temporalmente. Acceso denegado a los recursos." 
+            });
+        }
         
         req.user = user;
         next();
@@ -105,37 +116,60 @@ async function auth(req, res, next) {
     }
 }
 
-// --- LOGIN CON JWT ---
+
+
+// --- LOGIN CON JWT Y BLOQUEO DE AGENCIA ---
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ message: "Email y password requeridos" });
 
-        // Buscamos solo por email primero (que ya se guarda en lowercase)
-        const user = await User.findOne({ email: email.trim().toLowerCase() }).populate('stores');
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email y password requeridos" });
+        }
 
-        // Validamos usuario y contraseña (en el futuro aquí usarás bcrypt)
+        // 1. Buscamos al usuario y traemos la información de su agencia
+        const user = await User.findOne({ 
+            email: email.trim().toLowerCase() 
+        }).populate('agencyId').populate('stores');
+
+        // 2. Validamos si el usuario existe y la contraseña coincide
         if (!user || user.password !== password.trim()) {
             return res.status(404).json({ message: "Credenciales incorrectas" });
         }
 
-        // Generamos Token con el rol ya normalizado
-        const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
+        // 3. BLOQUEO DE AGENCIA EN PAUSA
+        // Si tiene agencia y el estado es 'PAUSA', bloqueamos el acceso
+        if (user.agencyId && user.agencyId.estado === 'PAUSA') {
+            return res.status(403).json({ 
+                message: "Cuenta suspendida. La agencia se encuentra en pausa por falta de pago o mantenimiento." 
+            });
+        }
 
-        res.json({ 
+        // 4. Generamos Token JWT con el rol y id
+        const token = jwt.sign(
+            { id: user._id, role: user.role }, 
+            JWT_SECRET, 
+            { expiresIn: "30d" }
+        );
+
+        // 5. Respuesta final exitosa (Unificada)
+        res.status(200).json({ 
+            message: "Login exitoso",
             token,
             userId: user._id, 
-            role: user.role, // Esto ya vendrá en minúsculas gracias al modelo
-            agencyId: user.agencyId, 
+            role: user.role,
+            agencyId: user.agencyId ? user.agencyId._id : null, 
             name: user.name,
             projectId: user.projectId,
             stores: user.stores
         });
+
     } catch (err) { 
         console.error("Error en login:", err);
-        res.status(500).json({ message: "Error en login" }); 
+        res.status(500).json({ message: "Error en el servidor durante el login" }); 
     }
 });
+
 
 
 
